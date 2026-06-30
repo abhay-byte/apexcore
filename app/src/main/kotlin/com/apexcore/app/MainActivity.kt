@@ -20,6 +20,8 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
+import com.apexcore.app.freeze.FreezeFramework
+import com.apexcore.app.freeze.FreezeResult
 import kotlinx.coroutines.launch
 import kotlin.math.cos
 import kotlin.math.sin
@@ -38,17 +40,23 @@ class MainActivity : ComponentActivity() {
     private lateinit var statProcesses: LinearLayout
     private lateinit var statMemory: LinearLayout
     private lateinit var statLoad: LinearLayout
+    private lateinit var statMode: LinearLayout
     private lateinit var subtitle: TextView
     private lateinit var status: TextView
     private lateinit var topBar: LinearLayout
-    private var lastResult: BoostResult? = null
+    private var lastResult: FreezeResult? = null
     private var ringAnim: ValueAnimator? = null
     private var pulseAnim: ValueAnimator? = null
     private var countAnim: ValueAnimator? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        FreezeFramework.init(this)
         setContentView(buildLayout())
+        lifecycleScope.launch {
+            val backend = FreezeFramework.detect()
+            status.text = "● Freeze: ${backend.name}"
+        }
         renderState()
     }
 
@@ -264,12 +272,15 @@ class MainActivity : ComponentActivity() {
         statProcesses = makeStat("PROCESSES", "0")
         statMemory = makeStat("MEM FREE", "—")
         statLoad = makeStat("LOAD AVG", "—")
+        statMode = makeStat("MODE", "—")
 
         statsRow.addView(statProcesses)
         statsRow.addView(makeDivider())
         statsRow.addView(statMemory)
         statsRow.addView(makeDivider())
         statsRow.addView(statLoad)
+        statsRow.addView(makeDivider())
+        statsRow.addView(statMode)
 
         resultPanel.addView(resultHeader)
         resultPanel.addView(freedBig)
@@ -337,7 +348,7 @@ class MainActivity : ComponentActivity() {
         renderState()
 
         lifecycleScope.launch {
-            val result = BoostManager.kick(this@MainActivity)
+            val result = FreezeFramework.freezeAll(this@MainActivity)
             lastResult = result
             state = State.RESULT
             renderState()
@@ -355,7 +366,8 @@ class MainActivity : ComponentActivity() {
                 boostButton.isClickable = true
                 boostRing.visibility = View.GONE
                 resultPanel.visibility = View.GONE
-                status.text = "● Ready to boost"
+                val backend = FreezeFramework.activeBackend.value?.name ?: "…"
+                status.text = "● Ready to boost · $backend"
                 status.setTextColor(Color.parseColor("#10B981"))
                 ringAnim?.cancel()
                 pulseAnim?.cancel()
@@ -377,7 +389,8 @@ class MainActivity : ComponentActivity() {
                 boostButton.isClickable = false
                 boostRing.visibility = View.VISIBLE
                 resultPanel.visibility = View.GONE
-                status.text = "● Optimizing…"
+                val backend = FreezeFramework.activeBackend.value?.name ?: "…"
+                status.text = "● Freezing via $backend…"
                 status.setTextColor(Color.parseColor("#00E5FF"))
                 pulseAnim?.cancel()
                 boostButton.scaleX = 0.95f
@@ -406,28 +419,26 @@ class MainActivity : ComponentActivity() {
                 resultPanel.visibility = View.VISIBLE
                 ringAnim?.cancel()
                 pulseAnim?.cancel()
-                if (r == null || r.killedApps == 0) {
+                if (r == null || r.killed == 0) {
                     freedBig.text = "0"
                     freedBig.setTextColor(Color.parseColor("#6B7280"))
                     freedSub.text = "Already optimized"
-                    status.text = "● Nothing to clean"
+                    status.text = "● Nothing to clean · ${r?.backend ?: ""}".trim()
                     status.setTextColor(Color.parseColor("#10B981"))
                 } else {
                     freedBig.setTextColor(Color.parseColor("#00E5FF"))
                     freedSub.text = "MB reclaimed"
-                    status.text = "● Available: ${r.afterAvailMb} MB"
+                    status.text = "● Freezed ${r.killed} apps via ${r.backend}"
                     status.setTextColor(Color.parseColor("#00E5FF"))
                     animateCount(freedBig, 0L, r.freedMb)
                 }
-                updateStat(statProcesses, "${r?.killedApps ?: 0}")
+                updateStat(statProcesses, "${r?.killed ?: 0}")
                 updateStat(
                     statMemory,
                     "${r?.beforeAvailMb ?: 0}→${r?.afterAvailMb ?: 0}"
                 )
-                updateStat(
-                    statLoad,
-                    "${"%.2f".format(r?.beforeLoadAvg ?: 0f)}→${"%.2f".format(r?.afterLoadAvg ?: 0f)}"
-                )
+                updateStat(statLoad, "—")
+                updateStat(statMode, r?.backend ?: "—")
                 resultPanel.alpha = 0f
                 resultPanel.translationY = 60f
                 resultPanel.animate()
