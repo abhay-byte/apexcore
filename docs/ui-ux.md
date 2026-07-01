@@ -1,510 +1,268 @@
 # ApexCore — UI/UX Page Map
 
-> Companion to `docs/design.md`. Defines every screen, its route, its role, and its relationship to the others. Built around the **Summit** design language and the current state of the codebase (T1 ✅, T2 ✅, T3 next).
+> Companion to `docs/design.md`. Defines every screen, its state machine, its components, and their relationships. Built around the **Summit** design language and the current T4 codebase (freeze framework + game launcher).
 
 ---
 
 ## 1. Scope
 
-**In scope now (post-T3):**
-- Home (Boost) tab — exists, gets reused
-- Storage tab — T3 introduces this
-- Storage → App Detail — drill-down from Storage
-- Settings — minimum viable, makes the app feel finished
+**In scope (T4 current):**
+- Home (Boost) — the primary screen
+- Freeze result panel — inline stats
+- Setup dialog — backend privilege onboarding
+- Game list dialog — auto-detect + manual add + launch
 
-**Explicitly out of scope (reserved for future versions):**
-- Onboarding / first-run
-- Login / account
-- Per-game profiles
-- Network analyzer, battery analyzer, temperature monitor
-- Push notifications beyond Android system
-
-**Why this shape:** T3 forces a tab container. Once tabs exist, every existing and future feature lives behind one. This doc defines the *minimum* tab set that feels complete without overbuilding.
+**Explicitly deferred (T5+):**
+- Tab navigation (Storage, Settings)
+- Per-app freeze list with checkboxes
+- Whitelist / pinned apps
+- Boot-time freeze schedule
+- Onboarding / first-run tutorial
 
 ---
 
 ## 2. Navigation Map
 
 ```
-                          ┌────────────────────┐
-                          │   Splash (transient) │
-                          └─────────┬──────────┘
-                                    │ auto-route
-                                    ▼
-                          ┌────────────────────┐
-                          │   Main (TabHost)    │◄──── persistent bottom bar
-                          └──┬─────┬─────┬─────┘
-              ┌───────────────┤     │     ├───────────────┐
-              ▼               ▼     │     ▼               ▼
-       ┌──────────┐   ┌──────────┐  │  ┌──────────┐  ┌──────────┐
-       │  Home    │   │ Storage  │  │  │(reserved)│  │ Settings │
-       │  (Boost) │   │   Tab    │  │  │  future  │  │          │
-       └────┬─────┘   └────┬─────┘  │  └──────────┘  └──────────┘
-            │              │       │
-            │              ▼       │
-            │       ┌──────────┐  │
-            │       │  App     │  │  (push: full-screen, hides tab bar)
-            │       │  Detail  │  │
-            │       └──────────┘  │
-            │                     │
-            ▼                     │
-       (Result panel — inline on  │
-        Home, no navigation)      │
-                                  │
-                  ◄───────────────┘
-                    (back returns to last tab)
+┌─────────────────────────────────────┐
+│           MainActivity               │ ← single screen, no tabs
+│         (ScrollView)                 │
+├─────────────────────────────────────┤
+│  Top Bar                             │
+│  Hero Title                          │
+│  Subtitle                            │
+│  Status Line                         │
+│  BOOST Button (+ rings)              │
+│  Result Panel (state-driven)         │
+│  GAMES Button                        │
+├─────────────────────────────────────┤
+│  ┌─ SetupDialog ─┐   (modal)        │
+│  │  - Shizuku    │                   │
+│  │  - Root       │   shown once      │
+│  │  - A11y       │   on cold start   │
+│  └───────────────┘   when fallback   │
+├─────────────────────────────────────┤
+│  ┌─ GameListDialog ────┐  (modal)   │
+│  │  - Auto-detected    │             │
+│  │  - Manually added   │             │
+│  │  - Tap to freezeluanch│           │
+│  └──────────────────────┘            │
+└─────────────────────────────────────┘
 ```
 
 ### Navigation rules
-1. **Tab bar is persistent** on Home, Storage, and Settings. It is hidden on App Detail (drill-down takes the full screen).
-2. **Splash** is not a tab and not back-stack-able. It is a launch transition only.
-3. **Boost** is an *action*, not a route. Its result appears inline on Home.
-4. **Future tab slot** (3rd tab) is reserved but hidden in v0.2. This keeps the bar at 3 tabs which is the Android Material sweet spot, and reserves the 4th for Settings which behaves differently (no scrollable content).
-5. **Hardware back** on App Detail returns to Storage. Hardware back on any tab does nothing (root of the back stack).
+1. **Single screen** — no tab bar, no fragments. Everything is a dialog or inline panel.
+2. **Boost** is an action, not a route. Its result appears inline below the button.
+3. **SetupDialog** appears once on cold start when no elevated backend is detected. Can be re-opened via the amber `▷ TAP FOR SETUP` hint.
+4. **GameListDialog** is opened by tapping the GAMES button. Full-screen modal.
+5. **Back** dismisses any open dialog. Back on the main screen does nothing (root of stack).
 
 ---
 
 ## 3. Page Inventory
 
-| # | Page | Route | Tab? | Status | Purpose |
-|---|------|-------|------|--------|---------|
-| 1 | Splash | `splash` | no | scaffold needed | Branded entry transition |
-| 2 | Home (Boost) | `home` | yes | ✅ exists (T2) | Single-tap memory reclaim |
-| 3 | Storage | `storage` | yes | 🔜 T3 | Storage usage + app list |
-| 4 | App Detail | `storage/app/{packageName}` | no (drill) | 🔜 T3 follow-up | Per-app size + clear cache |
-| 5 | Settings | `settings` | yes | future (v0.3) | App info, theme, about |
+| # | Page / Component | Route | Trigger | Status | Purpose |
+|---|-----------------|-------|---------|--------|---------|
+| 1 | Home (Boost) | `main` | launch | ✅ exists | Single-tap freeze + memory reclaim |
+| 2 | Freeze Result Panel | inline | after boost | ✅ exists | Killed/failed/skipped + mem stats |
+| 3 | Setup Dialog | dialog | auto / tap hint | ✅ exists | Backend privilege onboarding |
+| 4 | Game List Dialog | dialog | tap GAMES button | ✅ exists | Auto-detect + manual add + launch |
+| 5 | FREEZE_ALL Broadcast | external | `am broadcast` | ✅ exists | ADB / Tasker trigger |
 
 ---
 
 ## 4. Shared Chrome
 
-These elements persist across multiple pages and must be designed once.
-
 ### Top Bar
-- **Height:** 30 dp content + 72 dp vertical padding (132 dp total)
-- **Left:** Apex mark (30 dp circle) + `APEX` wordmark
-- **Right:** Contextual action OR version chip `v0.1.0`
+- **Height:** 30 dp content + vertical padding (stretched by layout)
+- **Left:** Apex mark (30 dp cyan circle) + `APEX` wordmark (14 sp Inter Bold)
+- **Right:** Version chip `v0.1.0` (11 sp JetBrains Mono, `--ink-50`)
 - **Background:** Transparent over `--obsidian`
-- **Used on:** Home, Storage, Settings, App Detail
-- **Behavior:** Sticky on scroll on Storage (since the list is long)
 
-### Tab Bar
-- **Position:** Bottom, 96 dp tall
-- **Background:** `--obsidian-2` with 1 dp top border in `--obsidian-3`
-- **Tabs (max 4):** icon glyph + 10 sp mono label
-- **Active state:** Cyan icon + cyan label + 3 dp top accent bar
-- **Inactive state:** `--ink-50` icon + `--ink-50` label
-- **Iconography:** Vector glyphs, 24 dp, 1.5 dp stroke
-- **Labels:** `BOOST` / `STORAGE` / `[future]` / `SETTINGS`
+### Status Line
+- Mono 12 sp, always starts with `●`
+- States:
+  - `● Detecting…` — on cold start while backend resolves
+  - `● Freeze: {backend}` — normal idle (e.g. `● Freeze: Root`)
+  - `● Ready to boost · {backend}` — idle with backend (in IDLE state)
+  - `● Freezing via {backend}…` — during boost operation
+  - `● Freezed {N} apps via {backend}` — success result
+  - `● Nothing to clean · {backend}` — zero apps killed
 
 ### Loading States
-- Cyan sweep ring (reused from Home's Boost Ring) at 96 dp, centered
-- `● Loading…` mono label below in `--ink-50`
-- No spinners. No progress bars. The ring is the universal loading primitive.
+- Cyan sweep ring (BoostRing) at ring container size, centered on button
+- Status line shows `● Freezing via {backend}…`
+- No spinners. The sweep ring is the only loading primitive.
 
-### Empty States
-- Centered mono text in `--ink-50`, 12 sp
-- 48 dp top padding
-- Format: `● No apps found` / `● Storage healthy` / `● Nothing to clear`
+### Empty States (Result Panel)
+- When 0 apps killed: `freedBig` shows `0` in `--ink-50`, `freedSub` shows `Already optimized`
+- When >0 apps killed: `freedBig` shows freed MB in cyan, `freedSub` shows `MB reclaimed`
+
+### Error States
+- Boost failures caught per-app — failures counted in FAILED stat, not displayed as errors
+- Backend detection errors log to Logcat silently, next backend in priority tried
+- Game launch failures show toast `Failed: {reason}`
 
 ---
 
 ## 5. Page Specs
 
-### 5.1 Splash
-
-**Purpose:** Brand impression during cold-start. ≤ 600 ms.
-
-**Layout (centered, full screen):**
-```
-                ┌──────────┐
-                │   ●      │   ← Apex mark, 60 dp, pulse-once
-                │  APEX    │   ← Wordmark, 18 sp, white, 0.3 letter-spacing
-                └──────────┘
-```
-
-- Background: `--obsidian`
-- Mark: 60 dp circle, `--summit-cyan`, single 800 ms pulse (scale 1.0 → 1.15 → 1.0)
-- Wordmark fades in at 200 ms, opacity 0 → 1 over 400 ms
-- Auto-routes to Home after 600 ms total
-- No buttons. No skip. No animation cancel.
-
-**No back button.** System back during splash exits the app.
-
----
-
-### 5.2 Home (Boost) — Tab 1
-
-**Purpose:** The hero. One tap to reclaim memory. Nothing else on this screen.
-
-**Route:** `home`
-
-**Layout (top to bottom, on `--obsidian`):**
-
-```
-┌─────────────────────────────────────┐
-│ ●  APEX                  v0.1.0    │ ← top bar
-│                                     │
-│             (192 dp)                │
-│                                     │
-│              Game                   │ ← 56 sp Inter Bold, white
-│           Performance               │ ← 56 sp Inter Bold, cyan
-│                                     │
-│       One tap to reclaim memory     │ ← 13 sp, --ink-70
-│             & focus CPU             │
-│                                     │
-│           ● Ready to boost          │ ← 12 sp mono
-│                                     │
-│            (168 dp)                 │
-│                                     │
-│            ╭─────────╮              │
-│           │  BOOST   │              │ ← 660 dp circle, cyan gradient
-│            ╰─────────╯              │
-│         (with sweep + glow rings)   │
-│                                     │
-│           (144 dp, when result)     │
-│                                     │
-│      ┌─ BOOST COMPLETE ─┐           │
-│      │       312        │           │ ← 64 sp cyan
-│      │    MB reclaimed   │           │
-│      │  ─────────────    │           │
-│      │  PROCESSES  MEM  LOAD │       │
-│      │   14       1.8→2.4  0.8→0.4   │
-│      └───────────────────┘           │
-└─────────────────────────────────────┘
-       [BOOST] [STORAGE] [] [GEAR]    ← tab bar
-```
-
-**Components:**
-- Top bar (shared)
-- Title block (static)
-- Subtitle (static)
-- Status line (state-driven: `Ready` / `Optimizing…` / `Available: X MB` / `Nothing to clean`)
-- Button container with BoostRing + GlowRing + Button (existing T2 code)
-- Result panel (state-driven, hidden in IDLE)
-
-**State machine:** `IDLE → BOOSTING → RESULT → IDLE` (existing, do not modify)
-- Tapping in RESULT state resets to IDLE
-- Tapping during BOOSTING is a no-op
-
-**Interactions:**
-- Tap BOOST button → start boost
-- No other interactive elements on this screen
-- Tab bar switch → fade out content, fade in new tab content (200 ms)
-
-**Errors:**
-- If `BoostManager.kick()` throws → catch, show `● Boost failed` in red, button returns to IDLE after 2 s
-- Network/storage permission missing → handled silently (no permissions required in v0.2)
-
----
-
-### 5.3 Storage — Tab 2
-
-**Purpose:** Surface what's eating space. Let the user drill into an app to act on it.
-
-**Route:** `storage`
+### 5.1 Home (Boost)
 
 **Layout (top to bottom, scrollable):**
 
 ```
 ┌─────────────────────────────────────┐
-│ ●  APEX                  v0.1.0    │
+│ ●  APEX                  v0.1.0    │ ← top bar
 │                                     │
-│  STORAGE                            │ ← 28 sp Inter Bold, white
-│  ● 42.1 GB used · 18.3 GB free     │ ← 13 sp mono
+│              Game                   │ ← 56 sp Inter Bold, white
+│           Performance               │ ← 56 sp Inter Bold, cyan
 │                                     │
-│      ╭──────────────╮               │
-│     │     70%       │               │ ← ring chart, 240 dp
-│     │   OF 60.4GB   │               │ ← 11 sp mono
-│      ╰──────────────╯               │
+│   One tap to reclaim memory & focus │ ← 13 sp, --ink-70
+│                CPU                  │
 │                                     │
-│  ─── BREAKDOWN ───                  │ ← mono 9 sp, --ink-50
+│   ● Freeze: Root / ● Detecting…    │ ← 12 sp mono status
 │                                     │
-│  Games           18.2 GB    ▮▮▮▮▮▮▮│ ← 14 sp label, 13 sp value
-│  Apps             9.4 GB    ▮▮▮▮   │   bar: --obsidian-3 track
-│  Cache            8.1 GB    ▮▮▮▮   │         --summit-cyan fill
-│  System           5.7 GB    ▮▮▮     │
-│  Other            0.7 GB    ▮       │
+│   ▷ TAP FOR SETUP                  │ ← amber, only when "cached only"
 │                                     │
-│  ─── TOP OFFENDERS ───              │
+│         ╭─────────────────╮         │
+│        │      BOOST       │         │ ← 660 dp circle, cyan gradient
+│         ╰─────────────────╯         │
+│        (BoostRing sweep arc)        │
+│     (GlowRing ambient behind)       │
 │                                     │
-│  ┌─────────────────────────────┐    │
-│  │ ●  Genshin Impact  12.4 GB  │    │ ← app row, 96 dp tall
-│  │    com.miHoYo            ›  │    │   package mono 10 sp
-│  └─────────────────────────────┘    │
-│  ┌─────────────────────────────┐    │
-│  │ ●  PUBG Mobile      6.1 GB  │    │
-│  │    com.tencent.ig     ›      │    │
-│  └─────────────────────────────┘    │
-│  ┌─────────────────────────────┐    │
-│  │ ●  WhatsApp         4.2 GB  │    │
-│  │    com.whatsapp      ›      │    │
-│  └─────────────────────────────┘    │
-│  ...                                │
-│  (scroll for more)                  │
-└─────────────────────────────────────┘
-       [BOOST] [STORAGE] [] [GEAR]
-```
-
-**Components:**
-
-1. **Header section (sticky)**
-   - Title `STORAGE` (28 sp Inter Bold)
-   - Status line: `● {used} used · {free} free` (13 sp mono)
-   - Total capacity below the ring: `OF {total}` mono 11 sp
-
-2. **Donut ring (storage overview)**
-   - 240 dp diameter, stroke 16 dp
-   - Two colors: `--summit-cyan` (used), `--obsidian-3` (free)
-   - Center text: percentage in 40 sp Inter Bold white, `OF {total}` below in mono
-   - Sweep animation on first render: 0° → used-angle over 800 ms ease-in-out
-
-3. **Breakdown section**
-   - Label `─── BREAKDOWN ───` mono 9 sp, `--ink-50`
-   - 5 rows, 48 dp tall each
-   - Each row: category name (14 sp Inter) + size value (13 sp Inter Bold right-aligned) + horizontal bar
-   - Bar: full width minus 240 dp, 6 dp tall, `--obsidian-3` track, `--summit-cyan` fill
-   - Tapping a category filters the Top Offenders list to that category (visual: section label changes to `─── {CATEGORY} APPS ───`)
-
-4. **Top offenders list**
-   - Label `─── TOP OFFENDERS ───` mono 9 sp
-   - Vertical list, sorted by size desc
-   - Each row is a card:
-     - Background: `--obsidian-2`, 12 dp corner radius, 1 dp border `--obsidian-3`
-     - Height: 96 dp
-     - Left: small app icon (40 dp, vector or scaled PNG), 24 dp left padding
-     - Center: app name (14 sp Inter Bold) on top, package name (10 sp mono `--ink-70`) below
-     - Right: size (13 sp Inter Bold) + chevron `›` (16 sp `--ink-50`)
-     - Press: scale 0.98, border becomes `--summit-cyan` at 30%
-   - Tap → navigate to App Detail
-
-**State machine:**
-- `LOADING` → `READY` → (filter applied) `READY_FILTERED`
-- `ERROR` only if StorageManager throws on first read; shows `● Storage unavailable` and a `RETRY` mono button
-
-**Pull-to-refresh:**
-- Re-runs StorageManager.scan()
-- 200 ms minimum visible indicator
-- Does not animate the donut from scratch (just updates values)
-
----
-
-### 5.4 App Detail — Drill-down
-
-**Purpose:** Per-app storage breakdown + safe actions.
-
-**Route:** `storage/app/{packageName}` (deep-linkable for future "share this app's storage" use)
-
-**Layout (top to bottom, no scroll, no tab bar):**
-
-```
-┌─────────────────────────────────────┐
-│ ‹  APEX                            │ ← back chevron + wordmark
+│   ┌──── BOOST COMPLETE ──────┐      │
+│   │         312              │      │ ← 64 sp cyan freed MB
+│   │      MB reclaimed        │      │
+│   │  ──────────────────────  │      │
+│   │  KILLED  FAILED  SKIPPED │      │
+│   │    14      0        2    │      │
+│   │  RAM            SWAP     │      │
+│   │  8192M/1450M  4096M/2.9G│      │ ← total / available
+│   │  MODE          DURATION  │      │
+│   │  Shizuku        4.2s    │      │
+│   └──────────────────────────┘      │
 │                                     │
-│  ┌────┐                             │
-│  │ ▣  │  Genshin Impact             │ ← icon 56 dp + name 22 sp
-│  │    │  com.miHoYo                 │ ← package 11 sp mono
-│  └────┘                             │
-│                                     │
-│      ╭──────────────╮               │
-│     │   12.4 GB     │               │ ← 36 sp Inter Bold cyan
-│     │  TOTAL SIZE   │               │ ← 10 sp mono
-│      ╰──────────────╯               │
-│                                     │
-│  ─── COMPOSITION ───                │
-│                                     │
-│  App                2.1 GB   ▮▮     │
-│  Data               3.8 GB   ▮▮▮▮   │
-│  Cache              6.5 GB   ▮▮▮▮▮▮▮│
-│                                     │
-│  ─── ACTIONS ───                    │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │  CLEAR CACHE          6.5GB │    │ ← primary action
-│  └─────────────────────────────┘    │
-│                                     │
-│  ┌─────────────────────────────┐    │
-│  │  CLEAR DATA          9.9GB  │    │ ← secondary, destructive
-│  └─────────────────────────────┘    │
-│                                     │
-│  Last used: 2 hours ago             │ ← 11 sp mono, --ink-50
+│   ┌────────────────────────────┐    │
+│   │       🎮  GAMES            │    │ ← opens GameListDialog
+│   └────────────────────────────┘    │
 └─────────────────────────────────────┘
 ```
 
-**Components:**
+**State machine:** `IDLE → BOOSTING → RESULT → IDLE`
 
-1. **Top bar override**
-   - Replaces the shared top bar
-   - Left: back chevron `‹` (28 sp, white) + `APEX` wordmark
-   - No version chip
+| State | Button | Ring | Result Panel | Status Color |
+|-------|--------|------|-------------|-------------|
+| IDLE | BOOST, breathing pulse | hidden | hidden | `--ready` (green) |
+| BOOSTING | dimmed, not clickable | sweep arc visible | hidden | `--summit-cyan` |
+| RESULT | AGAIN, normal | hidden | visible, slide-up | `--summit-cyan` |
 
-2. **App identity**
-   - Icon: 56 dp, vector preferred, fallback rounded-square placeholder in `--obsidian-3` with first letter
-   - Name: 22 sp Inter Bold
-   - Package: 11 sp mono `--ink-70`
+### 5.2 Freeze Result Panel
 
-3. **Total size block**
-   - Centered number, 36 sp Inter Bold, `--summit-cyan`
-   - `TOTAL SIZE` mono 10 sp below, `--ink-50`
-   - Number animates count-up on entry (reuses Home's count pattern)
+Appears below the button after a successful boost. Card in `--obsidian-2` with 20 dp radius.
 
-4. **Composition breakdown**
-   - Same row pattern as Storage tab breakdown
-   - 3 rows: App, Data, Cache
-   - Sum of bars equals total
+**Stats grid (3 rows):**
 
-5. **Action buttons**
-   - Each is a full-width row, 84 dp tall
-   - Background: `--obsidian-2`, 16 dp corner radius, 1 dp border
-   - Label: 14 sp Inter Bold
-   - Right side: size that will be freed (13 sp Inter Bold cyan)
-   - **CLEAR CACHE** — primary, always enabled, default border `--obsidian-3`, on tap border becomes `--summit-cyan`
-   - **CLEAR DATA** — secondary, enabled only if app is debuggable OR user is owner; otherwise disabled (40% alpha, `--ink-50` text)
-   - Tap fires confirmation sheet (see below)
+| Row | Col 1 | Col 2 | Col 3 |
+|-----|-------|-------|-------|
+| 1 | KILLED | FAILED | SKIPPED |
+| 2 | RAM (total/available) | SWAP (total/free) | MODE (backend name) |
+| 3 | DURATION | — | — |
 
-6. **Metadata footer**
-   - `Last used: {relative time}` mono 11 sp `--ink-50`
+**Data sources:**
+- KILLED / FAILED / SKIPPED — from `FreezeResult` counters
+- RAM — `MemTotal:` / `MemAvailable:` from `/proc/meminfo`
+- SWAP — `SwapTotal:` / `SwapFree:` from `/proc/meminfo`
+- MODE — backend name (Shizuku / Root / Accessibility / cached only)
+- DURATION — elapsed time of `freezeAll()` in seconds
 
-**Confirmation sheet (modal, bottom):**
-- Slides up 240 dp from bottom
-- Background: `--obsidian-2`, 24 dp top corner radius, 1 dp top border `--obsidian-3`
-- Title: `{ACTION NAME}` mono 11 sp `--ink-50`
-- Body: `This will free {size} from {app name}. The app may lose its logged-in session.` (15 sp Inter, white)
-- Two buttons stacked:
-  - `CANCEL` — ghost button, full width, 56 dp tall
-  - `CONFIRM` — filled cyan button, full width, 56 dp tall
-- No tap-outside-to-dismiss on destructive actions (CLEAR DATA)
+**Entry animation:** alpha 0→1, translationY 60→0 over 500 ms, ease-in-out.
 
-**State machine:**
-- `LOADING` (initial fetch of app stats) → `READY`
-- `CONFIRMING_CLEAR_CACHE` | `CONFIRMING_CLEAR_DATA` → `CLEARING` → `READY` (re-fetched)
-- `CLEAR_FAILED` → `READY` with toast `● Could not clear {app}`
+### 5.3 Setup Dialog
 
-**Hardware back** → returns to Storage tab, preserves scroll position.
+Full-screen translucent dialog, triggered automatically once on first cold start when backend is `cached only`.
 
----
+**Card content:**
+- Header: `SETUP REQUIRED` (mono 10 sp)
+- Body text explaining the need for elevated access
+- 3 option rows:
+  1. **Shizuku (recommended)** — opens Shizuku Manager or Play Store
+  2. **Root** — verifies su access via re-detection
+  3. **Accessibility** — opens Accessibility settings
+- Footer: `USE CACHED-ONLY MODE` — dismisses dialog
 
-### 5.5 Settings — Tab 4
+### 5.4 Game List Dialog
 
-**Purpose:** App metadata, about, legal. Not a power-user surface.
+Full-screen translucent dialog, opened by tapping the GAMES button.
 
-**Route:** `settings`
+**Card content:**
+- Header: `GAME LAUNCHER` (mono 10 sp)
+- Body: `Auto-detect or manually add games. Tap to freeze + launch.`
+- **Game list** — scrollable list of added games, each showing:
+  - Game name (14 sp Inter Bold, white)
+  - Tag: `auto` or `manual` (mono 9 sp in `--obsidian-3` chip)
+  - Play arrow `▶` (cyan)
+- Tap game → freeze background apps → launch game intent
+- Long-press game → remove from list (with toast confirmation)
+- **Manual add row** — EditText for package name + ADD button
+- **SCAN FOR GAMES button** — scans PackageManager for `CATEGORY_GAME` apps, adds them
+- Footer: `CLOSE` — dismisses dialog
 
-**Layout:**
-
-```
-┌─────────────────────────────────────┐
-│ ●  APEX                  v0.1.0    │
-│                                     │
-│  SETTINGS                           │ ← 28 sp Inter Bold
-│                                     │
-│  ─── APP ───                        │
-│                                     │
-│  Version                  v0.1.0    │ ← row, 72 dp
-│  Build                 d30a1726     │
-│  Target SDK                   37    │
-│                                     │
-│  ─── THEME ───                      │
-│                                     │
-│  Appearance                  Dark › │ ← single option for now
-│  Accent                    Cyan  ›  │
-│                                     │
-│  ─── DATA ───                       │
-│                                     │
-│  Storage used by ApexCore    1.2 MB │
-│  Scan all apps on launch       [●]  │ ← toggle, default off
-│                                     │
-│  ─── ABOUT ───                      │
-│                                     │
-│  Open source licenses            ›  │
-│  Source on GitHub               ›  │ ← opens external
-│  Privacy policy                 ›  │
-│                                     │
-│                                     │
-│           (centered)                │
-│      ●  APEX  v0.1.0                │ ← footer logo + version
-│   One tap to reclaim memory         │
-└─────────────────────────────────────┘
-       [BOOST] [STORAGE] [] [GEAR]
-```
-
-**Components:**
-
-1. **Section pattern**
-   - Label `─── {NAME} ───` mono 9 sp `--ink-50`
-   - 24 dp top padding before label, 12 dp bottom padding after
-
-2. **Row pattern**
-   - 72 dp tall, full width, no card background (flat list on obsidian)
-   - Left: label (14 sp Inter, white)
-   - Right: value (13 sp mono `--ink-70`) OR chevron `›` (16 sp `--ink-50`) OR toggle
-   - Bottom border: 1 dp `--obsidian-3`
-   - Press: full-row flash `--summit-cyan` at 6% alpha
-
-3. **Toggle**
-   - 44×24 dp pill, `--obsidian-3` track, 20 dp circular thumb
-   - ON: track `--summit-cyan`, thumb white, 4 dp right offset
-   - OFF: track `--obsidian-3`, thumb `--ink-70`, 4 dp left offset
-   - 150 ms ease-in-out slide
-
-4. **Footer**
-   - Centered, 96 dp top padding
-   - Apex mark (16 dp) + `APEX v0.1.0` (mono 11 sp)
-   - Tagline below in 12 sp Inter, `--ink-50`
-
-**No destructive actions on this screen.** Even "clear app data" is intentionally absent — Settings is read-only metadata + preferences.
+**State machine:** `IDLE → SCANNING → (results added | no results found)` via SCAN button
 
 ---
 
-## 6. Component Library (cross-page)
+## 6. Game Launch Flow
 
-These are the reusable building blocks. Each must be built once and consumed by multiple pages.
+```
+User taps game in list
+  │
+  ├─ GameLauncher.launch(context, pkg)
+  │    ├─ FreezeFramework.freezeAll() with custom filter
+  │    │    └─ excludes the target game (game survives)
+  │    ├─ context.packageManager.getLaunchIntentForPackage(pkg)
+  │    └─ context.startActivity(intent) with FLAG_ACTIVITY_NEW_TASK
+  │
+  └─ Result: toast on failure, game opens on success
+```
+
+The freeze runs silently — no result panel is shown for the pre-launch freeze. The user sees a toast `"Freezing + launching {game}…"` and then the game opens.
+
+---
+
+## 7. Component Library (cross-page)
 
 | Component | Used On | Source |
 |---|---|---|
-| `TopBar` | Home, Storage, Settings, App Detail | shared |
-| `TabBar` | Home, Storage, Settings | shared |
-| `BoostRing` | Home, Loading states | T2 (exists) |
-| `GlowRing` | Home | T2 (exists) |
-| `BoostButton` | Home | T2 (exists) |
-| `StorageRing` | Storage | T3 new |
-| `BreakdownRow` | Storage, App Detail | T3 new |
-| `AppRow` | Storage | T3 new |
-| `ActionButton` | App Detail | T3 new |
-| `ConfirmSheet` | App Detail | T3 new |
-| `Toggle` | Settings | future |
-| `ChevronRow` | Settings | future |
+| `TopBar` | Home | `MainActivity.kt` |
+| `GlowRing` | Home (behind button) | `MainActivity.kt` (inner class) |
+| `BoostRing` | Home (sweep arc) | `MainActivity.kt` (inner class) |
+| `BoostButton` | Home | `MainActivity.kt` |
+| `ResultPanel` | Home (inline) | `MainActivity.kt` |
+| `SetupDialog` | Home (modal) | `SetupDialog.kt` |
+| `GameListDialog` | Home (modal) | `games/GameListDialog.kt` |
+| `GameManager` | Game list storage | `games/GameManager.kt` |
+| `GameLauncher` | Freeze + launch | `games/GameLauncher.kt` |
 
 ---
 
-## 7. Information Architecture Summary
+## 8. Broadcast Receiver: FREEZE_ALL
 
-```
-ApexCore
-├── Splash (transient, no state)
-└── Main
-    ├── Home (Boost)
-    │   └── inline: Result Panel
-    ├── Storage
-    │   ├── Breakdown filter (no route, in-place filter)
-    │   └── App Detail (drill)
-    │       └── Confirm Sheet (modal)
-    └── Settings
-        └── external links (browser intents)
+External trigger via ADB or automation apps:
+
+```bash
+adb shell am broadcast -a com.apexcore.app.action.FREEZE_ALL
 ```
 
-**Total persistent screens:** 4 (Home, Storage, App Detail, Settings)
-**Total modals:** 1 (Confirm Sheet)
-**Total transient screens:** 1 (Splash)
-
-This is the minimum that makes the T3 expansion feel coherent. Adding a 3rd tab in the future (e.g. CPU, Network) is now a 1-line config change in the TabBar.
+- No UI shown — fire-and-forget via `goAsync()` + coroutine
+- Result logged to Logcat: `I/ApexCore.Freeze: freezeAll done: FreezeResult(...)`
+- Uses whatever backend is currently active (Shizuku / Root / Fallback)
 
 ---
 
-## 8. Open Questions for T3 Implementation
+## 9. Open Questions
 
-1. **Storage permissions** — `MANAGE_EXTERNAL_STORAGE` or scoped storage? Affects whether we can list all apps' data dirs.
-2. **App icons** — system PackageManager gives us a Drawable; do we cache them or fetch live each render?
-3. **"Clear cache" availability** — every app exposes `CacheDir`; clearing it works on all user apps but the path differs by API level. Need a `StorageManager.clearAppCache(packageName)` wrapper.
-4. **Tab bar visibility on App Detail** — confirm full-screen drill-down (currently planned) vs. persistent tab bar with pushed fragment.
-5. **Deep links** — `apexcore://storage/app/{pkg}` for future share intents; defer to post-T3.
+1. **Per-app freeze whitelist** — T5 feature. Need UI for selecting apps to exclude from freeze-all.
+2. **Game categories** — currently uses `CATEGORY_GAME` only. Should we also detect game-related meta-data or known game store categories?
+3. **Game launch animation** — currently no transition between freeze and launch. Could add a "Preparing game…" interstitial.
+4. **Multiple users / work profiles** — freeze and launch target the current user only (`--user current`). No multi-user support yet.

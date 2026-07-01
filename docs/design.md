@@ -158,19 +158,59 @@ A card that slides up from below the button after a successful boost.
 - **Layout (top to bottom):**
   1. `BOOST COMPLETE` — mono 10 sp, `--ink-50`, letter-spacing 0.2
   2. **Freed MB number** — 64 sp Inter Bold cyan, 24 dp top padding
-  3. `MB reclaimed` — 13 sp, `--ink-70`, 12 dp top padding, 60 dp bottom
+  3. `MB reclaimed` — 13 sp, `--ink-70`, 12 dp top padding, 48 dp bottom
   4. Divider — 3 dp tall, `--obsidian-3`
-  5. **Stats row** — three columns, 48 dp top padding
-     - `PROCESSES` / killed count
-     - `MEM FREE` / `before→after` MB
-     - `LOAD AVG` / `before→after`
+  5. **Stats grid** — 3 rows, each with 36 dp top padding
+
+```
+Row 1:  KILLED  │  FAILED  │  SKIPPED   (counts)
+Row 2:    RAM   │   SWAP   │   MODE     (total/available · total/free · name)
+Row 3: DURATION                             (seconds)
+```
 
 ### Number animation
 The freed MB number counts up from 0 to the result over 1000 ms, ease-in-out. Every digit lands clean — no overshoot, no bounce.
 
+### When 0 apps killed
+- Freed number shown in `--ink-50` (gray) instead of cyan
+- Subtitle changes to `Already optimized`
+- Status line shows `● Nothing to clean · {backend}`
+
 ---
 
-## 9. Motion Principles
+## 9. GAMES Button
+
+A secondary action below the result panel that opens the game list dialog.
+
+- **Shape:** Rounded rectangle, 14 dp corner radius
+- **Fill:** `--obsidian-2` with 2 dp border `--obsidian-3`
+- **Label:** `🎮  GAMES` in Inter Bold, 13 sp, `--summit-cyan`
+- **Padding:** 28 dp vertical, centered
+- **Tap:** Opens `GameListDialog` (see section 10)
+- **Visibility:** Always visible (no state dependency)
+
+---
+
+## 10. Game List Dialog
+
+A full-screen translucent dialog for managing games. Follows the same pattern as the Setup Dialog.
+
+- **Surface:** `--obsidian-2`, 20 dp corner radius, 3 dp border in `--obsidian-3`
+- **Dimensions:** Full screen, 24 dp horizontal margins, 48 dp vertical margins
+- **Background dim:** `#CC070A12` (76% obsidian)
+- **Header:** `GAME LAUNCHER` — mono 10 sp, `--ink-50`
+- **Game rows:** 14 sp Inter Bold white name + `auto`/`manual` tag chip + `▶` cyan arrow
+- **Tag chip:** `--obsidian-3` background, 6 dp radius, mono 9 sp, `--ink-50`
+- **Tap game:** freeze + launch (no dialog confirmation)
+- **Long-press:** remove game (with toast)
+- **Input field:** `--obsidian` fill, `--obsidian-3` border, 10 dp radius, mono 12 sp
+- **ADD button:** Small cyan gradient pill, 10 dp radius
+- **SCAN FOR GAMES:** `--obsidian` row, `--obsidian-3` border, 12 dp radius, `--summit-cyan` text with `🔍` prefix
+- **CLOSE footer:** Cyan gradient button, same spec as SetupDialog footer
+
+---
+
+## 11. Motion Principles
 
 Motion is *correction*, not *decoration*. Every animation has a job.
 
@@ -189,7 +229,7 @@ Motion is *correction*, not *decoration*. Every animation has a job.
 
 ---
 
-## 10. Accessibility
+## 12. Accessibility
 
 - All text on `--obsidian` meets WCAG AA against its background.
 - Cyan (`#00E5FF`) on obsidian (`#070A12`) = **14.2:1 contrast ratio**. AAA.
@@ -200,7 +240,7 @@ Motion is *correction*, not *decoration*. Every animation has a job.
 
 ---
 
-## 11. Don'ts
+## 13. Don'ts
 
 - **No green-blue gradients.** Cyan stops at `#0EA5E9`. Past that it gets cute.
 - **No drop shadows on text.** The dark canvas is the shadow.
@@ -211,7 +251,7 @@ Motion is *correction*, not *decoration*. Every animation has a job.
 
 ---
 
-## 12. Voice & Tone
+## 14. Voice & Tone
 
 - **Status messages** are mono, always start with a `●`, always present-tense.
   - `● Ready to boost`

@@ -8,15 +8,14 @@ the UI.
 
 ```kotlin
 object FreezeFramework {
-    val activeBackend: StateFlow<FreezeBackend>          // observable
+    val activeBackend: StateFlow<FreezeBackend?>        // observable
     val lastResult: StateFlow<FreezeResult?>            // observable
     suspend fun detect(): FreezeBackend                 // re-resolve
     suspend fun freezeAll(
-        filter: (ApplicationInfo) -> Boolean = ::defaultFilter
+        filter: (ApplicationInfo) -> Boolean = { FreezeFilter.default(context, it) }
     ): FreezeResult
-    suspend fun freezeOne(pkg: String): FreezeOperation.Result
     suspend fun forceStopOne(pkg: String): FreezeOperation.Result
-    fun isReady(): Boolean
+    suspend fun isReady(): Boolean                      // true if privileged backend active
 }
 ```
 
@@ -44,7 +43,7 @@ PackageManager crash.
 
 ---
 
-## `FreezeBackend` (sealed)
+## `FreezeBackend` (interface)
 
 ```kotlin
 sealed interface FreezeBackend {
@@ -71,7 +70,12 @@ sealed class FreezeOperation(val pkg: String) {
 
     sealed class Result {
         data object Success : Result()
-        data class  Failure(val reason: String) : Result()
+        data class Failure(val reason: String) : Result() {
+            val isSkipped: Boolean      // true if a11y stub (SKIPPED_A11Y)
+        }
+        companion object {
+            val SKIPPED_A11Y = Failure("a11y-per-app-not-implemented")
+        }
     }
 }
 ```
@@ -87,8 +91,11 @@ data class FreezeResult(
     val skipped: Int,
     val durationMs: Long,
     val backend: String,         // human-readable, for status footer
-    val beforeAvailMb: Long,
-    val afterAvailMb: Long
+    val totalMemMb: Long,        // from /proc/meminfo MemTotal
+    val beforeAvailMb: Long,     // MemAvailable before freeze
+    val afterAvailMb: Long,      // MemAvailable after freeze
+    val swapTotalMb: Long,       // SwapTotal
+    val swapFreeMb: Long         // SwapFree
 ) {
     val freedMb: Long get() = (afterAvailMb - beforeAvailMb).coerceAtLeast(0)
 }
