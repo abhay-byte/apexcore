@@ -5,6 +5,7 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.withContext
 object FreezeFramework {
 
     private const val TAG = "ApexCore.Freeze"
+    private const val FALLBACK_DELAY_MS = 800L
 
     private var resolver: FreezeBackendResolver? = null
 
@@ -30,6 +32,8 @@ object FreezeFramework {
         }
     }
 
+    fun resolver(): FreezeBackendResolver? = resolver
+
     suspend fun detect(): FreezeBackend {
         val r = resolver ?: error("FreezeFramework.init() not called")
         val b = r.detect()
@@ -38,7 +42,7 @@ object FreezeFramework {
     }
 
     suspend fun isReady(): Boolean = try {
-        detect().name.isNotEmpty()
+        detect().priority < FallbackFreezeBackend.PRIORITY
     } catch (_: Throwable) { false }
 
     suspend fun freezeAll(
@@ -51,7 +55,7 @@ object FreezeFramework {
         val targets = apps.filter(filter)
         Log.i(TAG, "freezeAll via ${backend.name} -> ${targets.size} apps")
 
-        val beforeMem = readMemAvailKb()
+        val (totalMemKb, beforeMemKb) = readMemInfo()
         val start = System.currentTimeMillis()
 
         var killed = 0
@@ -66,20 +70,16 @@ object FreezeFramework {
             when (res) {
                 is FreezeOperation.Result.Success -> killed++
                 is FreezeOperation.Result.Failure -> {
-                    if (res.reason.contains("not implemented", ignoreCase = true)) {
-                        skipped++
-                    } else {
-                        failed++
-                    }
+                    if (res.isSkipped) skipped++ else failed++
                 }
             }
         }
 
         if (backend is FallbackFreezeBackend) {
-            Thread.sleep(800)
+            delay(FALLBACK_DELAY_MS)
         }
 
-        val afterMem = readMemAvailKb()
+        val (_, afterMemKb) = readMemInfo()
         val duration = System.currentTimeMillis() - start
 
         val result = FreezeResult(
@@ -88,8 +88,11 @@ object FreezeFramework {
             skipped = skipped,
             durationMs = duration,
             backend = backend.name,
-            beforeAvailMb = beforeMem / 1024,
-            afterAvailMb = afterMem / 1024
+            totalMemMb = totalMemKb / 1024,
+            beforeAvailMb = beforeMemKb / 1024,
+            afterAvailMb = afterMemKb / 1024,
+            swapTotalMb = readMemLine("SwapTotal:") / 1024,
+            swapFreeMb = readMemLine("SwapFree:") / 1024
         )
         _lastResult.value = result
         Log.i(TAG, "freezeAll done: $result")
@@ -105,16 +108,29 @@ object FreezeFramework {
         }
     }
 
-    private fun readMemAvailKb(): Long {
-        return try {
+    /** Returns (MemTotalKb, MemAvailableKb). */
+    private fun readMemInfo(): Pair<Long, Long> {
+        var total = 0L; var avail = 0L
+        try {
             java.io.File("/proc/meminfo").useLines { lines ->
                 for (line in lines) {
-                    if (line.startsWith("MemAvailable:")) {
-                        return line.split(Regex("\\s+"))[1].toLongOrNull() ?: 0L
+                    when {
+                        line.startsWith("MemTotal:") -> total = parseKb(line)
+                        line.startsWith("MemAvailable:") -> avail = parseKb(line)
                     }
                 }
-                0L
             }
-        } catch (_: Throwable) { 0L }
+        } catch (_: Throwable) {}
+        return total to avail
     }
+
+    private fun readMemLine(prefix: String): Long = try {
+        java.io.File("/proc/meminfo").useLines { lines ->
+            for (line in lines) if (line.startsWith(prefix)) return parseKb(line)
+            0L
+        }
+    } catch (_: Throwable) { 0L }
+
+    private fun parseKb(line: String): Long =
+        line.split(Regex("\\s+"))[1].toLongOrNull() ?: 0L
 }

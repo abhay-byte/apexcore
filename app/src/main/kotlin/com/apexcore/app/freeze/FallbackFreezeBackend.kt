@@ -6,7 +6,11 @@ import kotlinx.coroutines.withContext
 
 class FallbackFreezeBackend(private val appContext: Context) : FreezeBackend {
     override val name = "cached only"
-    override val priority = 99
+    override val priority = PRIORITY
+
+    companion object {
+        const val PRIORITY = 99
+    }
 
     override suspend fun isReady(): Boolean = true
 

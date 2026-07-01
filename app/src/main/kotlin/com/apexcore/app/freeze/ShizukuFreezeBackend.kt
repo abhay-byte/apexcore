@@ -38,11 +38,16 @@ class ShizukuFreezeBackend : FreezeBackend {
                 )
                 val proc = newProcess.invoke(
                     null,
-                    arrayOf("sh", "-c", "am ${op.name} ${op.pkg}"),
+                    arrayOf("sh"),
                     null,
                     null
                 ) as Process
-                val ok = waitForProcess(proc, 5000L)
+                // Pipe command to stdin (Hail-aligned pattern)
+                proc.outputStream.use { os ->
+                    os.write("am ${op.name} --user current ${op.pkg}\n".toByteArray())
+                    os.flush()
+                }
+                val ok = waitForProcess(proc, EXEC_TIMEOUT_MS)
                 if (!ok) {
                     proc.destroy()
                     return@withContext FreezeOperation.Result.Failure("timeout")
@@ -68,7 +73,7 @@ class ShizukuFreezeBackend : FreezeBackend {
                     proc.exitValue()
                     return true
                 } catch (_: IllegalThreadStateException) {
-                    Thread.sleep(50)
+                    Thread.sleep(POLL_INTERVAL_MS)
                 }
             }
             false
@@ -77,6 +82,8 @@ class ShizukuFreezeBackend : FreezeBackend {
 
     companion object {
         private const val TAG = "ApexCore.Freeze"
+        private const val EXEC_TIMEOUT_MS = 5000L
+        private const val POLL_INTERVAL_MS = 50L
         @Volatile var currentContext: Context? = null
     }
 }

@@ -3,14 +3,18 @@ package com.apexcore.app.freeze
 import android.content.Context
 import android.util.Log
 
-class FreezeBackendResolver(appContext: Context) {
+class FreezeBackendResolver(candidates: List<FreezeBackend>) {
 
-    private val shizuku = ShizukuFreezeBackend()
-    private val root = RootFreezeBackend()
-    private val accessibility = AccessibilityFreezeBackend()
-    private val fallback = FallbackFreezeBackend(appContext.applicationContext)
+    internal val candidates: List<FreezeBackend> = candidates
 
-    private val candidates: List<FreezeBackend> = listOf(shizuku, root, accessibility, fallback)
+    constructor(appContext: Context) : this(
+        listOf(
+            ShizukuFreezeBackend(),
+            RootFreezeBackend(),
+            AccessibilityFreezeBackend(),
+            FallbackFreezeBackend(appContext.applicationContext)
+        )
+    )
 
     @Volatile private var resolved: FreezeBackend? = null
 
@@ -27,16 +31,9 @@ class FreezeBackendResolver(appContext: Context) {
                 Log.w(TAG, "Backend ${backend.name} threw: ${t.message}")
             }
         }
-        resolved = fallback
-        return fallback
-    }
-
-    fun backendByName(name: String): FreezeBackend? = when (name) {
-        "Shizuku" -> shizuku
-        "Root" -> root
-        "Accessibility" -> accessibility
-        "cached only" -> fallback
-        else -> null
+        val fb = candidates.last()
+        resolved = fb
+        return fb
     }
 
     fun invalidate() {

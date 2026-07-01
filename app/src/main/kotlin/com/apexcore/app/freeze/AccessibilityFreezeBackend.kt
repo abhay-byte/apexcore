@@ -14,7 +14,7 @@ class AccessibilityFreezeBackend : FreezeBackend {
 
     override suspend fun execute(op: FreezeOperation): FreezeOperation.Result {
         Log.d(TAG, "Accessibility execute ${op.name} ${op.pkg} not implemented in T4")
-        return FreezeOperation.Result.Failure("a11y-per-app-not-implemented")
+        return FreezeOperation.Result.SKIPPED_A11Y
     }
 
     fun notifyGranted() {

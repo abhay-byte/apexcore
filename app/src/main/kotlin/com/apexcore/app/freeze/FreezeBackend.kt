@@ -1,6 +1,6 @@
 package com.apexcore.app.freeze
 
-sealed interface FreezeBackend {
+interface FreezeBackend {
     val name: String
     val priority: Int
     suspend fun isReady(): Boolean

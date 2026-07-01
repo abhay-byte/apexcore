@@ -14,8 +14,14 @@ sealed class FreezeOperation(val pkg: String) {
             is Suspend -> "suspend"
         }
 
-    sealed class Result {
+        sealed class Result {
         data object Success : Result()
-        data class Failure(val reason: String) : Result()
+        data class Failure(val reason: String) : Result() {
+            val isSkipped: Boolean get() = this == SKIPPED_A11Y
+        }
+
+        companion object {
+            val SKIPPED_A11Y = Failure("a11y-per-app-not-implemented")
+        }
     }
 }

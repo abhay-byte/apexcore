@@ -22,7 +22,7 @@ class RootFreezeBackend : FreezeBackend {
     private fun tryProbe(): Boolean {
         return try {
             val proc = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
-            waitForProcess(proc, 3000L)
+            waitForProcess(proc, PROBE_TIMEOUT_MS)
             proc.exitValue() == 0
         } catch (_: Throwable) {
             false
@@ -33,9 +33,9 @@ class RootFreezeBackend : FreezeBackend {
         withContext(Dispatchers.IO) {
             try {
                 val proc = Runtime.getRuntime().exec(
-                    arrayOf("su", "-c", "am ${op.name} ${op.pkg}")
+                    arrayOf("su", "-c", "am ${op.name} --user current ${op.pkg}")
                 )
-                val ok = waitForProcess(proc, 5000L)
+                val ok = waitForProcess(proc, EXEC_TIMEOUT_MS)
                 if (!ok) {
                     proc.destroy()
                     return@withContext FreezeOperation.Result.Failure("timeout")
@@ -62,7 +62,7 @@ class RootFreezeBackend : FreezeBackend {
                     proc.exitValue()
                     return true
                 } catch (_: IllegalThreadStateException) {
-                    Thread.sleep(50)
+                    Thread.sleep(POLL_INTERVAL_MS)
                 }
             }
             false
@@ -71,5 +71,8 @@ class RootFreezeBackend : FreezeBackend {
 
     companion object {
         private const val TAG = "ApexCore.Freeze"
+        private const val PROBE_TIMEOUT_MS = 3000L
+        private const val EXEC_TIMEOUT_MS = 5000L
+        private const val POLL_INTERVAL_MS = 50L
     }
 }
