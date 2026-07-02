@@ -48,4 +48,28 @@
     APK builds + installs + launches, no crashes in logcat.
   status: done
   completed_at: 2026-06-23
+- id: T4
+  title: Hail architecture — Shizuku/Root/Accessibility freeze framework
+  type: feature
+  priority: high
+  difficulty: hard
+  why: T2's killBackgroundProcesses is restricted on Android 12+ and only frees cached
+    processes. Real deep-freeze needs pm disable / am force-stop which require elevated
+    privileges. Hail, FreezeYou, SuperFreezZ are proven open-source references.
+  really_needed: yes
+  impact: New FreezeFramework module with three backends (Shizuku, Root, Accessibility).
+    Replaces BoostManager's free-only path with freeze path. Adds FREEZE_ALL action that
+    can be invoked from a button or `am start -a com.apexcore.app.action.FREEZE_ALL`.
+    No UI rework — same BOOST button now triggers freeze-eligible path when privilege
+    is granted.
+  followups: T5 (per-app freeze list), T6 (whitelist/tags)
+  images: null
+  github_ref: null
+  plan: |
+    Goal: Implement Hail's "freeze" pattern in ApexCore. Replace T2's
+    killBackgroundProcesses-only path with a backend-pluggable freeze
+    framework. Same BOOST button, real deep-freeze on tap when a backend
+    is granted.
+  status: done
+  completed_at: 2026-07-02
 ---

@@ -29,6 +29,8 @@ object GameLauncher {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
             context.startActivity(intent)
             Log.i(TAG, "Launched $gamePkg after freezing ${result.killed} apps")
+            // Start game overlay (silently if overlay permission not granted)
+            try { GameOverlayService.start(context, gamePkg) } catch (_: Throwable) {}
             return@withContext LaunchResult(true, null, gamePkg, result)
         } catch (t: Throwable) {
             Log.e(TAG, "Launch failed for $gamePkg: ${t.message}")

@@ -18,6 +18,9 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import com.apexcore.app.freeze.FreezeFramework
 import com.apexcore.app.freeze.FreezeResult
@@ -58,6 +61,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         FreezeFramework.init(this)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         setContentView(buildLayout())
         status.text = "● Detecting…"
         lifecycleScope.launch {
@@ -112,7 +116,15 @@ class MainActivity : ComponentActivity() {
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, resources.displayMetrics)
 
     private fun buildLayout(): View {
-        val root = FrameLayout(this).apply { setBackgroundColor(Color.parseColor("#070A12")) }
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(Color.parseColor("#070A12"))
+            ViewCompat.setOnApplyWindowInsetsListener(this) { v, insets ->
+                val statusBar = insets.getInsets(WindowInsetsCompat.Type.statusBars())
+                val navBar = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+                v.setPadding(statusBar.left, statusBar.top, navBar.right, navBar.bottom)
+                insets
+            }
+        }
 
         glowRing = GlowRingView(this).apply {
             layoutParams = FrameLayout.LayoutParams(
@@ -127,6 +139,7 @@ class MainActivity : ComponentActivity() {
             )
             isFillViewport = false
             overScrollMode = View.OVER_SCROLL_NEVER
+            clipToPadding = false
         }
 
         val column = LinearLayout(this).apply {
