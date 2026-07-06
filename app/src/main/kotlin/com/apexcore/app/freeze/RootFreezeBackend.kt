@@ -32,8 +32,13 @@ class RootFreezeBackend : FreezeBackend {
     override suspend fun execute(op: FreezeOperation): FreezeOperation.Result =
         withContext(Dispatchers.IO) {
             try {
+                val shellCmd = if (op is FreezeOperation.ShellCommand) {
+                    op.pkg
+                } else {
+                    "am ${op.name} --user current ${op.pkg}"
+                }
                 val proc = Runtime.getRuntime().exec(
-                    arrayOf("su", "-c", "am ${op.name} --user current ${op.pkg}")
+                    arrayOf("su", "-c", shellCmd)
                 )
                 val ok = waitForProcess(proc, EXEC_TIMEOUT_MS)
                 if (!ok) {

@@ -16,11 +16,13 @@ class FallbackFreezeBackend(private val appContext: Context) : FreezeBackend {
 
     override suspend fun execute(op: FreezeOperation): FreezeOperation.Result =
         withContext(Dispatchers.IO) {
-            val pkg = op.pkg
+            if (op is FreezeOperation.ForceStop) {
+                return@withContext FreezeOperation.Result.SKIPPED_FALLBACK
+            }
             try {
                 val am = appContext.getSystemService(Context.ACTIVITY_SERVICE)
                     as android.app.ActivityManager
-                am.killBackgroundProcesses(pkg)
+                am.killBackgroundProcesses(op.pkg)
                 FreezeOperation.Result.Success
             } catch (t: Throwable) {
                 FreezeOperation.Result.Failure(t.message ?: "kill-failed")

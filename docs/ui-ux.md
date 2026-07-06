@@ -1,268 +1,264 @@
 # ApexCore — UI/UX Page Map
 
-> Companion to `docs/design.md`. Defines every screen, its state machine, its components, and their relationships. Built around the **Summit** design language and the current T4 codebase (freeze framework + game launcher).
+> Companion to `docs/design.md`. Defines every screen, its state machine, its components, and their relationships. Built around the **Summit** design language and the current T5 codebase (Compose + 3-tab layout + overlay HUD).
 
 ---
 
 ## 1. Scope
 
-**In scope (T4 current):**
-- Home (Boost) — the primary screen
-- Freeze result panel — inline stats
-- Setup dialog — backend privilege onboarding
-- Game list dialog — auto-detect + manual add + launch
+**In scope (T5 current):**
+- Home (Boost) — primary tab, freeze action + result
+- Games tab — game library, scan, add, launch
+- Overlay tab — HUD configuration
+- Setup dialog — backend privilege onboarding (Compose dialog)
+- Game overlay service — draggable HUD while gaming
+- Broadcast receiver — FREEZE_ALL (ADB/Tasker)
 
-**Explicitly deferred (T5+):**
-- Tab navigation (Storage, Settings)
-- Per-app freeze list with checkboxes
-- Whitelist / pinned apps
+**Explicitly deferred:**
+- Per-app freeze whitelist
 - Boot-time freeze schedule
 - Onboarding / first-run tutorial
+- Multiple users / work profiles
 
 ---
 
-## 2. Navigation Map
+## 2. Design Constraints
+
+See `docs/design.md` §13 for full don'ts. Key rules:
+- **No raster icons** in the body (except launcher icon). Every glyph is a vector or mono character.
+- **No green-blue gradients.** Cyan stops at `#00838F`.
+- **No drop shadows on text.** The dark canvas is the shadow.
+- **No icons inside the BOOST button** — the word is the icon.
+- **No white text smaller than 11 sp.**
+- **No animations longer than 1s on user-triggered actions.**
+- **Never apologize** — "Already optimized" not "Sorry, nothing found."
+
+---
+
+## 3. Color Theme
+
+Token definitions in `app/…/ui/theme/Color.kt` via `ApexCoreTheme` (Material3 `darkColorScheme`):
+
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `BgDark` | `#09090B` | App background |
+| `SurfaceGlass` | `#26FFFFFF` | Glass overlays (15% white) |
+| `SurfaceCard` | `#18181B` | Card / panel surface |
+| `BorderGlass` | `#1AFFFFFF` | Subtle borders (10% white) |
+| `AccentPrimary` | `#00E5FF` | Actions, primary accent, BOOST |
+| `AccentSecondary` | `#00838F` | Gradient stop |
+| `AccentSuccess` | `#10B981` | Idle / success states |
+| `AccentWarning` | `#F59E0B` | Setup hint, warnings |
+| `TextTitle` | `#FAFAFA` | Headlines, big numbers |
+| `TextBody` | `#A1A1AA` | Body labels |
+| `TextMuted` | `#71717A` | Hints, mono metadata |
+
+**Rule:** Cyan is *currency*. Spend it only on (a) the BOOST button, (b) result numbers, (c) accent highlights. Everything else is grayscale on obsidian.
+
+---
+
+## 4. Navigation Map
 
 ```
-┌─────────────────────────────────────┐
-│           MainActivity               │ ← single screen, no tabs
-│         (ScrollView)                 │
-├─────────────────────────────────────┤
-│  Top Bar                             │
-│  Hero Title                          │
-│  Subtitle                            │
-│  Status Line                         │
-│  BOOST Button (+ rings)              │
-│  Result Panel (state-driven)         │
-│  GAMES Button                        │
-├─────────────────────────────────────┤
-│  ┌─ SetupDialog ─┐   (modal)        │
-│  │  - Shizuku    │                   │
-│  │  - Root       │   shown once      │
-│  │  - A11y       │   on cold start   │
-│  └───────────────┘   when fallback   │
-├─────────────────────────────────────┤
-│  ┌─ GameListDialog ────┐  (modal)   │
-│  │  - Auto-detected    │             │
-│  │  - Manually added   │             │
-│  │  - Tap to freezeluanch│           │
-│  └──────────────────────┘            │
-└─────────────────────────────────────┘
+┌──────────────────────────────────────┐
+│              MainActivity             │ ← App Bar: icon + "APEX CORE" + backend chip
+│                                       │
+│  ┌─ HOME ──┐  ┌─ GAMES ──┐  ┌─ OVRL ─┐ ← bottom nav bar (3 tabs)
+│  │ Boost   │  │ Library  │  │ HUD    │
+│  │ Result  │  │ Scan/Add │  │ Config │
+│  │         │  │ Launch   │  │        │
+│  └─────────┘  └──────────┘  └────────┘
+│                                       │
+│  ┌─ SetupDialog ────┐  (modal)       │
+│  │  Shizuku / Root  │                │
+│  │  Accessibility   │  shown once     │
+│  └──────────────────┘  on cold start  │
+│                                       │
+│  ┌─ OverlayService ──────┐ (HUD)     │
+│  │  Draggable pill/hud   │ while game │
+│  │  FPS, RAM, CPU, BOOST │ is running │
+│  └───────────────────────┘            │
+└──────────────────────────────────────┘
 ```
 
 ### Navigation rules
-1. **Single screen** — no tab bar, no fragments. Everything is a dialog or inline panel.
-2. **Boost** is an action, not a route. Its result appears inline below the button.
-3. **SetupDialog** appears once on cold start when no elevated backend is detected. Can be re-opened via the amber `▷ TAP FOR SETUP` hint.
-4. **GameListDialog** is opened by tapping the GAMES button. Full-screen modal.
-5. **Back** dismisses any open dialog. Back on the main screen does nothing (root of stack).
+1. **3 tabs** — HOME (boost), GAMES (library), OVERLAY (HUD config). Bottom nav bar.
+2. **Animated transitions** — slides left/right with fade between tabs.
+3. **SetupDialog** appears once on cold start when backend is "cached only". Compose `Dialog` API.
+4. **OverlayService** — draggable pill/mini-HUD shown when a game is launched. Not a navigation target; configured via OVERLAY tab.
+5. **Back** dismisses SetupDialog. On main screen, system back exits the app.
 
 ---
 
-## 3. Page Inventory
+## 5. Page Inventory
 
 | # | Page / Component | Route | Trigger | Status | Purpose |
 |---|-----------------|-------|---------|--------|---------|
-| 1 | Home (Boost) | `main` | launch | ✅ exists | Single-tap freeze + memory reclaim |
-| 2 | Freeze Result Panel | inline | after boost | ✅ exists | Killed/failed/skipped + mem stats |
-| 3 | Setup Dialog | dialog | auto / tap hint | ✅ exists | Backend privilege onboarding |
-| 4 | Game List Dialog | dialog | tap GAMES button | ✅ exists | Auto-detect + manual add + launch |
-| 5 | FREEZE_ALL Broadcast | external | `am broadcast` | ✅ exists | ADB / Tasker trigger |
+| 1 | Home (Boost) | `Tab.HOME` | bottom nav | ✅ Compose | Single-tap freeze + memory reclaim |
+| 2 | Games | `Tab.GAMES` | bottom nav | ✅ Compose | Game library, scan, add, launch |
+| 3 | Overlay Config | `Tab.OVERLAY` | bottom nav | ✅ Compose | HUD settings (start/stop overlay) |
+| 4 | Setup Dialog | dialog | auto / tap chip | ✅ Compose | Backend privilege onboarding |
+| 5 | Overlay HUD | system overlay | game launch | ✅ Compose | Draggable FPS/RAM/CPU/BOOST |
+| 6 | FREEZE_ALL Broadcast | external | `am broadcast` | ✅ exists | ADB / Tasker trigger |
 
 ---
 
-## 4. Shared Chrome
+## 6. Page Specs
 
-### Top Bar
-- **Height:** 30 dp content + vertical padding (stretched by layout)
-- **Left:** Apex mark (30 dp cyan circle) + `APEX` wordmark (14 sp Inter Bold)
-- **Right:** Version chip `v0.1.0` (11 sp JetBrains Mono, `--ink-50`)
-- **Background:** Transparent over `--obsidian`
-
-### Status Line
-- Mono 12 sp, always starts with `●`
-- States:
-  - `● Detecting…` — on cold start while backend resolves
-  - `● Freeze: {backend}` — normal idle (e.g. `● Freeze: Root`)
-  - `● Ready to boost · {backend}` — idle with backend (in IDLE state)
-  - `● Freezing via {backend}…` — during boost operation
-  - `● Freezed {N} apps via {backend}` — success result
-  - `● Nothing to clean · {backend}` — zero apps killed
-
-### Loading States
-- Cyan sweep ring (BoostRing) at ring container size, centered on button
-- Status line shows `● Freezing via {backend}…`
-- No spinners. The sweep ring is the only loading primitive.
-
-### Empty States (Result Panel)
-- When 0 apps killed: `freedBig` shows `0` in `--ink-50`, `freedSub` shows `Already optimized`
-- When >0 apps killed: `freedBig` shows freed MB in cyan, `freedSub` shows `MB reclaimed`
-
-### Error States
-- Boost failures caught per-app — failures counted in FAILED stat, not displayed as errors
-- Backend detection errors log to Logcat silently, next backend in priority tried
-- Game launch failures show toast `Failed: {reason}`
-
----
-
-## 5. Page Specs
-
-### 5.1 Home (Boost)
+### 6.1 Home (Boost) — `Tab.HOME`
 
 **Layout (top to bottom, scrollable):**
 
 ```
 ┌─────────────────────────────────────┐
-│ ●  APEX                  v0.1.0    │ ← top bar
-│                                     │
-│              Game                   │ ← 56 sp Inter Bold, white
-│           Performance               │ ← 56 sp Inter Bold, cyan
-│                                     │
-│   One tap to reclaim memory & focus │ ← 13 sp, --ink-70
-│                CPU                  │
-│                                     │
-│   ● Freeze: Root / ● Detecting…    │ ← 12 sp mono status
-│                                     │
-│   ▷ TAP FOR SETUP                  │ ← amber, only when "cached only"
-│                                     │
-│         ╭─────────────────╮         │
-│        │      BOOST       │         │ ← 660 dp circle, cyan gradient
-│         ╰─────────────────╯         │
-│        (BoostRing sweep arc)        │
-│     (GlowRing ambient behind)       │
-│                                     │
-│   ┌──── BOOST COMPLETE ──────┐      │
-│   │         312              │      │ ← 64 sp cyan freed MB
-│   │      MB reclaimed        │      │
-│   │  ──────────────────────  │      │
-│   │  KILLED  FAILED  SKIPPED │      │
-│   │    14      0        2    │      │
-│   │  RAM            SWAP     │      │
-│   │  8192M/1450M  4096M/2.9G│      │ ← total / available
-│   │  MODE          DURATION  │      │
-│   │  Shizuku        4.2s    │      │
-│   └──────────────────────────┘      │
-│                                     │
-│   ┌────────────────────────────┐    │
-│   │       🎮  GAMES            │    │ ← opens GameListDialog
-│   └────────────────────────────┘    │
+│  Game                                │ ← 44 sp Inter Bold, white
+│  Optimization                        │ ← 44 sp Inter Bold, cyan
+│                                      │
+│  One tap to reclaim memory & focus   │ ← 13 sp, TextBody
+│               CPU                    │
+│                                      │
+│  ● READY TO OPTIMIZE                 │ ← 10 sp mono uppercase, TextMuted / AccentWarning
+│                                      │
+│  > CONFIGURE ELEVATED ACCESS         │ ← amber, only when "cached only"
+│                                      │
+│       ┌─────────────────────────┐    │
+│       │    MainActionCard       │    │ ← 200 dp, RoundedCornerShape(32)
+│       │                         │    │   IDLE:   "OPTIMIZE SYSTEM"
+│       │   OPTIMIZE SYSTEM       │    │           "Tap to reclaim memory"
+│       │   Tap to reclaim memory │    │   BOOSTING: sweep arc, dimmed
+│       │                         │    │   RESULT:  → UnifiedResultCard
+│       └─────────────────────────┘    │
+│                                      │
+│       ┌─ UnifiedResultCard ────┐    │ ← shown in RESULT state
+│       │  ✓ OPTIMIZATION COMPLETE│    │    + right: "RUN AGAIN" pill
+│       │  ─────────────────────  │    │
+│       │  FREED MB  │  KILLED   │    │    2×2 grid, staggered entry
+│       │    312     │   14      │    │    indicator bar per stat
+│       │  Reclaimed │  Apps     │    │
+│       │  ──────────┼────────── │    │
+│       │  DURATION  │  FAILED   │    │
+│       │   4.2s     │   0       │    │
+│       │  Exec time │  Errors   │    │
+│       └─────────────────────────┘    │
 └─────────────────────────────────────┘
 ```
 
 **State machine:** `IDLE → BOOSTING → RESULT → IDLE`
 
-| State | Button | Ring | Result Panel | Status Color |
-|-------|--------|------|-------------|-------------|
-| IDLE | BOOST, breathing pulse | hidden | hidden | `--ready` (green) |
-| BOOSTING | dimmed, not clickable | sweep arc visible | hidden | `--summit-cyan` |
-| RESULT | AGAIN, normal | hidden | visible, slide-up | `--summit-cyan` |
+| State | MainActionCard | Result Panel | Status Color |
+|-------|---------------|-------------|-------------|
+| IDLE | "OPTIMIZE SYSTEM" | hidden | TextMuted |
+| BOOSTING | "FREEZING APPS", sweep arc | hidden | AccentWarning |
+| RESULT | (transitions to UnifiedResultCard) | visible, stagger-fade | AccentSuccess |
 
-### 5.2 Freeze Result Panel
+### 6.2 Games Tab — `Tab.GAMES`
 
-Appears below the button after a successful boost. Card in `--obsidian-2` with 20 dp radius.
+Full-page composable, not a dialog. Replaces the old `GameListDialog`.
 
-**Stats grid (3 rows):**
+**Layout:**
+- Header: `GAMES` (24 sp bold) + `Tap to optimize and launch` (12 sp muted)
+- Scan button (top right): `SCAN` pill → `SCANNING…` while detecting
+- Game list: `LazyColumn` with `GameCard` items
+  - Game name (15 sp bold white)
+  - Tag chip: `AUTO` or `MANUAL` (7 sp mono, BorderGlass bg)
+  - Package name (10 sp mono muted)
+  - Arrow `>` (cyan, 32 dp circle with 15% alpha bg)
+- Empty state: centered `EMPTY` + helper text
+- Bottom: `BasicTextField` for manual package add + `ADD` button (cyan gradient)
 
-| Row | Col 1 | Col 2 | Col 3 |
-|-----|-------|-------|-------|
-| 1 | KILLED | FAILED | SKIPPED |
-| 2 | RAM (total/available) | SWAP (total/free) | MODE (backend name) |
-| 3 | DURATION | — | — |
+**Interactions:**
+- Tap card → `GameLauncher.launch()` with toast "Optimizing & launching {name}…"
+- Long-press card → remove game with toast
+- Tap ADD → validate package name, add to `GameManager`, refresh list
+- Tap SCAN → `gameManager.detect()`, add found games
 
-**Data sources:**
-- KILLED / FAILED / SKIPPED — from `FreezeResult` counters
-- RAM — `MemTotal:` / `MemAvailable:` from `/proc/meminfo`
-- SWAP — `SwapTotal:` / `SwapFree:` from `/proc/meminfo`
-- MODE — backend name (Shizuku / Root / Accessibility / cached only)
-- DURATION — elapsed time of `freezeAll()` in seconds
+### 6.3 Overlay Tab — `Tab.OVERLAY`
 
-**Entry animation:** alpha 0→1, translationY 60→0 over 500 ms, ease-in-out.
+Configuration screen for the in-game HUD overlay service.
 
-### 5.3 Setup Dialog
+**Layout:**
+- Header: `HUD OVERLAY` (24 sp bold) + "Configure floating gameplay monitor" (12 sp muted)
+- **Permission card**: Shows `PERMISSION GRANTED` (green) or `ACTION REQUIRED` (amber). If denied, a `GRANT PERMISSION` button opens `ACTION_MANAGE_OVERLAY_PERMISSION` intent. Permission state polls every 1s.
+- **Test HUD controls**: `START TEST HUD` / `STOP TEST HUD` buttons. Requires permission granted. Starts/ stops a dummy overlay via `GameOverlayService.start()` for testing placement and drag gestures.
 
-Full-screen translucent dialog, triggered automatically once on first cold start when backend is `cached only`.
+### 6.4 Setup Dialog
 
-**Card content:**
-- Header: `SETUP REQUIRED` (mono 10 sp)
-- Body text explaining the need for elevated access
-- 3 option rows:
-  1. **Shizuku (recommended)** — opens Shizuku Manager or Play Store
-  2. **Root** — verifies su access via re-detection
-  3. **Accessibility** — opens Accessibility settings
-- Footer: `USE CACHED-ONLY MODE` — dismisses dialog
+Compose `Dialog` API (not full-screen translucent). Triggered once on cold start when backend is "cached only".
 
-### 5.4 Game List Dialog
+**Layout:**
+- Header: `SYSTEM ACCESS CONFIG` (10 sp mono, TextMuted)
+- Body: "Select a mode to enable deep process freezing."
+- **Shizuku Service** (full width, recommended): green `RECOMMENDED` badge, "CONFIGURE SHIZUKU →" CTA. Opens Shizuku Manager or Play Store.
+- **Root access** + **Accessibility** (side-by-side cards): "GRANT ROOT →" and "OPEN SETTINGS →"
+- Footer: `USE CACHED-ONLY MODE` (cyan, dismisses dialog)
 
-Full-screen translucent dialog, opened by tapping the GAMES button.
+### 6.5 Overlay HUD — `GameOverlayService`
 
-**Card content:**
-- Header: `GAME LAUNCHER` (mono 10 sp)
-- Body: `Auto-detect or manually add games. Tap to freeze + launch.`
-- **Game list** — scrollable list of added games, each showing:
-  - Game name (14 sp Inter Bold, white)
-  - Tag: `auto` or `manual` (mono 9 sp in `--obsidian-3` chip)
-  - Play arrow `▶` (cyan)
-- Tap game → freeze background apps → launch game intent
-- Long-press game → remove from list (with toast confirmation)
-- **Manual add row** — EditText for package name + ADD button
-- **SCAN FOR GAMES button** — scans PackageManager for `CATEGORY_GAME` apps, adds them
-- Footer: `CLOSE` — dismisses dialog
+Draggable system overlay shown while a game is running. Built with Compose via `ComposeView` and `ApexCoreTheme`.
 
-**State machine:** `IDLE → SCANNING → (results added | no results found)` via SCAN button
+**Two states:**
+- **Collapsed** (56×56 dp pill): cyan border, FPS counter. Pulsing green dot indicator. Drag to move.
+- **Expanded** (185 dp wide card): auto-collapses after 15s.
+  - `MONITOR` header + close ✕ button
+  - FPS value (32 sp, amber)
+  - RAM usage bar (visual progress bar)
+  - CPU load bar (visual progress bar)
+  - `BOOST SYSTEM` button (cyan gradient)
+
+**FPS tracking:** via `Choreographer.FrameCallback`.
 
 ---
 
-## 6. Game Launch Flow
+## 7. Game Launch Flow
 
 ```
-User taps game in list
+User taps game in Games tab
   │
   ├─ GameLauncher.launch(context, pkg)
   │    ├─ FreezeFramework.freezeAll() with custom filter
-  │    │    └─ excludes the target game (game survives)
+  │    │    └─ excludes the target game
   │    ├─ context.packageManager.getLaunchIntentForPackage(pkg)
   │    └─ context.startActivity(intent) with FLAG_ACTIVITY_NEW_TASK
   │
   └─ Result: toast on failure, game opens on success
 ```
 
-The freeze runs silently — no result panel is shown for the pre-launch freeze. The user sees a toast `"Freezing + launching {game}…"` and then the game opens.
+The freeze runs silently — no result panel is shown. User sees toast "Optimizing & launching {game}…" then game opens.
 
 ---
 
-## 7. Component Library (cross-page)
+## 8. Component Library
 
-| Component | Used On | Source |
-|---|---|---|
-| `TopBar` | Home | `MainActivity.kt` |
-| `GlowRing` | Home (behind button) | `MainActivity.kt` (inner class) |
-| `BoostRing` | Home (sweep arc) | `MainActivity.kt` (inner class) |
-| `BoostButton` | Home | `MainActivity.kt` |
-| `ResultPanel` | Home (inline) | `MainActivity.kt` |
-| `SetupDialog` | Home (modal) | `SetupDialog.kt` |
-| `GameListDialog` | Home (modal) | `games/GameListDialog.kt` |
-| `GameManager` | Game list storage | `games/GameManager.kt` |
-| `GameLauncher` | Freeze + launch | `games/GameLauncher.kt` |
+| Component | Location | Tech |
+|-----------|----------|------|
+| `MainScreen` | `MainActivity.kt:69` | Compose |
+| `HomeScreen` | `MainActivity.kt` | Compose |
+| `GamesScreen` | `games/GamesScreen.kt` | Compose |
+| `OverlayScreen` | `MainActivity.kt:665` | Compose |
+| `SetupDialog` | `SetupDialog.kt:42` | Compose `Dialog` |
+| `GameOverlayService` | `games/GameOverlayService.kt` | Compose via `ComposeView` |
+| `ApexCoreTheme` | `ui/theme/Theme.kt` | Material3 `darkColorScheme` |
+| `Color` tokens | `ui/theme/Color.kt` | Compose `Color` constants |
+| `GameManager` | `games/GameManager.kt` | Data layer |
+| `GameLauncher` | `games/GameLauncher.kt` | Freeze + launch |
 
 ---
 
-## 8. Broadcast Receiver: FREEZE_ALL
-
-External trigger via ADB or automation apps:
+## 9. Broadcast Receiver: FREEZE_ALL
 
 ```bash
 adb shell am broadcast -a com.apexcore.app.action.FREEZE_ALL
 ```
 
 - No UI shown — fire-and-forget via `goAsync()` + coroutine
-- Result logged to Logcat: `I/ApexCore.Freeze: freezeAll done: FreezeResult(...)`
-- Uses whatever backend is currently active (Shizuku / Root / Fallback)
+- Result logged to Logcat
+- Uses whatever backend is currently active
 
 ---
 
-## 9. Open Questions
+## 10. Open Questions
 
-1. **Per-app freeze whitelist** — T5 feature. Need UI for selecting apps to exclude from freeze-all.
-2. **Game categories** — currently uses `CATEGORY_GAME` only. Should we also detect game-related meta-data or known game store categories?
-3. **Game launch animation** — currently no transition between freeze and launch. Could add a "Preparing game…" interstitial.
-4. **Multiple users / work profiles** — freeze and launch target the current user only (`--user current`). No multi-user support yet.
+1. **Per-app freeze whitelist** — deferred. Need UI for excluding apps.
+2. **Game categories** — currently uses `CATEGORY_GAME` only.
+3. **Overlay HUD customisation** — which stats to show, colors, opacity.
+4. **Multiple users / work profiles** — freeze targets current user only.

@@ -1,267 +1,277 @@
 package com.apexcore.app
 
-import android.app.Dialog
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.provider.Settings
-import android.util.TypedValue
-import android.view.Gravity
-import android.view.View
-import android.view.Window
-import android.view.WindowManager
-import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.TextView
+import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.apexcore.app.freeze.FreezeBackendResolver
 import com.apexcore.app.freeze.FreezeFramework
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import com.apexcore.app.ui.theme.*
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
-class SetupDialog(
-    private val activity: MainActivity,
-    private val resolver: FreezeBackendResolver
+object SetupDialogHelper {
+    const val KEY_SHOWN = "setup_shown_v1"
+    const val PREFS = "apexcore"
+}
+
+@Composable
+fun SetupDialog(
+    resolver: FreezeBackendResolver,
+    onDismiss: () -> Unit
 ) {
-
-    private val dpf: (Float) -> Float = { v ->
-        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, activity.resources.displayMetrics)
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    
+    DisposableEffect(Unit) {
+        onDispose {
+            val prefs = context.getSharedPreferences(SetupDialogHelper.PREFS, Context.MODE_PRIVATE)
+            prefs.edit().putBoolean(SetupDialogHelper.KEY_SHOWN, true).apply()
+        }
     }
 
-    fun show() {
-        val d = Dialog(activity, android.R.style.Theme_Translucent_NoTitleBar)
-        d.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        d.window?.setBackgroundDrawable(GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            setColor(Color.parseColor("#CC070A12"))
-        })
-        d.setContentView(build(d))
-        d.window?.setLayout(
-            WindowManager.LayoutParams.MATCH_PARENT,
-            WindowManager.LayoutParams.MATCH_PARENT
-        )
-        d.setCancelable(true)
-        d.setOnDismissListener { prefs().edit().putBoolean(KEY_SHOWN, true).apply() }
-        d.show()
-    }
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(SurfaceGlass)
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 24.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(SurfaceCard)
+                    .border(1.dp, BorderGlass, RoundedCornerShape(28.dp))
+                    .clickable(enabled = false) {} // block click propagation
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Header
+                Text(
+                    text = "SYSTEM ACCESS CONFIG",
+                    color = TextMuted,
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 2.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Select a mode to enable deep process freezing.",
+                    color = TextBody,
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(28.dp))
 
-    private fun prefs() = activity.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
+                // Bento Layout
+                // 1. Shizuku (Full Width, Recommended)
+                OptionCard(
+                    title = "Shizuku Service",
+                    sub = "Uses wireless debugging API. Faster and does not require root access.",
+                    cta = "CONFIGURE SHIZUKU",
+                    badge = "RECOMMENDED",
+                    isRecommended = true,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    openShizuku(context)
+                    onDismiss()
+                }
 
-    private fun build(d: Dialog): View {
-        val root = FrameLayout(activity).apply {
-            setBackgroundColor(Color.parseColor("#CC070A12"))
-        }
+                Spacer(modifier = Modifier.height(16.dp))
 
-        val dim = View(activity).apply {
-            setBackgroundColor(Color.parseColor("#CC070A12"))
-            isClickable = true
-            setOnClickListener { d.dismiss() }
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-        }
-
-        val card = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(72, 72, 72, 72)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dpf(20f)
-                setColor(Color.parseColor("#0F1623"))
-                setStroke(3, Color.parseColor("#1F2937"))
-            }
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                leftMargin = dpf(48f).toInt()
-                rightMargin = dpf(48f).toInt()
-                gravity = Gravity.TOP
-                topMargin = dpf(96f).toInt()
-                bottomMargin = dpf(96f).toInt()
-            }
-        }
-
-        card.addView(headerText("SETUP REQUIRED"))
-        card.addView(spacer(24))
-        card.addView(bodyText("Real deep-freeze needs elevated access. Pick a mode:"))
-        card.addView(spacer(36))
-
-        card.addView(optionRow("Shizuku (recommended)",
-            "Works without root via wireless ADB. 1-time grant.",
-            "OPEN SHIZUKU",
-            onClick = {
-                openShizuku()
-                d.dismiss()
-            }
-        ))
-        card.addView(spacer(24))
-
-        card.addView(optionRow("Root",
-            "Uses su shell. Tap to re-verify root is granted.",
-            "VERIFY ROOT",
-            onClick = {
-                card.post {
-                    CoroutineScope(Dispatchers.Main).launch {
-                        resolver.invalidate()
-                        val backend = FreezeFramework.detect()
-                        if (backend.priority < 99) {
-                            d.dismiss()
-                        } else {
-                            showRetryToast(backend.name)
+                // 2. Root & Accessibility (Side-by-side)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    OptionCard(
+                        title = "Root access",
+                        sub = "Direct su shell execution.",
+                        cta = "GRANT ROOT",
+                        isRecommended = false,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        coroutineScope.launch {
+                            resolver.invalidate()
+                            val backend = FreezeFramework.detect()
+                            if (backend.priority < 99) {
+                                onDismiss()
+                            } else {
+                                Toast.makeText(context, "Root permission not found yet", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
+
+                    OptionCard(
+                        title = "Accessibility",
+                        sub = "Automates app settings UI.",
+                        cta = "OPEN SETTINGS",
+                        isRecommended = false,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        openAccessibilitySettings(context)
+                        onDismiss()
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                // Skip / Cached Only Action
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(BgDark)
+                        .border(1.dp, BorderGlass, RoundedCornerShape(14.dp))
+                        .clickable(onClick = onDismiss)
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "USE CACHED-ONLY MODE",
+                        color = AccentPrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 1.sp
+                    )
                 }
             }
-        ))
-        card.addView(spacer(24))
+        }
+    }
+}
 
-        card.addView(optionRow("Accessibility",
-            "Slowest. No setup if device is already rooted.",
-            "OPEN SETTINGS",
-            onClick = {
-                openAccessibilitySettings()
-                d.dismiss()
-            }
-        ))
-        card.addView(spacer(36))
+@Composable
+fun OptionCard(
+    title: String,
+    sub: String,
+    cta: String,
+    isRecommended: Boolean,
+    modifier: Modifier = Modifier,
+    badge: String? = null,
+    onClick: () -> Unit
+) {
+    val bgBrush = if (isRecommended) {
+        Brush.verticalGradient(listOf(AccentPrimary.copy(alpha = 0.15f), AccentSecondary.copy(alpha = 0.05f)))
+    } else {
+        Brush.verticalGradient(listOf(BgDark, BgDark))
+    }
+    
+    val borderBrush = if (isRecommended) {
+        Brush.horizontalGradient(listOf(AccentPrimary.copy(alpha = 0.6f), AccentSecondary.copy(alpha = 0.4f)))
+    } else {
+        Brush.horizontalGradient(listOf(BorderGlass, BorderGlass))
+    }
 
-        card.addView(footerButton("USE CACHED-ONLY MODE", onClick = { d.dismiss() }))
-
-        val scroll = ScrollView(activity).apply {
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(bgBrush)
+            .border(1.dp, borderBrush, RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+            .padding(18.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = title,
+                color = TextTitle,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
             )
-            isFillViewport = true
-        }
-        scroll.addView(card)
-        root.addView(dim, 0)
-        root.addView(scroll, 1)
-        return root
-    }
-
-    private fun headerText(s: String): TextView = TextView(activity).apply {
-        text = s
-        setTextColor(Color.parseColor("#6B7280"))
-        textSize = 10f
-        typeface = Typeface.MONOSPACE
-        letterSpacing = 0.2f
-        gravity = Gravity.START
-    }
-
-    private fun bodyText(s: String): TextView = TextView(activity).apply {
-        text = s
-        setTextColor(Color.parseColor("#FFFFFF"))
-        textSize = 13f
-        gravity = Gravity.START
-    }
-
-    private fun spacer(dp: Int): View = View(activity).apply {
-        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpf(dp.toFloat()).toInt())
-    }
-
-    private fun optionRow(title: String, sub: String, cta: String, onClick: () -> Unit): View {
-        val row = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dpf(36f).toInt(), dpf(36f).toInt(), dpf(36f).toInt(), dpf(36f).toInt())
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = dpf(14f)
-                setColor(Color.parseColor("#070A12"))
-                setStroke(2, Color.parseColor("#1F2937"))
+            if (badge != null) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(AccentSuccess.copy(alpha = 0.2f))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = badge,
+                        color = AccentSuccess,
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
             }
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { onClick() }
         }
-        row.addView(TextView(activity).apply {
-            text = title
-            setTextColor(Color.parseColor("#00E5FF"))
-            textSize = 16f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        })
-        row.addView(spacer(12))
-        row.addView(TextView(activity).apply {
-            text = sub
-            setTextColor(Color.parseColor("#9CA3AF"))
-            textSize = 12f
-        })
-        row.addView(spacer(18))
-        row.addView(footerButton(cta, onClick = onClick))
-        return row
-    }
-
-    private fun footerButton(label: String, onClick: () -> Unit): TextView = TextView(activity).apply {
-        text = label
-        setTextColor(Color.parseColor("#070A12"))
-        textSize = 13f
-        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        letterSpacing = 0.15f
-        gravity = Gravity.CENTER
-        setPadding(0, dpf(28f).toInt(), 0, dpf(28f).toInt())
-        background = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadius = dpf(12f)
-            colors = intArrayOf(
-                Color.parseColor("#00E5FF"),
-                Color.parseColor("#0EA5E9")
-            )
-            orientation = GradientDrawable.Orientation.TL_BR
-        }
-        isClickable = true
-        isFocusable = true
-        setOnClickListener { onClick() }
-    }
-
-    private fun openShizuku() {
-        val candidates = listOf(
-            "moe.shizuku.manager",
-            "moe.shizuku.api"
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = sub,
+            color = TextMuted,
+            fontSize = 11.sp,
+            lineHeight = 15.sp
         )
-        for (pkg in candidates) {
-            val intent = activity.packageManager.getLeanbackLaunchIntentForPackage(pkg)
-                ?: activity.packageManager.getLaunchIntentForPackage(pkg)
-            if (intent != null) {
-                try {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    activity.startActivity(intent)
-                    return
-                } catch (_: ActivityNotFoundException) { /* try next */ }
-            }
+        Spacer(modifier = Modifier.height(18.dp))
+        Text(
+            text = cta + "  →",
+            color = if (isRecommended) AccentPrimary else TextTitle,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace
+        )
+    }
+}
+
+private fun openShizuku(context: Context) {
+    val pm = context.packageManager
+    val candidates = listOf("moe.shizuku.manager", "moe.shizuku.api")
+    for (pkg in candidates) {
+        val intent = pm.getLeanbackLaunchIntentForPackage(pkg) ?: pm.getLaunchIntentForPackage(pkg)
+        if (intent != null) {
+            try {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(intent)
+                return
+            } catch (_: ActivityNotFoundException) {}
         }
-        val play = Intent(Intent.ACTION_VIEW).apply {
-            data = android.net.Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.manager")
+    }
+    val play = Intent(Intent.ACTION_VIEW).apply {
+        data = android.net.Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.manager")
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    try { context.startActivity(play) } catch (_: Throwable) {}
+}
+
+private fun openAccessibilitySettings(context: Context) {
+    try {
+        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
-        try { activity.startActivity(play) } catch (_: Throwable) {}
-    }
-
-    private fun openAccessibilitySettings() {
-        try {
-            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            activity.startActivity(intent)
-        } catch (_: Throwable) {}
-    }
-
-    private fun showRetryToast(backendName: String) {
-        android.widget.Toast.makeText(
-            activity,
-            "Still on $backendName — grant access then tap again",
-            android.widget.Toast.LENGTH_SHORT
-        ).show()
-    }
-
-    companion object {
-        const val KEY_SHOWN = "setup_shown_v1"
-        const val PREFS = "apexcore"
-    }
+        context.startActivity(intent)
+    } catch (_: Throwable) {}
 }

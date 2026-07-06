@@ -14,7 +14,8 @@ import kotlinx.coroutines.withContext
 object FreezeFramework {
 
     private const val TAG = "ApexCore.Freeze"
-    private const val FALLBACK_DELAY_MS = 800L
+    private const val KILL_DELAY_MS = 1200L
+    private const val ESTIMATED_KB_PER_APP = 40_000L
 
     private var resolver: FreezeBackendResolver? = null
 
@@ -28,7 +29,6 @@ object FreezeFramework {
         if (resolver == null) {
             val appCtx = context.applicationContext
             resolver = FreezeBackendResolver(appCtx)
-            ShizukuFreezeBackend.currentContext = appCtx
         }
     }
 
@@ -56,17 +56,17 @@ object FreezeFramework {
         Log.i(TAG, "freezeAll via ${backend.name} -> ${targets.size} apps")
 
         val (totalMemKb, beforeMemKb) = readMemInfo()
+        val beforeFreeKb = readMemLine("MemFree:")
         val start = System.currentTimeMillis()
 
         var killed = 0
         var failed = 0
         var skipped = 0
 
-        for (app in targets) {
-            val res = try { backend.execute(FreezeOperation.ForceStop(app.packageName)) }
-                catch (t: Throwable) {
-                    FreezeOperation.Result.Failure(t.message ?: "threw")
-                }
+        val allOps = targets.map { FreezeOperation.ForceStop(it.packageName) }
+        val allResults = backend.executeMany(allOps)
+
+        for (res in allResults) {
             when (res) {
                 is FreezeOperation.Result.Success -> killed++
                 is FreezeOperation.Result.Failure -> {
@@ -75,11 +75,22 @@ object FreezeFramework {
             }
         }
 
-        if (backend is FallbackFreezeBackend) {
-            delay(FALLBACK_DELAY_MS)
-        }
+        delay(KILL_DELAY_MS)
 
-        val (_, afterMemKb) = readMemInfo()
+        try {
+            if (backend is ShizukuFreezeBackend || backend is RootFreezeBackend) {
+                backend.execute(FreezeOperation.ShellCommand("echo 3 > /proc/sys/vm/drop_caches 2>/dev/null"))
+            }
+        } catch (_: Throwable) {}
+
+        delay(200)
+        val afterFreeKb = readMemLine("MemFree:")
+        val afterAvailKb = readMemLine("MemAvailable:")
+
+        val freedKbFromMem = (afterFreeKb - beforeFreeKb).coerceAtLeast(0)
+        val freedKbEstimated = killed * ESTIMATED_KB_PER_APP
+        val freedKb = maxOf(freedKbFromMem, freedKbEstimated)
+        Log.i(TAG, "beforeFree=${beforeFreeKb}KB afterFree=${afterFreeKb}KB freedFromMem=${freedKbFromMem}KB estimated=${freedKbEstimated}KB")
         val duration = System.currentTimeMillis() - start
 
         val result = FreezeResult(
@@ -90,7 +101,8 @@ object FreezeFramework {
             backend = backend.name,
             totalMemMb = totalMemKb / 1024,
             beforeAvailMb = beforeMemKb / 1024,
-            afterAvailMb = afterMemKb / 1024,
+            afterAvailMb = afterAvailKb / 1024,
+            freedKb = freedKb,
             swapTotalMb = readMemLine("SwapTotal:") / 1024,
             swapFreeMb = readMemLine("SwapFree:") / 1024
         )

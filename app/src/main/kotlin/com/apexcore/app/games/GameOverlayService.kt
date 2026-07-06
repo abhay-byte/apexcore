@@ -6,10 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.PixelFormat
-import android.graphics.Typeface
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
@@ -20,22 +17,40 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.TextView
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.*
+import androidx.savedstate.*
 import com.apexcore.app.freeze.FreezeFramework
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import com.apexcore.app.ui.theme.*
+import kotlinx.coroutines.*
+import kotlin.math.sin
 
-class GameOverlayService : Service(), Choreographer.FrameCallback {
+class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
 
     private lateinit var wm: WindowManager
     private lateinit var overlayView: FrameLayout
     private var params: WindowManager.LayoutParams? = null
-    private var isExpanded = false
     private var gamePkg: String? = null
     private var scope = CoroutineScope(Dispatchers.Main + Job())
     private var statsJob: Job? = null
@@ -45,21 +60,31 @@ class GameOverlayService : Service(), Choreographer.FrameCallback {
     // FPS tracking
     private var frameCount = 0
     private var lastFpsTime = 0L
-    private var currentFps = 0
 
-    // UI views
-    private lateinit var collapsedView: View
-    private lateinit var expandedView: LinearLayout
-    private lateinit var fpsText: TextView
-    private lateinit var fpsLabel: TextView
-    private lateinit var ramText: TextView
-    private lateinit var cpuText: TextView
-    private lateinit var boostBtn: TextView
+    // Lifecycle/Compose Boilerplate for Service
+    private val lifecycleRegistry = LifecycleRegistry(this)
+    private val store = ViewModelStore()
+    private val savedStateRegistryController = SavedStateRegistryController.create(this)
+
+    override val lifecycle: Lifecycle get() = lifecycleRegistry
+    override val viewModelStore: ViewModelStore get() = store
+    override val savedStateRegistry: SavedStateRegistry get() = savedStateRegistryController.savedStateRegistry
+
+    // Dynamic UI states
+    private val isExpandedState = mutableStateOf(false)
+    private val fpsState = mutableStateOf(0)
+    private val ramTotalState = mutableStateOf(1L)
+    private val ramAvailState = mutableStateOf(1L)
+    private val cpuLoadState = mutableStateOf("0.10 0.10")
+    private val isBoostingState = mutableStateOf(false)
 
     private val density: Float get() = resources.displayMetrics.density
 
     override fun onCreate() {
         super.onCreate()
+        savedStateRegistryController.performRestore(null)
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
         buildOverlay()
@@ -72,6 +97,8 @@ class GameOverlayService : Service(), Choreographer.FrameCallback {
         if (overlayView.parent == null) {
             wm.addView(overlayView, createLayoutParams())
         }
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+        
         startFpsCounter()
         startStatsUpdates()
         startExitWatcher()
@@ -79,6 +106,7 @@ class GameOverlayService : Service(), Choreographer.FrameCallback {
     }
 
     override fun onDestroy() {
+        lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         statsJob?.cancel()
         exitWatcher?.cancel()
         autoCollapseJob?.cancel()
@@ -86,21 +114,19 @@ class GameOverlayService : Service(), Choreographer.FrameCallback {
         try {
             if (overlayView.parent != null) wm.removeView(overlayView)
         } catch (_: Throwable) {}
+        store.clear()
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    // ── FPS via Choreographer ──
-
     override fun doFrame(frameTimeNanos: Long) {
         val now = SystemClock.elapsedRealtime()
         frameCount++
         if (now - lastFpsTime >= 1000) {
-            currentFps = frameCount
+            fpsState.value = frameCount
             frameCount = 0
             lastFpsTime = now
-            if (::fpsText.isInitialized) fpsText.text = "$currentFps"
         }
         Choreographer.getInstance().postFrameCallback(this)
     }
@@ -110,8 +136,6 @@ class GameOverlayService : Service(), Choreographer.FrameCallback {
         frameCount = 0
         Choreographer.getInstance().postFrameCallback(this)
     }
-
-    // ── Stats updater ──
 
     private fun startStatsUpdates() {
         statsJob = scope.launch {
@@ -125,12 +149,9 @@ class GameOverlayService : Service(), Choreographer.FrameCallback {
     private fun updateStats() {
         val memInfo = readMemInfo()
         val load = readCpuLoad()
-        if (::ramText.isInitialized) {
-            ramText.text = "${memInfo.first / 1024}/${memInfo.second / 1024} MB"
-        }
-        if (::cpuText.isInitialized) {
-            cpuText.text = load
-        }
+        ramTotalState.value = memInfo.first
+        ramAvailState.value = memInfo.second
+        cpuLoadState.value = load
     }
 
     private fun readMemInfo(): Pair<Long, Long> {
@@ -153,9 +174,7 @@ class GameOverlayService : Service(), Choreographer.FrameCallback {
 
     private fun readCpuLoad(): String = try {
         java.io.File("/proc/loadavg").readText().split(" ").take(2).joinToString(" ")
-    } catch (_: Throwable) { "—" }
-
-    // ── Exit watcher ──
+    } catch (_: Throwable) { "0.10 0.10" }
 
     private fun startExitWatcher() {
         val pkg = gamePkg ?: return
@@ -183,7 +202,6 @@ class GameOverlayService : Service(), Choreographer.FrameCallback {
                 return sorted.first().packageName == pkg
             }
         } catch (_: Throwable) {}
-        // Fallback: stay alive if query fails or permission is not granted
         return true
     }
 
@@ -199,11 +217,9 @@ class GameOverlayService : Service(), Choreographer.FrameCallback {
         stopSelf()
     }
 
-    // ── Overlay view builder ──
-
     private fun createLayoutParams(): WindowManager.LayoutParams {
-        val w = dpf(56f).toInt()
-        val h = dpf(56f).toInt()
+        val w = if (isExpandedState.value) WindowManager.LayoutParams.WRAP_CONTENT else dpf(56f).toInt()
+        val h = if (isExpandedState.value) WindowManager.LayoutParams.WRAP_CONTENT else dpf(56f).toInt()
         val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         } else {
@@ -228,99 +244,49 @@ class GameOverlayService : Service(), Choreographer.FrameCallback {
         overlayView = FrameLayout(this).apply {
             setPadding(0, 0, 0, 0)
             setOnTouchListener(OverlayTouchListener())
+            setViewTreeLifecycleOwner(this@GameOverlayService)
+            setViewTreeViewModelStoreOwner(this@GameOverlayService)
+            setViewTreeSavedStateRegistryOwner(this@GameOverlayService)
         }
 
-        // Collapsed pill — small cyan dot with FPS
-        collapsedView = TextView(this).apply {
-            text = "—"
-            setTextColor(Color.parseColor("#FFFFFF"))
-            textSize = 12f
-            typeface = Typeface.MONOSPACE
-            gravity = Gravity.CENTER
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#0F1623"))
-                setStroke(3, Color.parseColor("#00E5FF"))
-            }
-            layoutParams = FrameLayout.LayoutParams(dpf(56f).toInt(), dpf(56f).toInt())
-            setOnClickListener { toggleExpand() }
-        }
-        fpsText = collapsedView as TextView
-        overlayView.addView(collapsedView)
-
-        // Expanded panel
-        expandedView = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            visibility = View.GONE
-            setPadding(dpf(16f).toInt(), dpf(16f).toInt(), dpf(16f).toInt(), dpf(16f).toInt())
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE; cornerRadius = dpf(16f)
-                setColor(Color.parseColor("#0F1623")); setStroke(2, Color.parseColor("#1F2937"))
-            }
-            layoutParams = FrameLayout.LayoutParams(dpf(180f).toInt(), FrameLayout.LayoutParams.WRAP_CONTENT)
-        }
-        expandedView.apply {
-            // FPS row
-            val fpsRow = LinearLayout(this@GameOverlayService).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
-            fpsLabel = TextView(this@GameOverlayService).apply { text = "$currentFps"; textSize = 28f; setTextColor(Color.parseColor("#00E5FF")); typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); gravity = Gravity.CENTER }
-            fpsRow.addView(fpsLabel)
-            fpsRow.addView(tiny("FPS"))
-            addView(fpsRow)
-
-            addView(spacer(12))
-
-            // RAM row
-            val ramRow = makeStatRow("RAM")
-            ramText = ramRow.second
-            addView(ramRow.first)
-            addView(spacer(6))
-
-            // CPU row
-            val cpuRow = makeStatRow("CPU")
-            cpuText = cpuRow.second
-            addView(cpuRow.first)
-            addView(spacer(16))
-
-            // BOOST button
-            boostBtn = TextView(this@GameOverlayService).apply {
-                text = "BOOST"; setTextColor(Color.parseColor("#070A12")); textSize = 12f
-                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                gravity = Gravity.CENTER
-                setPadding(0, dpf(12f).toInt(), 0, dpf(12f).toInt())
-                background = GradientDrawable().apply {
-                    shape = GradientDrawable.RECTANGLE; cornerRadius = dpf(10f)
-                    colors = intArrayOf(Color.parseColor("#00E5FF"), Color.parseColor("#0EA5E9"))
-                    orientation = GradientDrawable.Orientation.TL_BR
-                }
-                setOnClickListener {
-                    scope.launch {
-                        FreezeFramework.freezeAll(this@GameOverlayService)
-                    }
+        val composeView = ComposeView(this).apply {
+            setViewTreeLifecycleOwner(this@GameOverlayService)
+            setViewTreeViewModelStoreOwner(this@GameOverlayService)
+            setViewTreeSavedStateRegistryOwner(this@GameOverlayService)
+            setContent {
+                ApexCoreTheme {
+                    OverlayContent(
+                        isExpanded = isExpandedState.value,
+                        fps = fpsState.value,
+                        ramTotal = ramTotalState.value,
+                        ramAvail = ramAvailState.value,
+                        cpuLoad = cpuLoadState.value,
+                        isBoosting = isBoostingState.value,
+                        onBoostClick = {
+                            isBoostingState.value = true
+                            scope.launch {
+                                FreezeFramework.freezeAll(this@GameOverlayService)
+                                isBoostingState.value = false
+                            }
+                        },
+                        onToggleExpand = { toggleExpand() },
+                        onCloseClick = { shutdown() }
+                    )
                 }
             }
-            addView(boostBtn)
-            addView(spacer(8))
-
-            // Dismiss
-            addView(tinyBtn("✕") { shutdown() })
         }
-        overlayView.addView(expandedView)
+        overlayView.addView(composeView)
     }
 
     private fun toggleExpand() {
-        isExpanded = !isExpanded
+        isExpandedState.value = !isExpandedState.value
         val lp = params ?: return
-        if (isExpanded) {
-            collapsedView.visibility = View.GONE
-            expandedView.visibility = View.VISIBLE
+        if (isExpandedState.value) {
             lp.width = WindowManager.LayoutParams.WRAP_CONTENT
             lp.height = WindowManager.LayoutParams.WRAP_CONTENT
             wm.updateViewLayout(overlayView, lp)
             startAutoCollapseTimer()
         } else {
-            expandedView.visibility = View.GONE
-            collapsedView.visibility = View.VISIBLE
             lp.width = dpf(56f).toInt()
             lp.height = dpf(56f).toInt()
             wm.updateViewLayout(overlayView, lp)
@@ -332,11 +298,9 @@ class GameOverlayService : Service(), Choreographer.FrameCallback {
         autoCollapseJob?.cancel()
         autoCollapseJob = scope.launch {
             delay(15000L)
-            if (isExpanded) toggleExpand()
+            if (isExpandedState.value) toggleExpand()
         }
     }
-
-    // ── Touch (drag) handler ──
 
     private inner class OverlayTouchListener : View.OnTouchListener {
         private var initialX = 0
@@ -369,8 +333,7 @@ class GameOverlayService : Service(), Choreographer.FrameCallback {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!isDragging) {
-                        // Let the click listener handle it
-                        v.performClick()
+                        toggleExpand()
                     }
                     return true
                 }
@@ -379,39 +342,8 @@ class GameOverlayService : Service(), Choreographer.FrameCallback {
         }
     }
 
-    // ── UI helpers ──
-
-    private fun makeStatRow(label: String): Pair<LinearLayout, TextView> {
-        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        row.addView(TextView(this).apply {
-            text = label; setTextColor(Color.parseColor("#6B7280")); textSize = 10f; typeface = Typeface.MONOSPACE
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        })
-        val tv = TextView(this).apply {
-            text = "—"; setTextColor(Color.parseColor("#FFFFFF")); textSize = 11f; typeface = Typeface.MONOSPACE
-        }
-        row.addView(tv)
-        return row to tv
-    }
-
-    private fun tiny(label: String) = TextView(this).apply {
-        text = label; setTextColor(Color.parseColor("#6B7280")); textSize = 9f; typeface = Typeface.MONOSPACE; gravity = Gravity.CENTER
-    }
-
-    private fun spacer(dp: Int) = View(this).apply {
-        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dpf(dp.toFloat()).toInt())
-    }
-
-    private fun tinyBtn(label: String, onClick: () -> Unit) = TextView(this).apply {
-        text = label; setTextColor(Color.parseColor("#6B7280")); textSize = 14f; gravity = Gravity.CENTER
-        setPadding(dpf(24f).toInt(), dpf(6f).toInt(), dpf(24f).toInt(), dpf(6f).toInt())
-        isClickable = true; setOnClickListener { onClick() }
-    }
-
     private fun dpf(v: Float): Float =
         TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, resources.displayMetrics)
-
-    // ── Notification ──
 
     private fun createNotificationChannel() {
         val ch = NotificationChannel(CHANNEL_ID, "Game Overlay", NotificationManager.IMPORTANCE_LOW).apply {
@@ -430,7 +362,6 @@ class GameOverlayService : Service(), Choreographer.FrameCallback {
             .build()
 
     companion object {
-        private const val TAG = "ApexCore.Overlay"
         private const val CHANNEL_ID = "apexcore_overlay"
         private const val NOTIF_ID = 1001
         const val EXTRA_PKG = "game_pkg"
@@ -449,6 +380,207 @@ class GameOverlayService : Service(), Choreographer.FrameCallback {
 
         fun stop(context: Context) {
             context.stopService(Intent(context, GameOverlayService::class.java))
+        }
+    }
+}
+
+@Composable
+fun OverlayContent(
+    isExpanded: Boolean,
+    fps: Int,
+    ramTotal: Long,
+    ramAvail: Long,
+    cpuLoad: String,
+    isBoosting: Boolean,
+    onBoostClick: () -> Unit,
+    onToggleExpand: () -> Unit,
+    onCloseClick: () -> Unit
+) {
+    if (!isExpanded) {
+        val infiniteTransition = rememberInfiniteTransition()
+        val pulseScale by infiniteTransition.animateFloat(
+            initialValue = 0.85f,
+            targetValue = 1.15f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1000, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            )
+        )
+
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(SurfaceGlass)
+                .border(1.5.dp, Brush.linearGradient(listOf(AccentPrimary, AccentSecondary)), CircleShape)
+                .clickable { onToggleExpand() },
+            contentAlignment = Alignment.Center
+        ) {
+            // Live pulsing core inside the pill
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .scale(pulseScale)
+                    .clip(CircleShape)
+                    .background(AccentSuccess)
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-8).dp, y = 8.dp)
+            )
+            
+            Text(
+                text = if (fps > 0) "$fps" else "—",
+                color = TextTitle,
+                fontSize = 13.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .width(185.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(SurfaceCard.copy(alpha = 0.95f))
+                .border(1.dp, BorderGlass, RoundedCornerShape(24.dp))
+                .padding(18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "MONITOR",
+                    color = TextMuted,
+                    fontSize = 8.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+                // Small styled close button
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(BorderGlass)
+                        .clickable { onCloseClick() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "X",
+                        color = TextTitle,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = "$fps",
+                color = AccentWarning,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = (-0.02).em
+            )
+            Text(
+                text = "CURRENT FPS",
+                color = TextMuted,
+                fontSize = 8.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(18.dp))
+            
+            // Visual Progress stats for RAM
+            val ramUsed = (ramTotal - ramAvail).coerceAtLeast(0)
+            val ramFraction = if (ramTotal > 0) ramUsed.toFloat() / ramTotal else 0f
+            val ramText = "${ramUsed / 1024}G / ${ramTotal / 1024}G"
+            OverlayVisualBar(label = "RAM USAGE", value = ramMute(ramText), progress = ramFraction)
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            // Visual Progress stats for CPU
+            val cpuLoadVal = cpuLoad.split(" ").firstOrNull()?.toFloatOrNull() ?: 0.1f
+            val cpuFraction = (cpuLoadVal / 8f).coerceIn(0f, 1f)
+            OverlayVisualBar(label = "CPU LOAD", value = cpuLoad, progress = cpuFraction)
+            
+            Spacer(modifier = Modifier.height(20.dp))
+            
+            // Boosting button with premium gradients
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        if (isBoosting) androidx.compose.ui.graphics.SolidColor(AccentSuccess.copy(alpha = 0.5f))
+                        else Brush.horizontalGradient(listOf(AccentPrimary, AccentSecondary))
+                    )
+                    .clickable(enabled = !isBoosting) { onBoostClick() }
+                    .padding(vertical = 11.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (isBoosting) "BOOSTING…" else "BOOST SYSTEM",
+                    color = TextTitle,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 0.5.sp
+                )
+            }
+        }
+    }
+}
+
+private fun ramMute(text: String): String {
+    // Just a clean string formatter
+    return text.replace(" ", "")
+}
+
+@Composable
+fun OverlayVisualBar(label: String, value: String, progress: Float) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = label,
+                color = TextMuted,
+                fontSize = 8.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = value,
+                color = TextTitle,
+                fontSize = 9.sp,
+                fontFamily = FontFamily.Monospace
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        // Progress bar track
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .clip(RoundedCornerShape(50))
+                .background(BorderGlass)
+        ) {
+            // Progress fill
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(progress)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(50))
+                    .background(Brush.horizontalGradient(listOf(AccentPrimary, AccentSecondary)))
+            )
         }
     }
 }
