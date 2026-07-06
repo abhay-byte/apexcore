@@ -43,7 +43,7 @@
             android:name=".freeze.FreezeReceiver"
             android:exported="true">
             <intent-filter>
-                <action android:name="com.apexcore.app.action.FREEZE_ALL" />
+                <action android:name="com.ivarna.apexcore.action.FREEZE_ALL" />
             </intent-filter>
         </receiver>
 

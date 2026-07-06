@@ -10,7 +10,7 @@
   really_needed: yes
   impact: New FreezeFramework module with three backends (Shizuku, Root, Accessibility).
     Replaces BoostManager's free-only path with freeze path. Adds FREEZE_ALL action that
-    can be invoked from a button or `am start -a com.apexcore.app.action.FREEZE_ALL`.
+    can be invoked from a button or `am start -a com.ivarna.apexcore.action.FREEZE_ALL`.
     No UI rework — same BOOST button now triggers freeze-eligible path when privilege
     is granted.
   followups: T5 (per-app freeze list), T6 (whitelist/tags)

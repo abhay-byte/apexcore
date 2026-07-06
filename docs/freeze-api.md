@@ -108,7 +108,7 @@ data class FreezeResult(
 ```kotlin
 class FreezeReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
-        if (intent.action == "com.apexcore.app.action.FREEZE_ALL") {
+        if (intent.action == "com.ivarna.apexcore.action.FREEZE_ALL") {
             val pending = goAsync()
             CoroutineScope(Dispatchers.IO).launch {
                 FreezeFramework.freezeAll()
@@ -124,7 +124,7 @@ Manifest:
 ```xml
 <receiver android:name=".freeze.FreezeReceiver" android:exported="true">
     <intent-filter>
-        <action android:name="com.apexcore.app.action.FREEZE_ALL" />
+        <action android:name="com.ivarna.apexcore.action.FREEZE_ALL" />
     </intent-filter>
 </receiver>
 ```
@@ -132,7 +132,7 @@ Manifest:
 External invocation:
 
 ```bash
-adb shell am start -a com.apexcore.app.action.FREEZE_ALL
+adb shell am start -a com.ivarna.apexcore.action.FREEZE_ALL
 ```
 
 (Tasker / Automate / MacroDroid can also call this.)

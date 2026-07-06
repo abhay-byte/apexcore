@@ -40,7 +40,7 @@ done
 VARIANT_CAP="${VARIANT^}"
 
 APP_NAME="ApexCore"
-PACKAGE="com.apexcore.app"
+PACKAGE="com.ivarna.apexcore"
 ACTIVITY=".MainActivity"
 
 if $BUNDLE_ONLY; then

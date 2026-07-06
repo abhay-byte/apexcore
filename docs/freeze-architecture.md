@@ -94,7 +94,7 @@ breaking the API.
 ## 5. FREEZE_ALL action
 
 ```
-adb shell am start -a com.apexcore.app.action.FREEZE_ALL
+adb shell am start -a com.ivarna.apexcore.action.FREEZE_ALL
 hail://freeze_all                         (no — ApexCore uses action only)
 ```
 

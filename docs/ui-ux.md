@@ -247,7 +247,7 @@ The freeze runs silently — no result panel is shown. User sees toast "Optimizi
 ## 9. Broadcast Receiver: FREEZE_ALL
 
 ```bash
-adb shell am broadcast -a com.apexcore.app.action.FREEZE_ALL
+adb shell am broadcast -a com.ivarna.apexcore.action.FREEZE_ALL
 ```
 
 - No UI shown — fire-and-forget via `goAsync()` + coroutine

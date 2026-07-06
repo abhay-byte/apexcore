@@ -14,7 +14,7 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
-    namespace = "com.apexcore.app"
+    namespace = "com.ivarna.apexcore"
     compileSdk = 36
 
     signingConfigs {
@@ -29,7 +29,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.apexcore.app"
+        applicationId = "com.ivarna.apexcore"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
