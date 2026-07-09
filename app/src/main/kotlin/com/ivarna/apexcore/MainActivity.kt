@@ -351,62 +351,216 @@ fun HomeScreen(
 fun MainActionCard(state: State, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+    
+    // Press animation for physical button movement (tactile 3D mechanical feel)
+    val buttonOffsetY by animateDpAsState(
+        targetValue = if (isPressed) 6.dp else 0.dp,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "button_offset_y"
+    )
+    val shadowOffsetY by animateDpAsState(
+        targetValue = if (isPressed) 3.dp else 12.dp,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "shadow_offset_y"
+    )
+    val shadowAlpha by animateFloatAsState(
+        targetValue = if (isPressed) 0.8f else 0.45f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "shadow_alpha"
     )
 
-    val infiniteTransition = rememberInfiniteTransition()
-    val gradientOffset by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 1000f,
-        animationSpec = infiniteRepeatable(tween(2000, easing = LinearEasing), RepeatMode.Restart)
+    // Infinite transitions for idle breathing and boost sweep animations
+    val infiniteTransition = rememberInfiniteTransition(label = "infinite_transitions")
+    
+    // 1. Subtle breathing scale in IDLE state
+    val breathScaleState = infiniteTransition.animateFloat(
+        initialValue = 1.0f,
+        targetValue = 1.015f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "breath_scale"
+    )
+    val breathScale = if (state == State.IDLE) breathScaleState.value else 1f
+
+    // 2. Active cyber sweep/pulse phase during BOOSTING
+    val sweepPulse = infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "sweep_pulse"
     )
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(200.dp)
-            .scale(scale)
-            .clip(RoundedCornerShape(32.dp))
-            .background(SurfaceGlass)
-            .border(
-                width = 2.dp,
-                brush = Brush.linearGradient(
-                    colors = if (state == State.BOOSTING) listOf(AccentSuccess, AccentPrimary, AccentSuccess)
-                             else listOf(BorderGlass, BorderGlass),
-                ),
-                shape = RoundedCornerShape(32.dp)
-            )
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(32.dp),
+            .height(148.dp)
+            .scale(breathScale),
         contentAlignment = Alignment.Center
     ) {
-        if (state == State.BOOSTING) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(100.dp)
-                    .graphicsLayer { translationX = gradientOffset - 500f }
-                    .background(Brush.horizontalGradient(listOf(Color.Transparent, AccentSuccess.copy(alpha = 0.3f), Color.Transparent)))
-                    .align(Alignment.CenterStart)
-            )
+        // --- 1. Bottom Drop Shadow Layer ---
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .offset(y = shadowOffsetY)
+                .clip(RoundedCornerShape(32.dp))
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color.Black.copy(alpha = shadowAlpha), Color.Transparent)
+                    )
+                )
+        )
+
+        // --- 2. 3D Mechanical Base / Bezel Lip ---
+        // Sits 8.dp lower so when buttonOffsetY compresses from 0.dp to 6.dp, it presses into this lip
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .offset(y = 8.dp)
+                .clip(RoundedCornerShape(32.dp))
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFF0F172A), Color(0xFF020617)) // Cyber metallic dark base
+                    )
+                )
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(32.dp)
+                )
+        )
+
+        // --- 3. Tactile Front Face (Moving Button) ---
+        val gradientColors = if (state == State.BOOSTING) {
+            listOf(Color(0xFF0284C7), AccentPrimary, Color(0xFF38BDF8))
+        } else {
+            listOf(AccentPrimary, Color(0xFF0284C7)) // Vibrant cyan-to-sky metallic gaming gradient
         }
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            val title = when(state) {
-                State.IDLE -> "OPTIMIZE SYSTEM"
-                State.BOOSTING -> "FREEZING APPS"
-                State.RESULT -> "OPTIMIZATION COMPLETE"
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .offset(y = buttonOffsetY)
+                .clip(RoundedCornerShape(32.dp))
+                .background(Brush.linearGradient(colors = gradientColors))
+                .border(
+                    width = 2.dp,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(Color.White.copy(alpha = 0.65f), Color.Black.copy(alpha = 0.5f))
+                    ),
+                    shape = RoundedCornerShape(32.dp)
+                )
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onClick
+                )
+        ) {
+            // --- 4. Inner Highlights & Active Boost Animation ---
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val strokeWidth = 3.dp.toPx()
+                // Top glass highlight arc
+                drawRoundRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(Color.White.copy(alpha = 0.4f), Color.Transparent)
+                    ),
+                    style = Stroke(width = strokeWidth),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(32.dp.toPx(), 32.dp.toPx())
+                )
+
+                // Active cyber glow outline during BOOSTING
+                if (state == State.BOOSTING) {
+                    drawRoundRect(
+                        color = Color.White.copy(alpha = sweepPulse.value),
+                        style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(32.dp.toPx(), 32.dp.toPx())
+                    )
+                }
             }
-            Text(title, color = TextTitle, fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            val subtitle = when(state) {
-                State.IDLE -> "Tap to reclaim memory"
-                State.BOOSTING -> "Please wait..."
-                State.RESULT -> "Tap to run again"
+
+            // --- 5. Button Content Layout ---
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Left Column: Titles
+                Column(verticalArrangement = Arrangement.Center) {
+                    val title = if (state == State.BOOSTING) "OPTIMIZING ENGINE..." else "OPTIMIZE SYSTEM"
+                    val subtitle = if (state == State.BOOSTING) "FREEZING APPS & FLUSHING CACHE..." else "TAP TO BOOST PERFORMANCE & FPS"
+                    
+                    Text(
+                        text = title,
+                        color = BgDark,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 0.06.em
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = subtitle,
+                        color = BgDark.copy(alpha = 0.8f),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.03.em
+                    )
+                }
+
+                // Right Badge Container: 3D Lightning Icon
+                Box(
+                    modifier = Modifier
+                        .size(68.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.White.copy(alpha = 0.3f), Color.White.copy(alpha = 0.12f))
+                            )
+                        )
+                        .border(
+                            width = 1.5.dp,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.White.copy(alpha = 0.65f), Color.Transparent)
+                            ),
+                            shape = RoundedCornerShape(22.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Custom Vector 3D Lightning Bolt
+                    Canvas(modifier = Modifier.size(36.dp)) {
+                        val path = Path().apply {
+                            moveTo(size.width * 0.58f, 0f)
+                            lineTo(size.width * 0.15f, size.height * 0.55f)
+                            lineTo(size.width * 0.48f, size.height * 0.55f)
+                            lineTo(size.width * 0.40f, size.height)
+                            lineTo(size.width * 0.85f, size.height * 0.45f)
+                            lineTo(size.width * 0.52f, size.height * 0.45f)
+                            close()
+                        }
+                        // Bolt shadow
+                        drawPath(
+                            path = path,
+                            color = Color.Black.copy(alpha = 0.3f)
+                        )
+                        // Bolt fill
+                        drawPath(
+                            path = path,
+                            color = BgDark
+                        )
+                        // Bolt inner edge highlight
+                        drawPath(
+                            path = path,
+                            color = Color.White.copy(alpha = 0.5f),
+                            style = Stroke(width = 1.5.dp.toPx(), join = StrokeJoin.Round)
+                        )
+                    }
+                }
             }
-            Text(subtitle, color = TextBody, fontSize = 14.sp)
         }
     }
 }
