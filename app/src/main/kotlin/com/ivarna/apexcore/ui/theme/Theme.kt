@@ -7,6 +7,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
@@ -21,7 +23,28 @@ private val DarkColorScheme = darkColorScheme(
     onSurfaceVariant = TextMuted
 )
 
-val Typography = Typography()
+val Typography = Typography(
+    displayLarge = TextStyle(
+        fontFamily = SpaceGrotesk,
+        fontWeight = FontWeight.Normal
+    ),
+    headlineLarge = TextStyle(
+        fontFamily = SpaceGrotesk,
+        fontWeight = FontWeight.Bold
+    ),
+    titleLarge = TextStyle(
+        fontFamily = SpaceGrotesk,
+        fontWeight = FontWeight.Medium
+    ),
+    bodyLarge = TextStyle(
+        fontFamily = Inter,
+        fontWeight = FontWeight.Normal
+    ),
+    labelLarge = TextStyle(
+        fontFamily = JetBrainsMono,
+        fontWeight = FontWeight.Medium
+    )
+)
 
 @Composable
 fun ApexCoreTheme(

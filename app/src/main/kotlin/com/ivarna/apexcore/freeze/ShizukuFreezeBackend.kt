@@ -113,6 +113,19 @@ class ShizukuFreezeBackend : FreezeBackend {
             results
         }
 
+    override suspend fun executeWithOutput(cmd: String): String =
+        withContext(Dispatchers.IO) {
+            val proc = newShizukuProcess(arrayOf("sh", "-c", cmd))
+            if (proc != null) {
+                val stdout = ByteArrayOutputStream()
+                readAll(proc.inputStream, stdout)
+                waitExit(proc, EXEC_TIMEOUT_MS)
+                stdout.toString().trim()
+            } else {
+                ""
+            }
+        }
+
     private fun newShizukuProcess(cmd: Array<String>): Process? {
         return try {
             val cls = Class.forName("rikka.shizuku.Shizuku")

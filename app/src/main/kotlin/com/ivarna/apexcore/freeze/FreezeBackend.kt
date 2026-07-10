@@ -8,4 +8,7 @@ interface FreezeBackend {
     suspend fun executeMany(ops: List<FreezeOperation>): List<FreezeOperation.Result> {
         return ops.map { execute(it) }
     }
+    suspend fun executeWithOutput(cmd: String): String {
+        return ""
+    }
 }

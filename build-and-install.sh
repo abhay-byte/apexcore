@@ -54,7 +54,7 @@ else
 fi
 
 info "Building ${APP_NAME} ${ARTIFACT_EXT^^} variant: ${VARIANT_CAP}"
-./gradlew "$GRADLE_TASK" --quiet
+./gradlew "$GRADLE_TASK" --quiet --no-daemon
 
 if $BUNDLE_ONLY; then
     ARTIFACT_PATH=$(find "$ARTIFACT_DIR" -maxdepth 1 -type f -name "*.aab" | sort | head -1)
