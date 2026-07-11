@@ -27,6 +27,11 @@ object GameLauncher {
                 return@withContext LaunchResult(false, "no-launch-intent", null, result)
             }
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+            try {
+                context.sendBroadcast(Intent("com.ivarna.apexcore.action.FREEZE_ALL").apply {
+                    setPackage(context.packageName) // internal/external broadcast
+                })
+            } catch (_: Throwable) {}
             context.startActivity(intent)
             Log.i(TAG, "Launched $gamePkg after freezing ${result.killed} apps")
             // Start game overlay (silently if overlay permission not granted)

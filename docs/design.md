@@ -1,266 +1,135 @@
-# ApexCore — Design System
+# ApexCore — Design & Architecture Document
 
-> *ApexCore is the calm before the match.* Every visual decision should feel like the silence inside a high-end gaming headset: matte, focused, premium. The interface is dark, breathable, and quietly confident — it disappears when you're playing and glows only when it matters.
+## 1. Design Philosophy: "Precision Instrument"
 
-The design language is called **"Summit"** — a precision aesthetic built for performance tools. Cold cyan light on obsidian surfaces. Typography that feels machined. Motion that obeys physics, not theatrics.
+Standard "game booster" apps look like cheap RGB peripherals from 2012—aggressive neon greens, dragons, robotic fonts, and fake temperature gauges. ApexCore rejects this entirely. 
 
----
+ApexCore is designed as a **Precision Instrument**. Think aerospace engineering meets high-end audio mixing software. It caters not just to gamers, but to power users, developers, and creatives who need to dedicate maximum system resources to a single heavy task (e.g., rendering a video, running a local LLM, or playing a demanding game). 
 
-## 1. Brand Identity
-
-### Logo
-**Mark + wordmark, left-aligned.**
-
-- **The Apex Mark** — a 30×30 dp circular dot in pure cyan (`#00E5FF`) with a 1 dp white inner-rim at 20% opacity. Represents the "apex" point of performance: a single, sharp pulse of energy.
-- **The Wordmark** — `APEX` in 14 sp, weight 700, letter-spacing `0.3` (loose, technical), color `#FFFFFF`. The "CORE" suffix is implied; we never say it out loud.
-
-**Variants**
-| Variant | Use |
-|---|---|
-| Mark + Wordmark | Top bar, app launcher icon, store listing |
-| Mark only | Status bar, notification icon (monochrome white) |
-| Wordmark only | Splash screen, loading screens |
-
-### Tagline
-> *One tap to reclaim memory & focus CPU*
-
-Used as subtitle on home, never as button text. Italicized in marketing, upright in product.
+The UI is dark, utilitarian, and data-rich. It utilizes **Cryo-Blue** (signifying cooling/resource freeing) and **Cadmium-Orange** (signifying active processes/heat) against a deep matte titanium charcoal. 
 
 ---
 
-## 2. Color Palette
+## 2. Design Language & Tokens
 
-### Primary
-| Token | Hex | Role |
-|---|---|---|
-| `--summit-cyan` | `#00E5FF` | Action, focus, primary accent |
-| `--summit-sky` | `#0EA5E9` | Gradient stop, secondary action |
-| `--obsidian` | `#070A12` | App background |
-| `--obsidian-2` | `#0F1623` | Card / panel surface |
-| `--obsidian-3` | `#1F2937` | Borders, dividers, track rings |
+### Typography
+- **Display/Headers:** `Space Grotesk` (Geometric, modern, engineering feel)
+- **Data/Metrics:** `JetBrains Mono` (Monospaced, highly legible for rapid-changing numbers)
+- **Body:** `Inter` (Clean, neutral)
 
-### Semantic
-| Token | Hex | Use |
-|---|---|---|
-| `--ready` | `#10B981` | Idle / success / "nothing to do" |
-| `--boost` | `#00E5FF` | Active state, in-progress |
-| `--warn` | `#F59E0B` | Reserved (not used in v0.1) |
-| `--danger` | `#EF4444` | Reserved (not used in v0.1) |
+### Color Palette
+- **Base Canvas:** `#0A0B0D` (Matte Carbon)
+- **Surface Elevation:** `#14171C` (Titanium)
+- **Primary Accent (Cryo):** `#00E5FF` (Neon Cyan - represents freed resources)
+- **Warning/Active (Heat):** `#FF6B00` (Muted Orange - represents background bloat)
+- **Text Primary:** `#EAEAEA`
+- **Text Secondary:** `#6B7280`
 
-### Text
-| Token | Hex | Use |
-|---|---|---|
-| `--ink-100` | `#FFFFFF` | Headlines, big numbers |
-| `--ink-70` | `#9CA3AF` | Subdued labels |
-| `--ink-50` | `#6B7280` | Hints, monospace metadata |
-| `--ink-on-cyan` | `#070A12` | Text on cyan buttons |
-
-**Rule:** Cyan is *currency*. Spend it only on (a) the BOOST button, (b) result numbers, (c) the apex mark. Everything else is grayscale-on-obsidian. The page should be 85% black, 10% white, 5% cyan.
+### Iconography
+No standard outline icons. We use **Isometric Glyphs** and topographic line patterns.
 
 ---
 
-## 3. Typography
+## 3. App Icon Design: "The Monolith"
 
-Two font families, never more.
-
-### `Inter` (Display & Body)
-- **Hero Title** — 56 sp / 700 / letter-spacing `-0.02` (tight). Two lines, stacked. First line: white. Second line: cyan. *("Game" / "Performance")*
-- **Subtitle** — 13 sp / 400 / color `--ink-70`
-- **Stat values** — 16 sp / 700 / white
-- **Freed MB hero number** — 64 sp / 700 / letter-spacing `-0.04` / cyan
-
-### `JetBrains Mono` (Telemetry & Metadata)
-- **Status dot text** — 12 sp / regular / `"● Optimizing…"`
-- **Section labels** (`PROCESSES`, `MEM FREE`, `LOAD AVG`) — 9 sp / letter-spacing `0.15`
-- **Result header** (`BOOST COMPLETE`) — 10 sp / letter-spacing `0.2`
-- **Version chip** — 11 sp / `--ink-50`
-
-**Rule:** If a number is *moving* (a stat, a result, a counter), it lives in Inter Bold. If a number is *fixed* (a label, a version), it lives in Mono.
+The icon is a 3D isometric representation of focus and core power.
+- **Shape:** A perfect, dark titanium cube (`#14171C`), viewed slightly from the top-right.
+- **Carving:** A precise, laser-cut circular hole is bored through the center of the cube.
+- **Core:** Inside the hole, a glowing `Cryo-Blue` (`#00E5FF`) vertical light beam shoots upward, fading out at the top.
+- **Background:** A subtle, dark topographic grid pattern etched into the sides of the cube.
+- **Meaning:** The cube represents the rigid Android system; the glowing core represents ApexCore cutting through the bloat to channel power to one specific point.
 
 ---
 
-## 4. Spacing & Layout
+## 4. UI/UX Flow: The 3-Page Architecture
 
-- Base unit: **6 dp**. All paddings/margins are multiples of 6.
-- Page horizontal padding: **72 dp** on a 1080-wide canvas.
-- Vertical breathing room: **192 dp** above the hero title, **144 dp** between the button and the result panel.
-- The BOOST button is **840×840 dp** total footprint (ring + button). The button itself is **660×660 dp** (10× base unit).
+### Page 1: The Core (Optimize Dashboard)
+**Purpose:** A system monitor that visualizes current memory bloat and acts as the master switch to free resources.
 
-### The Three Zones
-1. **Top bar** — logo, version chip. 30 dp height. Always pinned.
-2. **Center stage** — title, subtitle, status, BOOST button. Centered.
-3. **Result panel** — appears below the button after a boost. Hidden in idle.
+- **Layout:** 
+  - Top: "SYSTEM MASS" in `Space Grotesk`. Below it, a monospaced readout of current used RAM vs. Total RAM.
+  - Center: A massive, custom-drawn **Circular Sonogram**. Instead of a boring pie chart, this is a ring made of 64 individual vertical bars. 
+    - Bars glowing `#FF6B00` (Heat) = Active background apps eating RAM.
+    - Bars glowing `#00E5FF` (Cryo) = Already freed/available RAM.
+  - Bottom: The "PURGE" button. A wide, pill-shaped button with a brushed metal texture. 
 
----
+- **Interaction (The Purge):**
+  - When the user taps "PURGE", the app executes the freeze backend. 
+  - The orange bars on the Sonogram physically "shatter" into tiny particles, fall down the screen, and fade out. 
+  - The freed amount of RAM (e.g., `+1.4 GB`) shoots up the screen in massive `JetBrains Mono` typography, freezing in the center for 1.5 seconds before settling back into the UI.
 
-## 5. The BOOST Button — Primary Action
+### Page 2: The Launch Matrix (App Selection)
+**Purpose:** To select the heavy application (Game or Productivity app) and prepare the environment for launch. 
 
-The single most important element in the app.
+- **Layout:**
+  - Top: Minimalist search bar. Toggle between "GAMES" and "ALL APPS" (catering to non-gamers).
+  - Center: A 3D "Carousel" or "Treadmill" of app cards. Only 3 are visible at once (Previous, Active, Next).
+  - Active Card: Shows the app icon (auto-themed background color extraction), App Name, and a "Resource Demand" meter (Low, Medium, High) based on historical usage.
+  - Bottom: The "ALLOCATE & LAUNCH" trigger. 
 
-- **Shape:** Perfect circle, 660 dp diameter.
-- **Fill:** Linear gradient `TL→BR`, `--summit-cyan` (`#00E5FF`) → `--summit-sky` (`#0EA5E9`).
-- **Shadow:** Inner top highlight (white at 12% opacity, 2 dp from edge). Outer ambient shadow cyan at 30% opacity, blur 24 dp, y-offset 8 dp.
-- **Label:** `BOOST` in Inter Bold, 26 sp, letter-spacing `0.15`, color `--ink-on-cyan`.
-- **Ripple:** Cyan-white at 25% alpha, 6 dp radius.
-- **Press:** Scale to `0.95`, alpha to `0.6`, instant. Release springs back.
-- **Idle pulse:** Continuous breath — `scale 1.0 → 1.04 → 1.0` over 2000 ms, infinite, ease-in-out. The button is *alive*.
-- **Result state:** Label flips to `AGAIN`. Same button, same press behavior.
+- **Interaction (The Allocation):**
+  - As the user swipes through the carousel, the device gives a subtle haptic tick on every card change.
+  - When "ALLOCATE & LAUNCH" is tapped, the screen dims. A topographic grid sweeps across the screen. 
+  - The chosen app's icon scales up, merges into the grid, and the target app launches. ApexCore pushes an ADB/Tasker broadcast `FREEZE_ALL` milliseconds before the target app hits the foreground.
 
----
+### Page 3: The Phantom HUD (Overlay)
+**Purpose:** A non-intrusive, real-time performance overlay that sits on top of the target app.
 
-## 6. The Rings
+- **Layout:**
+  - No bulky, square "game booster" widgets. 
+  - ApexCore uses a **Magnetic Edge Rail**. It appears as a 2px thick vertical line on the left edge of the screen.
+  - When tapped, it expands into a slim, vertical data column:
+    - **FPS:** Large mono number (updates every 500ms).
+    - **RAM:** Mini sparkline showing the memory curve over the last 60 seconds.
+    - **CPU:** A tiny 8-segment equalizer representing core usage.
+  - **The "Unfreeze" Node:** At the bottom of the rail is a small snowflake icon. Tapping it unfreezes background apps (useful if the user needs to quickly reply to a message and switch apps).
 
-Two concentric systems frame the button. They are not decoration — they are *feedback*.
-
-### Boost Ring (sweep)
-- Surrounds the button at 8 dp outside its edge.
-- **Track:** `--obsidian-3`, 8 dp stroke, 96% alpha.
-- **Arc:** `--summit-cyan`, 8 dp stroke, rounded caps, 240/255 alpha.
-- **Behavior:** During `BOOSTING`, rotates 0°→360° over 1200 ms, infinite, linear. Sweeps the full circle like a radar ping.
-- **Hidden** in idle and result states.
-
-### Glow Ring (ambient)
-- A field of three concentric circles centered on the button, behind everything.
-- Stroke 3 dp, color `--summit-cyan`, alpha modulated by intensity.
-- **Intensity states:**
-  - Idle: `0.4` (subtle breathing)
-  - Boosting: `1.0` (full glow, alive)
-  - Result: `0.3` (settles)
-- **Animation:** Each ring oscillates with a 12 dp radius offset, phase-shifted by `i * π/2`. 3000 ms loop, infinite, ease-in-out.
-- **Purpose:** Subliminally tells the user the system is *watching*, even when idle.
+- **Interaction:**
+  - Draggable vertically along the left edge to avoid covering UI elements in different games/apps.
+  - Auto-minimizes back to the 2px line after 5 seconds of inactivity.
+  - The line subtly pulses `#00E5FF` if FPS is stable, and shifts to `#FF6B00` if thermal throttling or massive frame drops are detected.
 
 ---
 
-## 7. Icons
+## 5. Detailed Animation Instructions
 
-The app uses **no raster icons** in the body. Every glyph is a vector primitive or monospace character. This is intentional — it keeps the app at 1.2 MB and prevents icon-style drift.
+All animations must follow the **"Physical Mass"** principle. Nothing snaps. Everything has weight, friction, and restitution.
 
-| Glyph | Where | How |
-|---|---|---|
-| `●` | Status indicator | Cyan or green, 12 sp mono |
-| `APEX` | Logo wordmark | Inter Bold, 14 sp, white |
-| `v0.1.0` | Version chip | JetBrains Mono, 11 sp, `--ink-50` |
-| `BOOST` | Primary button | Inter Bold, 26 sp, on-cyan |
-| `AGAIN` | Post-boost CTA | Same |
-| Section labels | Result panel | Mono 9 sp, letter-spacing 0.15 |
+### Animation 1: The Purge Sequence (Page 1)
+**Trigger:** Tapping the PURGE button.
+**Duration:** 1200ms total
+**Easing:** `EaseOutExpo` for expansion, `EaseInQuart` for falling particles.
+- **0ms - 150ms:** The PURGE button depresses (scale Y to 0.95). The Circular Sonogram ring contracts inward by 10%.
+- **150ms - 400ms:** The orange bars (representing bloat) rapidly extend upwards, as if pressurized. 
+- **400ms - 700ms:** A shockwave ring (white, 50% opacity) expands from the center of the sonogram outward. 
+- **400ms - 1000ms:** The orange bars "shatter" into 4-5 smaller rectangles. These pieces are governed by a physics simulation (gravity = 9.8, bounce = 0.2). They fall down the screen and fade out.
+- **400ms - 1200ms:** Simultaneously, the `#00E5FF` (Cryo) bars expand from the bottom of the ring to replace the shattered orange bars, filling the circle.
+- **600ms - 1200ms:** The Freed RAM number (e.g., `+1.4 GB`) scales from 0.0 to 1.0 at the center of the screen, overshoots slightly (1.05), and settles at 1.0.
 
-**Launcher icon** is the only raster asset: a 1024×1024 adaptive icon. The foreground is the Apex Mark (`#00E5FF`) on a radial dark gradient (`#0F1623` → `#070A12`). No text. No ring. Just the dot, large and centered.
+### Animation 2: Launch Matrix Carousel (Page 2)
+**Trigger:** Swiping left/right on the app carousel.
+**Duration:** 400ms
+**Easing:** Custom Spring (`dampingRatio = 0.7f`, `stiffness = 400f`)
+- **Active Card:** Scales to 1.0f, opacity 1.0f, positioned at Z-axis 0.
+- **Adjacent Cards:** Scale to 0.8f, opacity 0.4f, positioned at Z-axis -50f (creating a depth of field blur effect using RenderEffect if API > 31).
+- **Transition:** As the user swipes, the cards don't just slide horizontally; they move along a subtle parabolic arc (dipping down slightly in the middle) to emphasize the 3D space.
+- **Haptics:** `HapticFeedbackConstants.CLOCK_TICK` triggered on every 50% swipe progress.
 
----
-
-## 8. Result Panel
-
-A card that slides up from below the button after a successful boost.
-
-- **Surface:** `--obsidian-2`, 20 dp corner radius, 3 dp border in `--obsidian-3`.
-- **Padding:** 72 dp horizontal, 72 dp vertical.
-- **Entry:** `alpha 0→1, translationY 60→0` over 500 ms, ease-in-out.
-- **Layout (top to bottom):**
-  1. `BOOST COMPLETE` — mono 10 sp, `--ink-50`, letter-spacing 0.2
-  2. **Freed MB number** — 64 sp Inter Bold cyan, 24 dp top padding
-  3. `MB reclaimed` — 13 sp, `--ink-70`, 12 dp top padding, 48 dp bottom
-  4. Divider — 3 dp tall, `--obsidian-3`
-  5. **Stats grid** — 3 rows, each with 36 dp top padding
-
-```
-Row 1:  KILLED  │  FAILED  │  SKIPPED   (counts)
-Row 2:    RAM   │   SWAP   │   MODE     (total/available · total/free · name)
-Row 3: DURATION                             (seconds)
-```
-
-### Number animation
-The freed MB number counts up from 0 to the result over 1000 ms, ease-in-out. Every digit lands clean — no overshoot, no bounce.
-
-### When 0 apps killed
-- Freed number shown in `--ink-50` (gray) instead of cyan
-- Subtitle changes to `Already optimized`
-- Status line shows `● Nothing to clean · {backend}`
+### Animation 3: The Phantom HUD Expansion (Page 3)
+**Trigger:** Tapping the 2px edge rail.
+**Duration:** 350ms
+**Easing:** `FastOutSlowInInterpolator`
+- **0ms - 100ms:** The 2px line thickens to 16dp width instantly.
+- **0ms - 350ms:** The background of the HUD (blurred glass, `RenderEffect BlurEffect(16f, 16f)`) slides in from the left edge. 
+- **100ms - 200ms:** The FPS number, RAM sparkline, and CPU equalizer fade in (opacity 0 to 1) with a staggered delay of 50ms between each element.
+- **Auto-minimize (5000ms idle):** Reverses the animation. The UI elements fade out (100ms), the width shrinks to 2px (150ms).
+- **Thermal Warning State:** If CPU temp > 45°C, the 2px rail pulses continuously. It oscillates between `#FF6B00` and `#66000000` over an 800ms loop using `Transition` with `REVERSE` repeat mode.
 
 ---
 
-## 9. GAMES Button
+## 6. Implementation Notes for Engineers
 
-A secondary action below the result panel that opens the game list dialog.
-
-- **Shape:** Rounded rectangle, 14 dp corner radius
-- **Fill:** `--obsidian-2` with 2 dp border `--obsidian-3`
-- **Label:** `🎮  GAMES` in Inter Bold, 13 sp, `--summit-cyan`
-- **Padding:** 28 dp vertical, centered
-- **Tap:** Opens `GameListDialog` (see section 10)
-- **Visibility:** Always visible (no state dependency)
-
----
-
-## 10. Game List Dialog
-
-A full-screen translucent dialog for managing games. Follows the same pattern as the Setup Dialog.
-
-- **Surface:** `--obsidian-2`, 20 dp corner radius, 3 dp border in `--obsidian-3`
-- **Dimensions:** Full screen, 24 dp horizontal margins, 48 dp vertical margins
-- **Background dim:** `#CC070A12` (76% obsidian)
-- **Header:** `GAME LAUNCHER` — mono 10 sp, `--ink-50`
-- **Game rows:** 14 sp Inter Bold white name + `auto`/`manual` tag chip + `▶` cyan arrow
-- **Tag chip:** `--obsidian-3` background, 6 dp radius, mono 9 sp, `--ink-50`
-- **Tap game:** freeze + launch (no dialog confirmation)
-- **Long-press:** remove game (with toast)
-- **Input field:** `--obsidian` fill, `--obsidian-3` border, 10 dp radius, mono 12 sp
-- **ADD button:** Small cyan gradient pill, 10 dp radius
-- **SCAN FOR GAMES:** `--obsidian` row, `--obsidian-3` border, 12 dp radius, `--summit-cyan` text with `🔍` prefix
-- **CLOSE footer:** Cyan gradient button, same spec as SetupDialog footer
-
----
-
-## 11. Motion Principles
-
-Motion is *correction*, not *decoration*. Every animation has a job.
-
-| Trigger | Animation | Duration | Easing |
-|---|---|---|---|
-| Idle (always) | Glow ring breathing | 3000 ms loop | ease-in-out |
-| Idle (always) | Button breath | 2000 ms loop | ease-in-out |
-| Tap BOOST | Button scale → 0.95, alpha → 0.6 | 0 ms | instant |
-| Start boosting | Button scale → 0.95, ring sweep starts | 0 ms | instant |
-| Boosting | Ring sweep 0°→360° | 1200 ms loop | linear |
-| Boost complete | Panel slide-up + fade | 500 ms | ease-in-out |
-| Boost complete | Count-up | 1000 ms | ease-in-out |
-| Tap AGAIN | Panel fade-out, state reset | 300 ms | ease-in-out |
-
-**Forbidden:** bounce, overshoot, rotation on tap, parallax, springs > 1.0.
-
----
-
-## 12. Accessibility
-
-- All text on `--obsidian` meets WCAG AA against its background.
-- Cyan (`#00E5FF`) on obsidian (`#070A12`) = **14.2:1 contrast ratio**. AAA.
-- White on obsidian = **19.8:1**. AAA.
-- `--ink-50` (`#6B7280`) is reserved for *non-essential* hints and is never the sole carrier of meaning.
-- All interactive elements have a minimum 48 dp touch target.
-- The button press state is conveyed by both scale *and* alpha — never scale alone (color-blind users).
-
----
-
-## 13. Don'ts
-
-- **No green-blue gradients.** Cyan stops at `#0EA5E9`. Past that it gets cute.
-- **No drop shadows on text.** The dark canvas is the shadow.
-- **No icons inside the BOOST button.** The word is the icon.
-- **No more than 3 weights of Inter in any one screen.** Pick bold, regular, done.
-- **No white text smaller than 11 sp.** Use mono, use cyan, or don't.
-- **No animations longer than 1 second on user-triggered actions.** Loops are fine; waits aren't.
-
----
-
-## 14. Voice & Tone
-
-- **Status messages** are mono, always start with a `●`, always present-tense.
-  - `● Ready to boost`
-  - `● Optimizing…`
-  - `● Available: 1842 MB`
-  - `● Nothing to clean`
-- **Section labels** are uppercase, letter-spaced, mono. They are *tags*, not sentences.
-- **The app never apologizes.** If a boost finds nothing, it says `Already optimized` and shows `0`. It does not say "Sorry, we couldn't find anything to clean."
-
----
-
-*Summit is the aesthetic of someone who knows the difference between loud and clear. ApexCore should always be the latter.*
+- **Rendering:** Page 1's Sonogram and Page 3's HUD must be drawn using Android's `Canvas` API for 60fps rendering. Do not use standard Android Views for the graphing elements.
+- **Blur:** Use `RenderEffect.createBlurEffect` for the overlay HUD. If running below API 31, fall back to a semi-transparent solid color (`#CC0A0B0D`) to maintain performance.
+- **Physics:** For the "shatter" animation on Page 1, use a simple custom particle system. Do not pull in a heavy physics engine like Box2D; a basic implementation of gravity and velocity in a custom `Drawable` is sufficient and keeps the APK under 1.2MB.
+- **Haptics:** Limit haptic feedback strictly to Page 2 (Carousel) and the moment "Purge" completes. Overusing haptics drains battery and feels cheap.

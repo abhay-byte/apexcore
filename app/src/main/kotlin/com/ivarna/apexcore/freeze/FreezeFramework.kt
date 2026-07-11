@@ -55,8 +55,11 @@ object FreezeFramework {
         val targets = apps.filter(filter)
         Log.i(TAG, "freezeAll via ${backend.name} -> ${targets.size} apps")
 
+        val targetPkgs = targets.map { it.packageName }
+        val beforeRssKb = calculateTargetRssKb(backend, targetPkgs)
+        Log.i(TAG, "Target apps before RSS sum = ${beforeRssKb}KB")
+
         val (totalMemKb, beforeMemKb) = readMemInfo()
-        val beforeFreeKb = readMemLine("MemFree:")
         val start = System.currentTimeMillis()
 
         var killed = 0
@@ -83,14 +86,14 @@ object FreezeFramework {
             }
         } catch (_: Throwable) {}
 
-        delay(200)
-        val afterFreeKb = readMemLine("MemFree:")
+        delay(1200)
         val afterAvailKb = readMemLine("MemAvailable:")
+        val afterRssKb = calculateTargetRssKb(backend, targetPkgs)
 
-        val freedKbFromMem = (afterFreeKb - beforeFreeKb).coerceAtLeast(0)
-        val freedKbEstimated = killed * ESTIMATED_KB_PER_APP
-        val freedKb = maxOf(freedKbFromMem, freedKbEstimated)
-        Log.i(TAG, "beforeFree=${beforeFreeKb}KB afterFree=${afterFreeKb}KB freedFromMem=${freedKbFromMem}KB estimated=${freedKbEstimated}KB")
+        val freedKbFromMem = (afterAvailKb - beforeMemKb).coerceAtLeast(0)
+        val appsFreedKb = (beforeRssKb - afterRssKb).coerceAtLeast(0)
+        val freedKb = maxOf(freedKbFromMem, appsFreedKb)
+        Log.i(TAG, "beforeAvail=${beforeMemKb}KB afterAvail=${afterAvailKb}KB freedFromMem=${freedKbFromMem}KB beforeRss=${beforeRssKb}KB afterRss=${afterRssKb}KB appsFreed=${appsFreedKb}KB chosen=${freedKb}KB")
         val duration = System.currentTimeMillis() - start
 
         val result = FreezeResult(
@@ -145,4 +148,31 @@ object FreezeFramework {
 
     private fun parseKb(line: String): Long =
         line.split(Regex("\\s+"))[1].toLongOrNull() ?: 0L
+
+    private suspend fun calculateTargetRssKb(backend: FreezeBackend, targetPkgs: List<String>): Long {
+        val output = try {
+            backend.executeWithOutput("ps -A -o RSS,NAME")
+        } catch (_: Throwable) {
+            ""
+        }
+        if (output.isEmpty()) return 0L
+
+        var totalRssKb = 0L
+        val pkgSet = targetPkgs.toSet()
+
+        output.lineSequence().forEach { line ->
+            val trimmed = line.trim()
+            if (trimmed.isEmpty() || !trimmed[0].isDigit()) return@forEach
+            val parts = trimmed.split(Regex("\\s+"), limit = 2)
+            if (parts.size == 2) {
+                val rss = parts[0].toLongOrNull() ?: 0L
+                val name = parts[1]
+                val basePkg = name.substringBefore(':')
+                if (pkgSet.contains(basePkg)) {
+                    totalRssKb += rss
+                }
+            }
+        }
+        return totalRssKb
+    }
 }

@@ -56,6 +56,7 @@ import com.ivarna.apexcore.freeze.AccessibilityFreezeBackend
 import com.ivarna.apexcore.games.GamesScreen
 import com.ivarna.apexcore.games.GameManager
 import com.ivarna.apexcore.games.GameOverlayService
+import com.ivarna.apexcore.ui.components.SimpleMemoryDisplay
 import com.ivarna.apexcore.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -94,6 +95,10 @@ fun MainScreen(gameManager: GameManager) {
     var showSetupDialog by remember { mutableStateOf(false) }
     var lastResult by remember { mutableStateOf<FreezeResult?>(null) }
 
+    // Purge animation states
+    var isPurgeAnimActive by remember { mutableStateOf(false) }
+    var freedRamText by remember { mutableStateOf("") }
+
     LaunchedEffect(Unit) {
         val backend = FreezeFramework.detect()
         backendName = backend.name
@@ -113,8 +118,6 @@ fun MainScreen(gameManager: GameManager) {
             .fillMaxSize()
             .background(BgDark)
     ) {
-
-
         // Main Layout Container
         Column(
             modifier = Modifier
@@ -138,9 +141,9 @@ fun MainScreen(gameManager: GameManager) {
                             .clip(RoundedCornerShape(8.dp))
                     )
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text("APEX", color = TextTitle, fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                    Text("APEX", color = TextTitle, fontSize = 16.sp, fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("CORE", color = AccentPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                    Text("CORE", color = AccentPrimary, fontSize = 16.sp, fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                 }
                 
                 // Mode indicator / Setup toggle
@@ -155,7 +158,7 @@ fun MainScreen(gameManager: GameManager) {
                         text = backendName.uppercase(),
                         color = if (backendName == "cached only") AccentWarning else AccentSuccess,
                         fontSize = 9.sp,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = JetBrainsMono,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -186,16 +189,30 @@ fun MainScreen(gameManager: GameManager) {
                         state = state,
                         backendName = backendName,
                         lastResult = lastResult,
+                        isPurgeAnimActive = isPurgeAnimActive,
+                        freedRamText = freedRamText,
+                        onPurgeAnimComplete = {
+                            isPurgeAnimActive = false
+                            state = State.RESULT
+                        },
                         onBoostClick = {
-                            if (state == State.BOOSTING) return@HomeScreen
+                            if (state == State.BOOSTING || isPurgeAnimActive) return@HomeScreen
                             if (state == State.RESULT) {
                                 state = State.IDLE
+                                freedRamText = ""
                                 return@HomeScreen
                             }
                             state = State.BOOSTING
+                            isPurgeAnimActive = true
                             coroutineScope.launch {
-                                lastResult = FreezeFramework.freezeAll(context)
-                                state = State.RESULT
+                                val result = FreezeFramework.freezeAll(context)
+                                lastResult = result
+                                val freedMb = result.freedKb / 1024f
+                                freedRamText = if (freedMb >= 1024) {
+                                    "+%.2f GB".format(freedMb / 1024f)
+                                } else {
+                                    "+%d MB".format(freedMb.toInt())
+                                }
                             }
                         },
                         onSetupClick = { showSetupDialog = true }
@@ -253,14 +270,71 @@ fun MainScreen(gameManager: GameManager) {
     }
 }
 
+data class MemStats(
+    val ramUsedKb: Long,
+    val ramTotalKb: Long,
+    val swapUsedKb: Long,
+    val swapTotalKb: Long
+)
+
+fun getSystemMemStats(context: Context): MemStats {
+    var ramTotal = 0L; var ramAvail = 0L
+    var swapTotal = 0L; var swapFree = 0L
+    try {
+        java.io.File("/proc/meminfo").useLines { lines ->
+            for (line in lines) {
+                when {
+                    line.startsWith("MemTotal:") -> ramTotal = line.split(Regex("\\s+"))[1].toLongOrNull() ?: 0L
+                    line.startsWith("MemAvailable:") -> ramAvail = line.split(Regex("\\s+"))[1].toLongOrNull() ?: 0L
+                    line.startsWith("SwapTotal:") -> swapTotal = line.split(Regex("\\s+"))[1].toLongOrNull() ?: 0L
+                    line.startsWith("SwapFree:") -> swapFree = line.split(Regex("\\s+"))[1].toLongOrNull() ?: 0L
+                }
+            }
+        }
+    } catch (_: Throwable) {}
+    if (ramTotal == 0L) {
+        try {
+            val actManager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+            val memInfo = android.app.ActivityManager.MemoryInfo()
+            actManager.getMemoryInfo(memInfo)
+            ramTotal = memInfo.totalMem / 1024
+            ramAvail = memInfo.availMem / 1024
+        } catch (_: Throwable) {}
+    }
+    val ramUsed = (ramTotal - ramAvail).coerceAtLeast(0)
+    val swapUsed = (swapTotal - swapFree).coerceAtLeast(0)
+    return MemStats(ramUsed, ramTotal, swapUsed, swapTotal)
+}
+
+fun getSystemRamKb(context: Context): Pair<Long, Long> {
+    val stats = getSystemMemStats(context)
+    return stats.ramUsedKb to stats.ramTotalKb
+}
+
 @Composable
 fun HomeScreen(
     state: State,
     backendName: String,
     lastResult: FreezeResult?,
+    isPurgeAnimActive: Boolean,
+    freedRamText: String,
+    onPurgeAnimComplete: () -> Unit,
     onBoostClick: () -> Unit,
     onSetupClick: () -> Unit
 ) {
+    val context = LocalContext.current
+    var memStats by remember { mutableStateOf(getSystemMemStats(context)) }
+    val actualFreedMb = if (lastResult != null && freedRamText.isNotEmpty()) (lastResult.freedKb / 1024f) else -1f
+
+    // Periodically update memory stats
+    LaunchedEffect(state) {
+        memStats = getSystemMemStats(context)
+        while (state == State.IDLE || state == State.RESULT) {
+            delay(3000)
+            memStats = getSystemMemStats(context)
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -268,42 +342,37 @@ fun HomeScreen(
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(
-            text = "Game",
-            color = TextTitle,
-            fontSize = 44.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.02).em
-        )
-        Text(
-            text = "Optimization",
-            color = AccentPrimary,
-            fontSize = 44.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = (-0.02).em
-        )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "One tap to reclaim memory & focus CPU",
-            color = TextBody,
-            fontSize = 13.sp
-        )
-        
         Spacer(modifier = Modifier.height(16.dp))
+        
+        // Simple Memory Display (RAM + SWAP bars)
+        SimpleMemoryDisplay(
+            ramUsedKb = memStats.ramUsedKb,
+            ramTotalKb = memStats.ramTotalKb,
+            swapUsedKb = memStats.swapUsedKb,
+            swapTotalKb = memStats.swapTotalKb,
+            state = state,
+            isPurgeAnimActive = isPurgeAnimActive,
+            actualFreedMb = actualFreedMb,
+            freedRamText = freedRamText,
+            onPurgeAnimComplete = onPurgeAnimComplete,
+            modifier = Modifier.fillMaxWidth()
+        )
+        
+        Spacer(modifier = Modifier.height(28.dp))
+        
+        // Status updates description
         val statusColor = if (state == State.BOOSTING) AccentWarning else TextMuted
         val statusText = when (state) {
-            State.IDLE -> "● Ready to optimize"
-            State.BOOSTING -> "● Freezing background processes…"
-            State.RESULT -> if ((lastResult?.killed ?: 0) == 0) "● System is already optimized" 
-                            else "● Freezed ${lastResult?.killed} apps successfully"
+            State.IDLE -> "● Ready to purge bloat"
+            State.BOOSTING -> "● PURGING BACKGROUND PROCESSES…"
+            State.RESULT -> if ((lastResult?.killed ?: 0) == 0) "● System fully optimized" 
+                            else "● Freed ${lastResult?.killed} background apps"
         }
         Text(
             text = statusText.uppercase(),
             color = statusColor,
             fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace,
+            fontFamily = JetBrainsMono,
             letterSpacing = 1.sp
         )
         
@@ -313,14 +382,14 @@ fun HomeScreen(
                 text = "> CONFIGURE ELEVATED ACCESS",
                 color = AccentWarning,
                 fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = JetBrainsMono,
                 modifier = Modifier
                     .clickable { onSetupClick() }
                     .padding(8.dp)
             )
         }
 
-        Spacer(modifier = Modifier.height(40.dp))
+        Spacer(modifier = Modifier.height(24.dp))
         
         // Combined Action and Result Card
         AnimatedContent(
@@ -343,7 +412,85 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(32.dp))
 
         SystemDiagnosticsCard(onSetupClick = onSetupClick)
-        Spacer(modifier = Modifier.height(24.dp)) // Reduced padding for fixed bottom bar
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+fun FreedTextAnimationOverlay(
+    text: String,
+    trigger: Boolean,
+    isLocked: Boolean,
+    onComplete: () -> Unit
+) {
+    val offsetAnim = remember { Animatable(180f) }
+    val scaleAnim = remember { Animatable(0.4f) }
+    val alphaAnim = remember { Animatable(0f) }
+
+    // Trigger initial rise when trigger turns true
+    LaunchedEffect(trigger) {
+        if (!trigger) {
+            alphaAnim.snapTo(0f)
+            return@LaunchedEffect
+        }
+        offsetAnim.snapTo(180f)
+        scaleAnim.snapTo(0.4f)
+        alphaAnim.snapTo(0f)
+
+        // Phase 1: Shoot up and overshoot scale
+        val jobOffset = launch {
+            offsetAnim.animateTo(0f, tween(400, easing = EaseOutBack))
+        }
+        val jobScale = launch {
+            scaleAnim.animateTo(1.05f, tween(400, easing = EaseOutBack))
+            scaleAnim.animateTo(1.0f, tween(150))
+        }
+        val jobAlpha = launch {
+            alphaAnim.animateTo(1f, tween(250, easing = EaseOutQuad))
+        }
+        jobOffset.join()
+        jobScale.join()
+        jobAlpha.join()
+    }
+
+    // Trigger mechanical click pulse when isLocked becomes true and hold 1.5s then complete
+    LaunchedEffect(isLocked) {
+        if (isLocked && trigger) {
+            scaleAnim.animateTo(1.12f, tween(100, easing = EaseOutQuad))
+            scaleAnim.animateTo(1.0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
+
+            delay(1500) // Exactly 1.5s center display per docs/design.md
+
+            val jobSettle = launch {
+                offsetAnim.animateTo(-60f, tween(300, easing = EaseInQuad))
+            }
+            val jobFade = launch {
+                alphaAnim.animateTo(0f, tween(300))
+            }
+            jobSettle.join()
+            jobFade.join()
+
+            onComplete()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = AccentPrimary,
+            fontSize = 32.sp,
+            fontFamily = JetBrainsMono,
+            fontWeight = FontWeight.ExtraBold,
+            modifier = Modifier
+                .offset(y = offsetAnim.value.dp)
+                .scale(scaleAnim.value)
+                .alpha(alphaAnim.value),
+            textAlign = TextAlign.Center
+        )
     }
 }
 
@@ -351,62 +498,200 @@ fun HomeScreen(
 fun MainActionCard(state: State, onClick: () -> Unit) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+    
+    // Tactile 3D button compress effects
+    val buttonOffsetY by animateDpAsState(
+        targetValue = if (isPressed) 6.dp else 0.dp,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "button_offset_y"
+    )
+    val shadowOffsetY by animateDpAsState(
+        targetValue = if (isPressed) 3.dp else 12.dp,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "shadow_offset_y"
+    )
+    val shadowAlpha by animateFloatAsState(
+        targetValue = if (isPressed) 0.8f else 0.45f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "shadow_alpha"
     )
 
-    val infiniteTransition = rememberInfiniteTransition()
-    val gradientOffset by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = 1000f,
-        animationSpec = infiniteRepeatable(tween(2000, easing = LinearEasing), RepeatMode.Restart)
+    val infiniteTransition = rememberInfiniteTransition(label = "infinite_transitions")
+    
+    val breathScaleState = infiniteTransition.animateFloat(
+        initialValue = 1.0f,
+        targetValue = 1.015f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "breath_scale"
+    )
+    val breathScale = if (state == State.IDLE) breathScaleState.value else 1f
+
+    val sweepPulse = infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "sweep_pulse"
+    )
+
+    // Brushed metal texture simulated via multi-stop linear gradient
+    val brushedMetalGradient = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF2E3440),
+            Color(0xFF4C566A),
+            Color(0xFF2E3440),
+            Color(0xFF5E677A),
+            Color(0xFF2E3440)
+        )
     )
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(200.dp)
-            .scale(scale)
-            .clip(RoundedCornerShape(32.dp))
-            .background(SurfaceGlass)
-            .border(
-                width = 2.dp,
-                brush = Brush.linearGradient(
-                    colors = if (state == State.BOOSTING) listOf(AccentSuccess, AccentPrimary, AccentSuccess)
-                             else listOf(BorderGlass, BorderGlass),
-                ),
-                shape = RoundedCornerShape(32.dp)
-            )
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(32.dp),
+            .height(130.dp)
+            .scale(breathScale),
         contentAlignment = Alignment.Center
     ) {
-        if (state == State.BOOSTING) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(100.dp)
-                    .graphicsLayer { translationX = gradientOffset - 500f }
-                    .background(Brush.horizontalGradient(listOf(Color.Transparent, AccentSuccess.copy(alpha = 0.3f), Color.Transparent)))
-                    .align(Alignment.CenterStart)
-            )
-        }
+        // --- 1. Drop Shadow ---
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .offset(y = shadowOffsetY)
+                .clip(RoundedCornerShape(32.dp))
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(Color.Black.copy(alpha = shadowAlpha), Color.Transparent)
+                    )
+                )
+        )
 
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            val title = when(state) {
-                State.IDLE -> "OPTIMIZE SYSTEM"
-                State.BOOSTING -> "FREEZING APPS"
-                State.RESULT -> "OPTIMIZATION COMPLETE"
+        // --- 2. Metal Bezel Lip ---
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .offset(y = 8.dp)
+                .clip(RoundedCornerShape(32.dp))
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color(0xFF0F172A), Color(0xFF020617))
+                    )
+                )
+                .border(
+                    width = 1.dp,
+                    color = Color.White.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(32.dp)
+                )
+        )
+
+        // --- 3. Purge Button Brushed Metal Face ---
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .offset(y = buttonOffsetY)
+                .clip(RoundedCornerShape(32.dp))
+                .background(brushedMetalGradient)
+                .border(
+                    width = 1.5.dp,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(Color.White.copy(alpha = 0.45f), Color.Black.copy(alpha = 0.6f))
+                    ),
+                    shape = RoundedCornerShape(32.dp)
+                )
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onClick
+                )
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val strokeWidth = 3.dp.toPx()
+                // Top glass highlights
+                drawRoundRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(Color.White.copy(alpha = 0.25f), Color.Transparent)
+                    ),
+                    style = Stroke(width = strokeWidth),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(32.dp.toPx(), 32.dp.toPx())
+                )
+
+                if (state == State.BOOSTING) {
+                    drawRoundRect(
+                        color = AccentPrimary.copy(alpha = sweepPulse.value),
+                        style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(32.dp.toPx(), 32.dp.toPx())
+                    )
+                }
             }
-            Text(title, color = TextTitle, fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            val subtitle = when(state) {
-                State.IDLE -> "Tap to reclaim memory"
-                State.BOOSTING -> "Please wait..."
-                State.RESULT -> "Tap to run again"
+
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 28.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(verticalArrangement = Arrangement.Center) {
+                    val title = if (state == State.BOOSTING) "PURGING SYSTEM..." else "PURGE ENGINE"
+                    val subtitle = if (state == State.BOOSTING) "FREEZING BACKGROUND SERVICES" else "TRIGGER SYSTEM CLEAN & OPTIMIZE"
+                    
+                    Text(
+                        text = title,
+                        color = TextTitle,
+                        fontSize = 20.sp,
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = 1.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        color = TextBody,
+                        fontSize = 11.sp,
+                        fontFamily = Inter,
+                        fontWeight = FontWeight.Normal,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+
+                // Lightning Purge Icon
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.White.copy(alpha = 0.12f), Color.White.copy(alpha = 0.05f))
+                            )
+                        )
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.verticalGradient(
+                                colors = listOf(Color.White.copy(alpha = 0.35f), Color.Transparent)
+                            ),
+                            shape = RoundedCornerShape(20.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Canvas(modifier = Modifier.size(28.dp)) {
+                        val path = Path().apply {
+                            moveTo(size.width * 0.58f, 0f)
+                            lineTo(size.width * 0.15f, size.height * 0.55f)
+                            lineTo(size.width * 0.48f, size.height * 0.55f)
+                            lineTo(size.width * 0.40f, size.height)
+                            lineTo(size.width * 0.85f, size.height * 0.45f)
+                            lineTo(size.width * 0.52f, size.height * 0.45f)
+                            close()
+                        }
+                        drawPath(path = path, color = Color.Black.copy(alpha = 0.25f))
+                        drawPath(path = path, color = AccentPrimary)
+                    }
+                }
             }
-            Text(subtitle, color = TextBody, fontSize = 14.sp)
         }
     }
 }
@@ -431,11 +716,11 @@ fun UnifiedResultCard(
             .fillMaxWidth()
             .scale(scale)
             .clip(RoundedCornerShape(32.dp))
-            .background(SurfaceGlass)
+            .background(SurfaceCard)
             .border(
-                width = 2.dp,
+                width = 1.5.dp,
                 brush = Brush.linearGradient(
-                    colors = listOf(AccentSuccess.copy(alpha = 0.8f), AccentPrimary.copy(alpha = 0.8f))
+                    colors = listOf(AccentPrimary.copy(alpha = 0.6f), AccentSecondary.copy(alpha = 0.6f))
                 ),
                 shape = RoundedCornerShape(32.dp)
             )
@@ -443,14 +728,12 @@ fun UnifiedResultCard(
             .padding(24.dp)
     ) {
         Column {
-            // Header Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Custom drawn checkmark
                     Canvas(modifier = Modifier.size(28.dp)) {
                         drawCircle(
                             color = AccentSuccess.copy(alpha = 0.15f),
@@ -475,22 +758,23 @@ fun UnifiedResultCard(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "OPTIMIZATION COMPLETE",
+                            text = "PURGE COMPLETE",
                             color = TextTitle,
-                            fontSize = 15.sp,
+                            fontSize = 14.sp,
+                            fontFamily = SpaceGrotesk,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = if (isZero) "System is fully optimized" else "Resources successfully reclaimed",
+                            text = if (isZero) "Memory fully purified" else "Bloat successfully cleared",
                             color = TextBody,
+                            fontFamily = Inter,
                             fontSize = 12.sp
                         )
                     }
                 }
 
-                // Action Pill
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
@@ -499,28 +783,24 @@ fun UnifiedResultCard(
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Text(
-                        text = "RUN AGAIN",
+                        text = "PURGE AGAIN",
                         color = AccentPrimary,
                         fontSize = 9.sp,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = JetBrainsMono,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
-            
-            // Thin horizontal divider
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
                     .background(BorderGlass)
             )
-
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Stats Grid (2x2)
             Column {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -528,19 +808,22 @@ fun UnifiedResultCard(
                 ) {
                     StatItem(
                         modifier = Modifier.weight(1f),
-                        title = "FREED MB",
-                        value = if (isZero) "0" else (lastResult?.freedMb ?: 0).toString(),
-                        subtitle = if (isZero) "Already clean" else "RAM reclaimed",
-                        indicatorColor = if (isZero) TextMuted else AccentSuccess,
-                        valueColor = if (isZero) TextBody else AccentSuccess,
+                        title = "FREED SIZE",
+                        value = if (isZero) "0 MB" else {
+                            val freedMb = (lastResult?.freedKb ?: 0L) / 1024f
+                            if (freedMb >= 1024) "%.2f GB".format(freedMb / 1024f) else "%d MB".format(freedMb.toInt())
+                        },
+                        subtitle = "RAM reclaimed",
+                        indicatorColor = AccentPrimary,
+                        valueColor = AccentPrimary,
                         delayMs = 100
                     )
                     StatItem(
                         modifier = Modifier.weight(1f),
-                        title = "KILLED",
+                        title = "PURGED APPS",
                         value = (lastResult?.killed ?: 0).toString(),
-                        subtitle = "Background apps",
-                        indicatorColor = AccentPrimary,
+                        subtitle = "Processes killed",
+                        indicatorColor = AccentWarning,
                         valueColor = TextTitle,
                         delayMs = 150
                     )
@@ -554,16 +837,16 @@ fun UnifiedResultCard(
                         modifier = Modifier.weight(1f),
                         title = "DURATION",
                         value = if (lastResult != null) "${lastResult.durationMs / 1000f}s" else "—",
-                        subtitle = "Execution time",
+                        subtitle = "Purge execution",
                         indicatorColor = TextMuted,
                         valueColor = TextTitle,
                         delayMs = 200
                     )
                     StatItem(
                         modifier = Modifier.weight(1f),
-                        title = "FAILED",
+                        title = "ERRORS",
                         value = (lastResult?.failed ?: 0).toString(),
-                        subtitle = "Skipped/Error",
+                        subtitle = "Skipped processes",
                         indicatorColor = if ((lastResult?.failed ?: 0) > 0) AccentWarning else TextMuted,
                         valueColor = if ((lastResult?.failed ?: 0) > 0) AccentWarning else TextBody,
                         delayMs = 250
@@ -573,6 +856,7 @@ fun UnifiedResultCard(
         }
     }
 }
+
 
 @Composable
 fun StatItem(

@@ -72,4 +72,28 @@
     is granted.
   status: done
   completed_at: 2026-07-02
+- id: T5
+  title: Game overlay — draggable performance HUD during gameplay
+  type: feature
+  priority: medium
+  difficulty: hard
+  why: Users want real-time performance data while gaming — FPS, memory pressure,
+    CPU load — and a quick way to freeze background apps without leaving the game.
+  really_needed: yes
+  impact: New GameOverlayService (foreground service + WindowManager overlay).
+    Adds SYSTEM_ALERT_WINDOW permission. Updates GameLauncher to auto-start overlay.
+    Draggable pill with expanded panel showing FPS, RAM, CPU, BOOST button.
+  followups: Per-game overlay settings, custom FPS target, CPU governor switching
+  images: null
+  github_ref: null
+  plan: |
+    Goal: Implement GameOverlayService (foreground service + WindowManager overlay)
+    and integrate with GameLauncher.
+    Approach:
+    1. Implement GameOverlayService with SYSTEM_ALERT_WINDOW permission.
+    2. Add draggable pill that expands into a performance HUD displaying FPS, RAM, CPU, and a BOOST button.
+    3. Update GameLauncher to auto-start the overlay service.
+  status: done
+  completed_at: 2026-07-02
 ---
+

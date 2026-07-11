@@ -1,34 +1,37 @@
 ---
-- id: T4
-  title: Hail architecture — Shizuku/Root/Accessibility freeze framework
+- id: T7
+  title: RAM & Swap real-time display and post-optimization results
   type: feature
   priority: high
-  difficulty: hard
-  why: T2's killBackgroundProcesses is restricted on Android 12+ and only frees cached
-    processes. Real deep-freeze needs pm disable / am force-stop which require elevated
-    privileges. Hail, FreezeYou, SuperFreezZ are proven open-source references.
+  difficulty: medium
+  why: Users need to see real-time RAM/Swap usage in MB and the exact RAM+Swap freed post-optimization.
   really_needed: yes
-  impact: New FreezeFramework module with three backends (Shizuku, Root, Accessibility).
-    Replaces BoostManager's free-only path with freeze path. Adds FREEZE_ALL action that
-    can be invoked from a button or `am start -a com.ivarna.apexcore.action.FREEZE_ALL`.
-    No UI rework — same BOOST button now triggers freeze-eligible path when privilege
-    is granted.
-  followups: T5 (per-app freeze list), T6 (whitelist/tags)
+  impact: MainActivity Composables, memory metrics provider
+  followups: null
   images: null
   github_ref: null
   plan: null
-- id: T5
-  title: Game overlay — draggable performance HUD during gameplay
+- id: T8
+  title: Redo manual game addition with complete app list selection
   type: feature
   priority: medium
-  difficulty: hard
-  why: Users want real-time performance data while gaming — FPS, memory pressure,
-    CPU load — and a quick way to freeze background apps without leaving the game.
+  difficulty: medium
+  why: Current manual game addition is too basic; needs a picker that shows all installed apps.
   really_needed: yes
-  impact: New GameOverlayService (foreground service + WindowManager overlay).
-    Adds SYSTEM_ALERT_WINDOW permission. Updates GameLauncher to auto-start overlay.
-    Draggable pill with expanded panel showing FPS, RAM, CPU, BOOST button.
-  followups: Per-game overlay settings, custom FPS target, CPU governor switching
+  impact: GameLauncher, Game selection UI/dialog, PackageManager querying
+  followups: null
+  images: null
+  github_ref: null
+  plan: null
+- id: T9
+  title: RAM Filler ("RAM Free") system to force-free memory
+  type: feature
+  priority: high
+  difficulty: hard
+  why: Filling the phone's RAM to 100% forces Android's LMK (Low Memory Killer) to reclaim all cached background processes before the filler process terminates itself.
+  really_needed: yes
+  impact: New RamFillerManager, memory allocation service/loop, UI controls
+  followups: null
   images: null
   github_ref: null
   plan: null

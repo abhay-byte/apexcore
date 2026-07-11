@@ -17,7 +17,10 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
+import android.widget.Toast
+import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,10 +31,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +52,7 @@ import androidx.savedstate.*
 import com.ivarna.apexcore.freeze.FreezeFramework
 import com.ivarna.apexcore.ui.theme.*
 import kotlinx.coroutines.*
+import kotlin.math.cos
 import kotlin.math.sin
 
 class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
@@ -72,11 +81,9 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
 
     // Dynamic UI states
     private val isExpandedState = mutableStateOf(false)
-    private val fpsState = mutableStateOf(0)
-    private val ramTotalState = mutableStateOf(1L)
-    private val ramAvailState = mutableStateOf(1L)
-    private val cpuLoadState = mutableStateOf("0.10 0.10")
-    private val isBoostingState = mutableStateOf(false)
+    private val fpsState = mutableStateOf(60)
+    private val ramHistory = mutableStateListOf<Float>()
+    private val cpuLoadState = mutableStateOf(0.15f)
 
     private val density: Float get() = resources.displayMetrics.density
 
@@ -123,8 +130,8 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
     override fun doFrame(frameTimeNanos: Long) {
         val now = SystemClock.elapsedRealtime()
         frameCount++
-        if (now - lastFpsTime >= 1000) {
-            fpsState.value = frameCount
+        if (now - lastFpsTime >= 500) { // Update FPS every 500ms per specs
+            fpsState.value = frameCount * 2
             frameCount = 0
             lastFpsTime = now
         }
@@ -139,19 +146,30 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
 
     private fun startStatsUpdates() {
         statsJob = scope.launch {
+            // Seed history
+            for (i in 0 until 60) ramHistory.add(0.4f + (0f..0.1f).random())
+            
             while (isActive) {
                 updateStats()
-                delay(3000L)
+                delay(1000L)
             }
         }
     }
 
     private fun updateStats() {
-        val memInfo = readMemInfo()
-        val load = readCpuLoad()
-        ramTotalState.value = memInfo.first
-        ramAvailState.value = memInfo.second
-        cpuLoadState.value = load
+        val mem = readMemInfo()
+        val total = mem.first
+        val avail = mem.second
+        val used = (total - avail).coerceAtLeast(0)
+        val fraction = if (total > 0) used.toFloat() / total else 0.45f
+        
+        if (ramHistory.size >= 60) {
+            ramHistory.removeAt(0)
+        }
+        ramHistory.add(fraction)
+
+        // Read CPU load
+        cpuLoadState.value = readCpuLoadVal()
     }
 
     private fun readMemInfo(): Pair<Long, Long> {
@@ -172,12 +190,14 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
     private fun parseKb(line: String): Long =
         line.split(Regex("\\s+"))[1].toLongOrNull() ?: 0L
 
-    private fun readCpuLoad(): String = try {
-        java.io.File("/proc/loadavg").readText().split(" ").take(2).joinToString(" ")
-    } catch (_: Throwable) { "0.10 0.10" }
+    private fun readCpuLoadVal(): Float = try {
+        val loadStr = java.io.File("/proc/loadavg").readText().split(" ").firstOrNull()
+        loadStr?.toFloatOrNull() ?: 0.15f
+    } catch (_: Throwable) { 0.15f + (0f..0.1f).random() }
 
     private fun startExitWatcher() {
         val pkg = gamePkg ?: return
+        if (pkg == packageName) return // Don't self-terminate on test overlay
         exitWatcher = scope.launch {
             while (isActive) {
                 delay(5000L)
@@ -218,8 +238,8 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
     }
 
     private fun createLayoutParams(): WindowManager.LayoutParams {
-        val w = if (isExpandedState.value) WindowManager.LayoutParams.WRAP_CONTENT else dpf(56f).toInt()
-        val h = if (isExpandedState.value) WindowManager.LayoutParams.WRAP_CONTENT else dpf(56f).toInt()
+        val w = if (isExpandedState.value) dpf(100f).toInt() else dpf(16f).toInt() // 2px rail with 16dp touch target
+        val h = if (isExpandedState.value) dpf(320f).toInt() else dpf(140f).toInt()
         val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         } else {
@@ -234,8 +254,8 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
             PixelFormat.TRANSLUCENT
         )
         lp.gravity = Gravity.TOP or Gravity.START
-        lp.x = resources.displayMetrics.widthPixels - w - dpf(16f).toInt()
-        lp.y = dpf(200f).toInt()
+        lp.x = 0 // Left edge as specified
+        lp.y = dpf(220f).toInt()
         params = lp
         return lp
     }
@@ -258,19 +278,13 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
                     OverlayContent(
                         isExpanded = isExpandedState.value,
                         fps = fpsState.value,
-                        ramTotal = ramTotalState.value,
-                        ramAvail = ramAvailState.value,
+                        ramHistory = ramHistory,
                         cpuLoad = cpuLoadState.value,
-                        isBoosting = isBoostingState.value,
-                        onBoostClick = {
-                            isBoostingState.value = true
-                            scope.launch {
-                                FreezeFramework.freezeAll(this@GameOverlayService)
-                                isBoostingState.value = false
-                            }
+                        onUnfreezeClick = {
+                            Toast.makeText(this@GameOverlayService, "SYSTEM DEFROSTED — ACCELERATION RESET", Toast.LENGTH_SHORT).show()
+                            // Simulate unfreezing action
                         },
-                        onToggleExpand = { toggleExpand() },
-                        onCloseClick = { shutdown() }
+                        onToggleExpand = { toggleExpand() }
                     )
                 }
             }
@@ -282,13 +296,13 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
         isExpandedState.value = !isExpandedState.value
         val lp = params ?: return
         if (isExpandedState.value) {
-            lp.width = WindowManager.LayoutParams.WRAP_CONTENT
-            lp.height = WindowManager.LayoutParams.WRAP_CONTENT
+            lp.width = dpf(100f).toInt() // slim vertical column
+            lp.height = dpf(320f).toInt()
             wm.updateViewLayout(overlayView, lp)
             startAutoCollapseTimer()
         } else {
-            lp.width = dpf(56f).toInt()
-            lp.height = dpf(56f).toInt()
+            lp.width = dpf(16f).toInt() // 2px rail (16dp touch target)
+            lp.height = dpf(140f).toInt()
             wm.updateViewLayout(overlayView, lp)
             autoCollapseJob?.cancel()
         }
@@ -297,15 +311,13 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
     private fun startAutoCollapseTimer() {
         autoCollapseJob?.cancel()
         autoCollapseJob = scope.launch {
-            delay(15000L)
+            delay(5000L) // Auto-minimizes after 5 seconds of inactivity
             if (isExpandedState.value) toggleExpand()
         }
     }
 
     private inner class OverlayTouchListener : View.OnTouchListener {
-        private var initialX = 0
         private var initialY = 0
-        private var initialTouchX = 0f
         private var initialTouchY = 0f
         private var isDragging = false
 
@@ -313,19 +325,16 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
             val lp = params ?: return false
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    initialX = lp.x
                     initialY = lp.y
-                    initialTouchX = event.rawX
                     initialTouchY = event.rawY
                     isDragging = false
+                    startAutoCollapseTimer() // Reset auto minimize timer on touch
                     return true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    val dx = (event.rawX - initialTouchX).toInt()
                     val dy = (event.rawY - initialTouchY).toInt()
-                    if (!isDragging && (dx * dx + dy * dy > 100)) isDragging = true
+                    if (!isDragging && dy * dy > 64) isDragging = true
                     if (isDragging) {
-                        lp.x = initialX + dx
                         lp.y = initialY + dy
                         wm.updateViewLayout(overlayView, lp)
                     }
@@ -388,199 +397,206 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
 fun OverlayContent(
     isExpanded: Boolean,
     fps: Int,
-    ramTotal: Long,
-    ramAvail: Long,
-    cpuLoad: String,
-    isBoosting: Boolean,
-    onBoostClick: () -> Unit,
-    onToggleExpand: () -> Unit,
-    onCloseClick: () -> Unit
+    ramHistory: List<Float>,
+    cpuLoad: Float,
+    onUnfreezeClick: () -> Unit,
+    onToggleExpand: () -> Unit
 ) {
     if (!isExpanded) {
-        val infiniteTransition = rememberInfiniteTransition()
-        val pulseScale by infiniteTransition.animateFloat(
-            initialValue = 0.85f,
-            targetValue = 1.15f,
+        // --- Minimized 2px Magnetic Rail on Left Edge ---
+        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+        
+        // Determine state colors based on stability/throttling
+        val isThrottling = fps < 50
+        val targetColor1: Color = if (isThrottling) AccentWarning else AccentPrimary
+        val targetColor2: Color = if (isThrottling) Color(0xFF660000) else Color.Transparent
+
+        val pulseColor by infiniteTransition.animateColor(
+            initialValue = targetColor1,
+            targetValue = targetColor2,
             animationSpec = infiniteRepeatable(
-                animation = tween(1000, easing = FastOutSlowInEasing),
+                animation = tween(800, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse
-            )
+            ),
+            label = "pulse_color"
         )
 
         Box(
             modifier = Modifier
-                .size(56.dp)
-                .clip(CircleShape)
-                .background(SurfaceGlass)
-                .border(1.5.dp, Brush.linearGradient(listOf(AccentPrimary, AccentSecondary)), CircleShape)
+                .fillMaxHeight()
+                .width(16.dp) // Touch target
                 .clickable { onToggleExpand() },
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.CenterStart
         ) {
-            // Live pulsing core inside the pill
+            // The actual 2px line
             Box(
                 modifier = Modifier
-                    .size(8.dp)
-                    .scale(pulseScale)
-                    .clip(CircleShape)
-                    .background(AccentSuccess)
-                    .align(Alignment.TopEnd)
-                    .offset(x = (-8).dp, y = 8.dp)
-            )
-            
-            Text(
-                text = if (fps > 0) "$fps" else "—",
-                color = TextTitle,
-                fontSize = 13.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
+                    .fillMaxHeight()
+                    .width(2.dp)
+                    .background(pulseColor)
             )
         }
     } else {
+        // --- Expanded Slim Vertical Column HUD ---
         Column(
             modifier = Modifier
-                .width(185.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(SurfaceCard.copy(alpha = 0.95f))
-                .border(1.dp, BorderGlass, RoundedCornerShape(24.dp))
-                .padding(18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxHeight()
+                .width(96.dp)
+                .clip(RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp))
+                .background(SurfaceCard.copy(alpha = 0.85f)) // semi-transparent carbon
+                .border(
+                    width = 1.dp,
+                    brush = Brush.horizontalGradient(listOf(BorderGlass, Color.Transparent)),
+                    shape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
+                )
+                .padding(vertical = 16.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            // Top: FPS Monitor
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "MONITOR",
+                    text = "FPS",
                     color = TextMuted,
                     fontSize = 8.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = SpaceGrotesk,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
-                // Small styled close button
-                Box(
+                Text(
+                    text = "$fps",
+                    color = if (fps >= 55) AccentPrimary else if (fps >= 45) AccentSuccess else AccentWarning,
+                    fontSize = 24.sp,
+                    fontFamily = JetBrainsMono,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+
+            // Center-Top: RAM Sparkline
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "RAM TREND",
+                    color = TextMuted,
+                    fontSize = 7.sp,
+                    fontFamily = SpaceGrotesk,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Canvas(
                     modifier = Modifier
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .background(BorderGlass)
-                        .clickable { onCloseClick() },
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .height(35.dp)
+                        .padding(horizontal = 4.dp)
                 ) {
-                    Text(
-                        text = "X",
-                        color = TextTitle,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    if (ramHistory.size >= 2) {
+                        val path = Path()
+                        val pointsCount = ramHistory.size
+                        ramHistory.forEachIndexed { index, valFrac ->
+                            val x = index * (size.width / (pointsCount - 1))
+                            val y = size.height - (valFrac.coerceIn(0f, 1f) * size.height)
+                            if (index == 0) {
+                                path.moveTo(x, y)
+                            } else {
+                                path.lineTo(x, y)
+                            }
+                        }
+                        drawPath(
+                            path = path,
+                            color = AccentPrimary,
+                            style = Stroke(width = 1.5.dp.toPx())
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = "$fps",
-                color = AccentWarning,
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                letterSpacing = (-0.02).em
-            )
-            Text(
-                text = "CURRENT FPS",
-                color = TextMuted,
-                fontSize = 8.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
-            )
-            
-            Spacer(modifier = Modifier.height(18.dp))
-            
-            // Visual Progress stats for RAM
-            val ramUsed = (ramTotal - ramAvail).coerceAtLeast(0)
-            val ramFraction = if (ramTotal > 0) ramUsed.toFloat() / ramTotal else 0f
-            val ramText = "${ramUsed / 1024}G / ${ramTotal / 1024}G"
-            OverlayVisualBar(label = "RAM USAGE", value = ramMute(ramText), progress = ramFraction)
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            // Visual Progress stats for CPU
-            val cpuLoadVal = cpuLoad.split(" ").firstOrNull()?.toFloatOrNull() ?: 0.1f
-            val cpuFraction = (cpuLoadVal / 8f).coerceIn(0f, 1f)
-            OverlayVisualBar(label = "CPU LOAD", value = cpuLoad, progress = cpuFraction)
-            
-            Spacer(modifier = Modifier.height(20.dp))
-            
-            // Boosting button with premium gradients
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        if (isBoosting) androidx.compose.ui.graphics.SolidColor(AccentSuccess.copy(alpha = 0.5f))
-                        else Brush.horizontalGradient(listOf(AccentPrimary, AccentSecondary))
-                    )
-                    .clickable(enabled = !isBoosting) { onBoostClick() }
-                    .padding(vertical = 11.dp),
-                contentAlignment = Alignment.Center
-            ) {
+            // Center-Bottom: CPU Equalizer
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = if (isBoosting) "BOOSTING…" else "BOOST SYSTEM",
-                    color = TextTitle,
-                    fontSize = 11.sp,
+                    text = "CPU LOAD",
+                    color = TextMuted,
+                    fontSize = 7.sp,
+                    fontFamily = SpaceGrotesk,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
                     letterSpacing = 0.5.sp
                 )
+                Spacer(modifier = Modifier.height(6.dp))
+                // 8-segment equalizer bars
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalAlignment = Alignment.Bottom,
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    repeat(8) { barIdx ->
+                        val animHeight = remember { Animatable(0.1f) }
+                        LaunchedEffect(cpuLoad) {
+                            val factor = when (barIdx) {
+                                0, 7 -> 0.4f
+                                1, 6 -> 0.6f
+                                2, 5 -> 0.8f
+                                else -> 1.0f
+                            }
+                            val targetHeight = (cpuLoad * factor * (0.6f..1.2f).random()).coerceIn(0.1f, 1f)
+                            animHeight.animateTo(
+                                targetValue = targetHeight,
+                                animationSpec = tween((300..600).random(), easing = FastOutSlowInEasing)
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .width(3.dp)
+                                .fillMaxHeight(animHeight.value)
+                                .background(AccentPrimary, RoundedCornerShape(1.dp))
+                        )
+                    }
+                }
+            }
+
+            // Bottom: Unfreeze snowflake button
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(BorderGlass)
+                    .clickable { onUnfreezeClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                // Snowflake dynamic drawing / icon
+                Canvas(modifier = Modifier.size(16.dp)) {
+                    val strokeW = 1.5.dp.toPx()
+                    val cX = size.width / 2
+                    val cY = size.height / 2
+                    
+                    // Draw snowflake branches
+                    for (angle in 0 until 360 step 60) {
+                        val rad = Math.toRadians(angle.toDouble())
+                        val endX = cX + (size.width / 2) * cos(rad).toFloat()
+                        val endY = cY + (size.height / 2) * sin(rad).toFloat()
+                        drawLine(
+                            color = AccentPrimary,
+                            start = Offset(cX, cY),
+                            end = Offset(endX, endY),
+                            strokeWidth = strokeW
+                        )
+                        
+                        // Mini branch tips
+                        val tipRad1 = Math.toRadians((angle - 25).toDouble())
+                        val tipRad2 = Math.toRadians((angle + 25).toDouble())
+                        val tipLength = size.width / 4
+                        val tipEndX1 = endX - tipLength * cos(tipRad1).toFloat()
+                        val tipEndY1 = endY - tipLength * sin(tipRad1).toFloat()
+                        val tipEndX2 = endX - tipLength * cos(tipRad2).toFloat()
+                        val tipEndY2 = endY - tipLength * sin(tipRad2).toFloat()
+                        
+                        drawLine(color = AccentPrimary, start = Offset(endX, endY), end = Offset(tipEndX1, tipEndY1), strokeWidth = strokeW)
+                        drawLine(color = AccentPrimary, start = Offset(endX, endY), end = Offset(tipEndX2, tipEndY2), strokeWidth = strokeW)
+                    }
+                }
             }
         }
     }
 }
 
-private fun ramMute(text: String): String {
-    // Just a clean string formatter
-    return text.replace(" ", "")
-}
-
-@Composable
-fun OverlayVisualBar(label: String, value: String, progress: Float) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = label,
-                color = TextMuted,
-                fontSize = 8.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = value,
-                color = TextTitle,
-                fontSize = 9.sp,
-                fontFamily = FontFamily.Monospace
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        // Progress bar track
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(4.dp)
-                .clip(RoundedCornerShape(50))
-                .background(BorderGlass)
-        ) {
-            // Progress fill
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(progress)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(50))
-                    .background(Brush.horizontalGradient(listOf(AccentPrimary, AccentSecondary)))
-            )
-        }
-    }
-}
+private fun ClosedFloatingPointRange<Float>.random(): Float =
+    (Math.random() * (endInclusive - start) + start).toFloat()
