@@ -11,7 +11,8 @@ data class FreezeResult(
     val afterAvailMb: Long,
     val freedKb: Long = 0,
     val swapTotalMb: Long,
-    val swapFreeMb: Long
+    val swapFreeMb: Long,
+    val swapFreedKb: Long = 0
 ) {
     val freedMb: Long get() = freedKb / 1024
 }

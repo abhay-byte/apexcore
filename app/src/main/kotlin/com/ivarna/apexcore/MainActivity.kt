@@ -208,10 +208,12 @@ fun MainScreen(gameManager: GameManager) {
                                 val result = FreezeFramework.freezeAll(context)
                                 lastResult = result
                                 val freedMb = result.freedKb / 1024f
-                                freedRamText = if (freedMb >= 1024) {
-                                    "+%.2f GB".format(freedMb / 1024f)
+                                val swapFreedMb = result.swapFreedKb / 1024f
+                                val totalFreedMb = freedMb + swapFreedMb
+                                freedRamText = if (swapFreedMb > 0f) {
+                                    "+%d MB (+%d MB Swap)".format(totalFreedMb.toInt(), swapFreedMb.toInt())
                                 } else {
-                                    "+%d MB".format(freedMb.toInt())
+                                    "+%d MB".format(totalFreedMb.toInt())
                                 }
                             }
                         },
@@ -806,14 +808,14 @@ fun UnifiedResultCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    val freedMb = (lastResult?.freedKb ?: 0L) / 1024
+                    val swapFreedMb = (lastResult?.swapFreedKb ?: 0L) / 1024
+                    val totalFreedMb = freedMb + swapFreedMb
                     StatItem(
                         modifier = Modifier.weight(1f),
                         title = "FREED SIZE",
-                        value = if (isZero) "0 MB" else {
-                            val freedMb = (lastResult?.freedKb ?: 0L) / 1024f
-                            if (freedMb >= 1024) "%.2f GB".format(freedMb / 1024f) else "%d MB".format(freedMb.toInt())
-                        },
-                        subtitle = "RAM reclaimed",
+                        value = if (isZero) "0 MB" else "%d MB".format(totalFreedMb),
+                        subtitle = "RAM: %d MB | Swap: %d MB".format(freedMb, swapFreedMb),
                         indicatorColor = AccentPrimary,
                         valueColor = AccentPrimary,
                         delayMs = 100

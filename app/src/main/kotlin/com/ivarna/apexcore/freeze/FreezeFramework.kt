@@ -60,6 +60,7 @@ object FreezeFramework {
         Log.i(TAG, "Target apps before RSS sum = ${beforeRssKb}KB")
 
         val (totalMemKb, beforeMemKb) = readMemInfo()
+        val beforeSwapFreeKb = readMemLine("SwapFree:")
         val start = System.currentTimeMillis()
 
         var killed = 0
@@ -88,12 +89,14 @@ object FreezeFramework {
 
         delay(1200)
         val afterAvailKb = readMemLine("MemAvailable:")
+        val afterSwapFreeKb = readMemLine("SwapFree:")
         val afterRssKb = calculateTargetRssKb(backend, targetPkgs)
 
         val freedKbFromMem = (afterAvailKb - beforeMemKb).coerceAtLeast(0)
         val appsFreedKb = (beforeRssKb - afterRssKb).coerceAtLeast(0)
         val freedKb = maxOf(freedKbFromMem, appsFreedKb)
-        Log.i(TAG, "beforeAvail=${beforeMemKb}KB afterAvail=${afterAvailKb}KB freedFromMem=${freedKbFromMem}KB beforeRss=${beforeRssKb}KB afterRss=${afterRssKb}KB appsFreed=${appsFreedKb}KB chosen=${freedKb}KB")
+        val swapFreedKb = (afterSwapFreeKb - beforeSwapFreeKb).coerceAtLeast(0)
+        Log.i(TAG, "beforeAvail=${beforeMemKb}KB afterAvail=${afterAvailKb}KB freedFromMem=${freedKbFromMem}KB beforeRss=${beforeRssKb}KB afterRss=${afterRssKb}KB appsFreed=${appsFreedKb}KB chosen=${freedKb}KB swapFreed=${swapFreedKb}KB")
         val duration = System.currentTimeMillis() - start
 
         val result = FreezeResult(
@@ -107,7 +110,8 @@ object FreezeFramework {
             afterAvailMb = afterAvailKb / 1024,
             freedKb = freedKb,
             swapTotalMb = readMemLine("SwapTotal:") / 1024,
-            swapFreeMb = readMemLine("SwapFree:") / 1024
+            swapFreeMb = readMemLine("SwapFree:") / 1024,
+            swapFreedKb = swapFreedKb
         )
         _lastResult.value = result
         Log.i(TAG, "freezeAll done: $result")

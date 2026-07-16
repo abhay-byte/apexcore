@@ -31,12 +31,12 @@ fun SimpleMemoryDisplay(
     onPurgeAnimComplete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val ramUsedGb = ramUsedKb / (1024f * 1024f)
-    val ramTotalGb = ramTotalKb / (1024f * 1024f)
+    val ramUsedMb = ramUsedKb / 1024f
+    val ramTotalMb = ramTotalKb / 1024f
     val ramFraction = if (ramTotalKb > 0) (ramUsedKb.toFloat() / ramTotalKb).coerceIn(0f, 1f) else 0f
 
-    val swapUsedGb = swapUsedKb / (1024f * 1024f)
-    val swapTotalGb = swapTotalKb / (1024f * 1024f)
+    val swapUsedMb = swapUsedKb / 1024f
+    val swapTotalMb = swapTotalKb / 1024f
     val swapFraction = if (swapTotalKb > 0) (swapUsedKb.toFloat() / swapTotalKb).coerceIn(0f, 1f) else 0f
 
     val animatedRamProgress by animateFloatAsState(
@@ -95,7 +95,7 @@ fun SimpleMemoryDisplay(
                     letterSpacing = 1.sp
                 )
                 Text(
-                    text = "%.2f GB / %.2f GB".format(ramUsedGb, ramTotalGb),
+                    text = "%.0f MB / %.0f MB".format(ramUsedMb, ramTotalMb),
                     color = TextTitle,
                     fontSize = 14.sp,
                     fontFamily = JetBrainsMono,
@@ -145,7 +145,7 @@ fun SimpleMemoryDisplay(
                     letterSpacing = 1.sp
                 )
                 Text(
-                    text = if (swapTotalKb > 0) "%.2f GB / %.2f GB".format(swapUsedGb, swapTotalGb) else "0.00 GB / 0.00 GB",
+                    text = if (swapTotalKb > 0) "%.0f MB / %.0f MB".format(swapUsedMb, swapTotalMb) else "0 MB / 0 MB",
                     color = TextTitle,
                     fontSize = 14.sp,
                     fontFamily = JetBrainsMono,
