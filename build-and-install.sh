@@ -54,12 +54,24 @@ else
 fi
 
 info "Building ${APP_NAME} ${ARTIFACT_EXT^^} variant: ${VARIANT_CAP}"
-./gradlew "$GRADLE_TASK" --quiet
+cleanup_gradle() {
+    info "Stopping Gradle daemon..."
+    ./gradlew --stop || true
+    pkill -f gradle || true
+}
+trap cleanup_gradle EXIT
+
+./gradlew "$GRADLE_TASK" --quiet --no-daemon
 
 if $BUNDLE_ONLY; then
     ARTIFACT_PATH=$(find "$ARTIFACT_DIR" -maxdepth 1 -type f -name "*.aab" | sort | head -1)
 else
     ARTIFACT_PATH=$(find "$ARTIFACT_DIR" -maxdepth 1 -type f -name "*.apk" ! -name "*-unsigned.apk" | sort | head -1)
+fi
+
+if [[ -z "$ARTIFACT_PATH" ]]; then
+    # Fallback search if directory structure differs
+    ARTIFACT_PATH=$(find "app/build" -name "*.apk" ! -name "*-unsigned.apk" | sort | head -1)
 fi
 
 if [[ -z "$ARTIFACT_PATH" ]]; then
