@@ -10,6 +10,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -34,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -60,6 +62,7 @@ fun GamesScreen(
     // Toggle tab state
     var showAllApps by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var showAddPicker by remember { mutableStateOf(false) }
     
     // App loading states
     var customGames by remember { mutableStateOf(gameManager.load()) }
@@ -71,12 +74,10 @@ fun GamesScreen(
     var launchingPkg by remember { mutableStateOf("") }
 
     // Load all apps in background
-    LaunchedEffect(showAllApps) {
-        if (showAllApps && allAppsList.isEmpty()) {
+    LaunchedEffect(showAllApps, customGames) {
+        if (showAllApps) {
             isLoadingApps = true
-            allAppsList = withContext(Dispatchers.IO) {
-                getAllInstalledApps(context)
-            }
+            allAppsList = gameManager.listInstallableApps(context)
             isLoadingApps = false
         }
     }
@@ -119,26 +120,47 @@ fun GamesScreen(
 
             // Minimalist Search and Toggle Row
             Column(modifier = Modifier.fillMaxWidth()) {
-                // Search Input Field
-                BasicTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    textStyle = TextStyle(color = TextTitle, fontSize = 13.sp, fontFamily = JetBrainsMono),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                    cursorBrush = SolidColor(AccentPrimary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(SurfaceCard)
-                        .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    decorationBox = { innerTextField ->
-                        if (searchQuery.isEmpty()) {
-                            Text("SEARCH PACKAGES...", color = TextMuted, fontSize = 13.sp, fontFamily = JetBrainsMono)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Search Input Field
+                    BasicTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        textStyle = TextStyle(color = TextTitle, fontSize = 13.sp, fontFamily = JetBrainsMono),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        cursorBrush = SolidColor(AccentPrimary),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(SurfaceCard)
+                            .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        decorationBox = { innerTextField ->
+                            if (searchQuery.isEmpty()) {
+                                Text("SEARCH PACKAGES...", color = TextMuted, fontSize = 13.sp, fontFamily = JetBrainsMono)
+                            }
+                            innerTextField()
                         }
-                        innerTextField()
+                    )
+
+                    // Show '+' button next to search bar if library is not empty
+                    if (customGames.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(SurfaceCard)
+                                .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
+                                .clickable { showAddPicker = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("+", color = AccentPrimary, fontSize = 24.sp, fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold)
+                        }
                     }
-                )
+                }
                 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -221,6 +243,55 @@ fun GamesScreen(
                             fontSize = 12.sp,
                             letterSpacing = 1.sp
                         )
+                        if (!showAllApps) {
+                            Spacer(modifier = Modifier.height(24.dp))
+                            // CTA: ADD GAMES
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(AccentPrimary)
+                                    .clickable { showAddPicker = true }
+                                    .padding(horizontal = 24.dp, vertical = 12.dp)
+                            ) {
+                                Text(
+                                    text = "ADD GAMES",
+                                    color = BgDark,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            // CTA: SCAN FOR GAMES
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(BgDark)
+                                    .border(1.dp, BorderGlass, RoundedCornerShape(14.dp))
+                                    .clickable {
+                                        coroutineScope.launch {
+                                            val oldSize = customGames.size
+                                            gameManager.acceptDetected(context)
+                                            customGames = gameManager.load()
+                                            val added = customGames.size - oldSize
+                                            if (added > 0) {
+                                                Toast.makeText(context, "Added $added games", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "No new games found", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                    .padding(horizontal = 24.dp, vertical = 12.dp)
+                            ) {
+                                Text(
+                                    text = "SCAN FOR GAMES",
+                                    color = AccentPrimary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
                     }
                 } else {
                     val density = LocalDensity.current
@@ -278,6 +349,28 @@ fun GamesScreen(
                                             colors = listOf(customThemeColor, Color.Transparent),
                                             radius = 350f
                                         )
+                                    )
+                                    .combinedClickable(
+                                        onClick = {
+                                            launchingPkg = game.pkg
+                                            isLaunching = true
+                                        },
+                                        onLongClick = {
+                                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                            if (showAllApps) {
+                                                if (customGames.any { it.pkg == game.pkg }) {
+                                                    Toast.makeText(context, "Already in library", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    gameManager.add(game.pkg, game.name, false)
+                                                    customGames = gameManager.load()
+                                                    Toast.makeText(context, "Added to library", Toast.LENGTH_SHORT).show()
+                                                }
+                                            } else {
+                                                gameManager.remove(game.pkg)
+                                                customGames = gameManager.load()
+                                                Toast.makeText(context, "Removed from library", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -420,6 +513,18 @@ fun GamesScreen(
                 }
             )
         }
+
+        if (showAddPicker) {
+            AddGamePickerDialog(
+                gameManager = gameManager,
+                onAdded = {
+                    customGames = gameManager.load()
+                },
+                onDismiss = {
+                    showAddPicker = false
+                }
+            )
+        }
     }
 }
 
@@ -534,15 +639,23 @@ fun AppIcon(packageName: String, modifier: Modifier = Modifier) {
     AndroidView(
         factory = { ctx ->
             android.widget.ImageView(ctx).apply {
-                setImageDrawable(drawable)
                 scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            }
+        },
+        update = { imageView ->
+            if (imageView.drawable != drawable) {
+                imageView.setImageDrawable(drawable)
             }
         },
         modifier = modifier
     )
 }
 
+// Cache for icon theme colors to avoid heavy extraction during scroll
+private val iconThemeColorCache = mutableMapOf<String, Color>()
+
 fun getIconThemeColor(context: Context, pkg: String): Color {
+    iconThemeColorCache[pkg]?.let { return it }
     try {
         val pm = context.packageManager
         val icon = pm.getApplicationIcon(pkg)
@@ -568,9 +681,13 @@ fun getIconThemeColor(context: Context, pkg: String): Color {
         val g = (android.graphics.Color.green(p1) + android.graphics.Color.green(p2) + android.graphics.Color.green(p3)) / 3
         val b = (android.graphics.Color.blue(p1) + android.graphics.Color.blue(p2) + android.graphics.Color.blue(p3)) / 3
         
-        return Color(r, g, b).copy(alpha = 0.22f)
+        val color = Color(r, g, b).copy(alpha = 0.22f)
+        iconThemeColorCache[pkg] = color
+        return color
     } catch (_: Throwable) {
-        return AccentPrimary.copy(alpha = 0.12f)
+        val color = AccentPrimary.copy(alpha = 0.12f)
+        iconThemeColorCache[pkg] = color
+        return color
     }
 }
 
