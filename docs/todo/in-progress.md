@@ -1,12 +1,12 @@
 ---
-- id: T7
-  title: RAM & Swap real-time display and post-optimization results
+- id: T8
+  title: Redo manual game addition with complete app list selection
   type: feature
-  priority: high
+  priority: medium
   difficulty: medium
-  why: Users need to see real-time RAM/Swap usage in MB and the exact RAM+Swap freed post-optimization.
+  why: Current manual game addition is too basic; needs a picker that shows all installed apps.
   really_needed: yes
-  impact: MainActivity Composables, memory metrics provider
+  impact: GameLauncher, Game selection UI/dialog, PackageManager querying
   followups: null
   images: null
   github_ref: null
