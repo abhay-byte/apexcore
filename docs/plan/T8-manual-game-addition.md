@@ -7,7 +7,7 @@
 | **Priority** | medium |
 | **Difficulty** | medium |
 | **Branch** | `T8-manual-game-addition` |
-| **Status** | plan only (not implemented) |
+| **Status** | iteration 2 done; review **APPROVE** — commit WT then PR |
 
 ## Todo source
 
@@ -185,13 +185,53 @@ Mirror `SetupDialog` chrome:
 
 ---
 
-## Implementation order (when approved)
+## Implementation order
 
-1. `GameManager.listInstallableApps` (+ optional `addAll`)
-2. `AddGamePickerDialog` composable
-3. Wire empty CTA / `+` / long-press remove (GAMES) / long-press add (ALL APPS) / scan in `GamesScreen`
-4. Manual test on device
-5. PR targeting version branch with ID tag `[T8]`
+1. ~~`GameManager.listInstallableApps` (+ optional `addAll`)~~ done
+2. ~~`AddGamePickerDialog` composable~~ done
+3. ~~Wire empty CTA / `+` / long-press remove (GAMES) / long-press add (ALL APPS) / scan in `GamesScreen`~~ done
+4. ~~Manual test (iter 1)~~ done — FPS fail found
+5. ~~Iteration 2 fixes + re-test~~ done — human all correct; review **APPROVE**
+6. Commit iteration-2 WT → PR targeting version branch `[T8]`
+
+---
+
+## Iteration 1
+
+| | |
+|--|--|
+| Commit | `fec6297 feat: app list picker for game library (T8)` |
+| Build | `compileDebugKotlin` SUCCESS |
+| Human | detect OK · multi-select OK · long-press remove OK · **Add-to-library list severe FPS drop** |
+| Review | **CHANGES_REQUESTED** |
+
+---
+
+## Iteration 2
+
+| | |
+|--|--|
+| Code | Uncommitted WT on `T8-manual-game-addition` (async icons, LaunchedEffect key, pager coerce, dead code drop) |
+| Build | `compileDebugKotlin` SUCCESS |
+| Human | **all testing correct** (incl. picker FPS) |
+| Review | **APPROVE** |
+
+### Iteration-2 fix checklist
+- [x] 🔴 AppIcon IO + LruCache + placeholder
+- [x] 🔴 Compose `Image` + `ImageBitmap` (no ImageView in list)
+- [x] 🔴 Picker uses async `AppIcon`
+- [x] 🟡 `LaunchedEffect(showAllApps)` only
+- [x] 🟡 `getAllInstalledApps` deleted
+- [x] 🟡 Pager coerce on list shrink
+- [⚠️] 🔵 residual unused imports (`AndroidView`, `ApplicationInfo`, `PackageManager`) — optional cleanup in commit
+
+### Residual nits (non-blocking)
+- Drop leftover unused imports before/with commit
+- `produceState` assign prefer Main via `withContext` (FPS OK as-is)
+- Carousel `getIconThemeColor` still sync — pre-existing, not picker
+
+### Performance root cause (resolved)
+Main-thread PM icon + `AndroidView` → fixed with IO + `LruCache(120)` + Compose `Image` + placeholder. Human confirms FPS OK.
 
 ---
 
@@ -201,3 +241,5 @@ Mirror `SetupDialog` chrome:
 - Design: `docs/design.md` — Page 2 Launch Matrix
 - Old UX: `GameListDialog.kt` @ commit `f8c28d0`
 - Dialog pattern: `SetupDialog.kt`
+- Iteration 1: `fec6297`
+- Iteration 2: commit pending (working tree)

@@ -1,8 +1,6 @@
 package com.ivarna.apexcore.games
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.compose.animation.core.*
@@ -41,8 +39,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.foundation.Image
+import android.util.LruCache
 import com.ivarna.apexcore.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -74,7 +75,7 @@ fun GamesScreen(
     var launchingPkg by remember { mutableStateOf("") }
 
     // Load all apps in background
-    LaunchedEffect(showAllApps, customGames) {
+    LaunchedEffect(showAllApps) {
         if (showAllApps) {
             isLoadingApps = true
             allAppsList = gameManager.listInstallableApps(context)
@@ -107,6 +108,15 @@ fun GamesScreen(
         if (pagerState.currentPage != lastSignaledPage && currentList.isNotEmpty()) {
             view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
             lastSignaledPage = pagerState.currentPage
+        }
+    }
+
+    // Coerce pagerState when list shrinks
+    LaunchedEffect(currentList.size) {
+        if (pagerState.currentPage >= currentList.size && currentList.isNotEmpty()) {
+            try {
+                pagerState.scrollToPage(currentList.size - 1)
+            } catch (_: Throwable) {}
         }
     }
 
@@ -624,31 +634,71 @@ fun TopographicGridSweep(
     }
 }
 
+private val iconCache = LruCache<String, ImageBitmap>(120)
+
 @Composable
 fun AppIcon(packageName: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val pm = context.packageManager
-    val drawable = remember(packageName) {
-        try {
-            pm.getApplicationIcon(packageName)
-        } catch (_: Throwable) {
-            context.getDrawable(android.R.drawable.sym_def_app_icon)
+    val imageState = produceState<ImageBitmap?>(initialValue = null, key1 = packageName) {
+        val cached = iconCache.get(packageName)
+        if (cached != null) {
+            value = cached
+            return@produceState
+        }
+        withContext(Dispatchers.IO) {
+            try {
+                val pm = context.packageManager
+                val drawable = pm.getApplicationIcon(packageName)
+                val bitmap = when (drawable) {
+                    is android.graphics.drawable.BitmapDrawable -> drawable.bitmap
+                    else -> {
+                        val bmp = android.graphics.Bitmap.createBitmap(
+                            drawable.intrinsicWidth.coerceAtLeast(1),
+                            drawable.intrinsicHeight.coerceAtLeast(1),
+                            android.graphics.Bitmap.Config.ARGB_8888
+                        )
+                        val canvas = android.graphics.Canvas(bmp)
+                        drawable.setBounds(0, 0, canvas.width, canvas.height)
+                        drawable.draw(canvas)
+                        bmp
+                    }
+                }
+                val imageBitmap = bitmap.asImageBitmap()
+                iconCache.put(packageName, imageBitmap)
+                value = imageBitmap
+            } catch (_: Throwable) {
+                try {
+                    val fallbackDrawable = context.getDrawable(android.R.drawable.sym_def_app_icon)
+                    if (fallbackDrawable != null) {
+                        val bmp = android.graphics.Bitmap.createBitmap(
+                            fallbackDrawable.intrinsicWidth.coerceAtLeast(1),
+                            fallbackDrawable.intrinsicHeight.coerceAtLeast(1),
+                            android.graphics.Bitmap.Config.ARGB_8888
+                        )
+                        val canvas = android.graphics.Canvas(bmp)
+                        fallbackDrawable.setBounds(0, 0, canvas.width, canvas.height)
+                        fallbackDrawable.draw(canvas)
+                        val imageBitmap = bmp.asImageBitmap()
+                        iconCache.put(packageName, imageBitmap)
+                        value = imageBitmap
+                    }
+                } catch (_: Throwable) {
+                    value = null
+                }
+            }
         }
     }
-    
-    AndroidView(
-        factory = { ctx ->
-            android.widget.ImageView(ctx).apply {
-                scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-            }
-        },
-        update = { imageView ->
-            if (imageView.drawable != drawable) {
-                imageView.setImageDrawable(drawable)
-            }
-        },
-        modifier = modifier
-    )
+
+    val img = imageState.value
+    if (img != null) {
+        Image(
+            bitmap = img,
+            contentDescription = null,
+            modifier = modifier
+        )
+    } else {
+        Box(modifier = modifier)
+    }
 }
 
 // Cache for icon theme colors to avoid heavy extraction during scroll
@@ -703,19 +753,6 @@ fun getResourceDemand(pkg: String): String {
         lower.contains("editor") || lower.contains("youtube") || lower.contains("netflix") -> "MEDIUM"
         else -> "LOW"
     }
-}
-
-fun getAllInstalledApps(context: Context): List<GameInfo> {
-    val pm = context.packageManager
-    val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-    return apps.filter { app ->
-        val isSystem = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-        val isUpdatedSystem = (app.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-        app.packageName != context.packageName && (!isSystem || isUpdatedSystem)
-    }.map { app ->
-        val label = pm.getApplicationLabel(app)?.toString() ?: app.packageName
-        GameInfo(app.packageName, label, isAutoDetected = false)
-    }.sortedBy { it.name }
 }
 
 private fun lerp(start: Float, stop: Float, fraction: Float): Float =
