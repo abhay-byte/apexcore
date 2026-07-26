@@ -1,8 +1,6 @@
 package com.ivarna.apexcore.games
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.compose.animation.core.*
@@ -10,6 +8,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -34,13 +33,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.foundation.Image
+import android.util.LruCache
 import com.ivarna.apexcore.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -60,6 +63,7 @@ fun GamesScreen(
     // Toggle tab state
     var showAllApps by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
+    var showAddPicker by remember { mutableStateOf(false) }
     
     // App loading states
     var customGames by remember { mutableStateOf(gameManager.load()) }
@@ -72,11 +76,9 @@ fun GamesScreen(
 
     // Load all apps in background
     LaunchedEffect(showAllApps) {
-        if (showAllApps && allAppsList.isEmpty()) {
+        if (showAllApps) {
             isLoadingApps = true
-            allAppsList = withContext(Dispatchers.IO) {
-                getAllInstalledApps(context)
-            }
+            allAppsList = gameManager.listInstallableApps(context)
             isLoadingApps = false
         }
     }
@@ -109,6 +111,15 @@ fun GamesScreen(
         }
     }
 
+    // Coerce pagerState when list shrinks
+    LaunchedEffect(currentList.size) {
+        if (pagerState.currentPage >= currentList.size && currentList.isNotEmpty()) {
+            try {
+                pagerState.scrollToPage(currentList.size - 1)
+            } catch (_: Throwable) {}
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -119,26 +130,47 @@ fun GamesScreen(
 
             // Minimalist Search and Toggle Row
             Column(modifier = Modifier.fillMaxWidth()) {
-                // Search Input Field
-                BasicTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    textStyle = TextStyle(color = TextTitle, fontSize = 13.sp, fontFamily = JetBrainsMono),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                    cursorBrush = SolidColor(AccentPrimary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(SurfaceCard)
-                        .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    decorationBox = { innerTextField ->
-                        if (searchQuery.isEmpty()) {
-                            Text("SEARCH PACKAGES...", color = TextMuted, fontSize = 13.sp, fontFamily = JetBrainsMono)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Search Input Field
+                    BasicTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        textStyle = TextStyle(color = TextTitle, fontSize = 13.sp, fontFamily = JetBrainsMono),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        cursorBrush = SolidColor(AccentPrimary),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(SurfaceCard)
+                            .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        decorationBox = { innerTextField ->
+                            if (searchQuery.isEmpty()) {
+                                Text("SEARCH PACKAGES...", color = TextMuted, fontSize = 13.sp, fontFamily = JetBrainsMono)
+                            }
+                            innerTextField()
                         }
-                        innerTextField()
+                    )
+
+                    // Show '+' button next to search bar if library is not empty
+                    if (customGames.isNotEmpty()) {
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(SurfaceCard)
+                                .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
+                                .clickable { showAddPicker = true },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("+", color = AccentPrimary, fontSize = 24.sp, fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold)
+                        }
                     }
-                )
+                }
                 
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -221,6 +253,55 @@ fun GamesScreen(
                             fontSize = 12.sp,
                             letterSpacing = 1.sp
                         )
+                        if (!showAllApps) {
+                            Spacer(modifier = Modifier.height(24.dp))
+                            // CTA: ADD GAMES
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(AccentPrimary)
+                                    .clickable { showAddPicker = true }
+                                    .padding(horizontal = 24.dp, vertical = 12.dp)
+                            ) {
+                                Text(
+                                    text = "ADD GAMES",
+                                    color = BgDark,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            // CTA: SCAN FOR GAMES
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(BgDark)
+                                    .border(1.dp, BorderGlass, RoundedCornerShape(14.dp))
+                                    .clickable {
+                                        coroutineScope.launch {
+                                            val oldSize = customGames.size
+                                            gameManager.acceptDetected(context)
+                                            customGames = gameManager.load()
+                                            val added = customGames.size - oldSize
+                                            if (added > 0) {
+                                                Toast.makeText(context, "Added $added games", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "No new games found", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                    .padding(horizontal = 24.dp, vertical = 12.dp)
+                            ) {
+                                Text(
+                                    text = "SCAN FOR GAMES",
+                                    color = AccentPrimary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
                     }
                 } else {
                     val density = LocalDensity.current
@@ -278,6 +359,28 @@ fun GamesScreen(
                                             colors = listOf(customThemeColor, Color.Transparent),
                                             radius = 350f
                                         )
+                                    )
+                                    .combinedClickable(
+                                        onClick = {
+                                            launchingPkg = game.pkg
+                                            isLaunching = true
+                                        },
+                                        onLongClick = {
+                                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                            if (showAllApps) {
+                                                if (customGames.any { it.pkg == game.pkg }) {
+                                                    Toast.makeText(context, "Already in library", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    gameManager.add(game.pkg, game.name, false)
+                                                    customGames = gameManager.load()
+                                                    Toast.makeText(context, "Added to library", Toast.LENGTH_SHORT).show()
+                                                }
+                                            } else {
+                                                gameManager.remove(game.pkg)
+                                                customGames = gameManager.load()
+                                                Toast.makeText(context, "Removed from library", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
                                     ),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -420,6 +523,18 @@ fun GamesScreen(
                 }
             )
         }
+
+        if (showAddPicker) {
+            AddGamePickerDialog(
+                gameManager = gameManager,
+                onAdded = {
+                    customGames = gameManager.load()
+                },
+                onDismiss = {
+                    showAddPicker = false
+                }
+            )
+        }
     }
 }
 
@@ -519,30 +634,78 @@ fun TopographicGridSweep(
     }
 }
 
+private val iconCache = LruCache<String, ImageBitmap>(120)
+
 @Composable
 fun AppIcon(packageName: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    val pm = context.packageManager
-    val drawable = remember(packageName) {
-        try {
-            pm.getApplicationIcon(packageName)
-        } catch (_: Throwable) {
-            context.getDrawable(android.R.drawable.sym_def_app_icon)
+    val imageState = produceState<ImageBitmap?>(initialValue = null, key1 = packageName) {
+        val cached = iconCache.get(packageName)
+        if (cached != null) {
+            value = cached
+            return@produceState
+        }
+        withContext(Dispatchers.IO) {
+            try {
+                val pm = context.packageManager
+                val drawable = pm.getApplicationIcon(packageName)
+                val bitmap = when (drawable) {
+                    is android.graphics.drawable.BitmapDrawable -> drawable.bitmap
+                    else -> {
+                        val bmp = android.graphics.Bitmap.createBitmap(
+                            drawable.intrinsicWidth.coerceAtLeast(1),
+                            drawable.intrinsicHeight.coerceAtLeast(1),
+                            android.graphics.Bitmap.Config.ARGB_8888
+                        )
+                        val canvas = android.graphics.Canvas(bmp)
+                        drawable.setBounds(0, 0, canvas.width, canvas.height)
+                        drawable.draw(canvas)
+                        bmp
+                    }
+                }
+                val imageBitmap = bitmap.asImageBitmap()
+                iconCache.put(packageName, imageBitmap)
+                value = imageBitmap
+            } catch (_: Throwable) {
+                try {
+                    val fallbackDrawable = context.getDrawable(android.R.drawable.sym_def_app_icon)
+                    if (fallbackDrawable != null) {
+                        val bmp = android.graphics.Bitmap.createBitmap(
+                            fallbackDrawable.intrinsicWidth.coerceAtLeast(1),
+                            fallbackDrawable.intrinsicHeight.coerceAtLeast(1),
+                            android.graphics.Bitmap.Config.ARGB_8888
+                        )
+                        val canvas = android.graphics.Canvas(bmp)
+                        fallbackDrawable.setBounds(0, 0, canvas.width, canvas.height)
+                        fallbackDrawable.draw(canvas)
+                        val imageBitmap = bmp.asImageBitmap()
+                        iconCache.put(packageName, imageBitmap)
+                        value = imageBitmap
+                    }
+                } catch (_: Throwable) {
+                    value = null
+                }
+            }
         }
     }
-    
-    AndroidView(
-        factory = { ctx ->
-            android.widget.ImageView(ctx).apply {
-                setImageDrawable(drawable)
-                scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
-            }
-        },
-        modifier = modifier
-    )
+
+    val img = imageState.value
+    if (img != null) {
+        Image(
+            bitmap = img,
+            contentDescription = null,
+            modifier = modifier
+        )
+    } else {
+        Box(modifier = modifier)
+    }
 }
 
+// Cache for icon theme colors to avoid heavy extraction during scroll
+private val iconThemeColorCache = mutableMapOf<String, Color>()
+
 fun getIconThemeColor(context: Context, pkg: String): Color {
+    iconThemeColorCache[pkg]?.let { return it }
     try {
         val pm = context.packageManager
         val icon = pm.getApplicationIcon(pkg)
@@ -568,9 +731,13 @@ fun getIconThemeColor(context: Context, pkg: String): Color {
         val g = (android.graphics.Color.green(p1) + android.graphics.Color.green(p2) + android.graphics.Color.green(p3)) / 3
         val b = (android.graphics.Color.blue(p1) + android.graphics.Color.blue(p2) + android.graphics.Color.blue(p3)) / 3
         
-        return Color(r, g, b).copy(alpha = 0.22f)
+        val color = Color(r, g, b).copy(alpha = 0.22f)
+        iconThemeColorCache[pkg] = color
+        return color
     } catch (_: Throwable) {
-        return AccentPrimary.copy(alpha = 0.12f)
+        val color = AccentPrimary.copy(alpha = 0.12f)
+        iconThemeColorCache[pkg] = color
+        return color
     }
 }
 
@@ -586,19 +753,6 @@ fun getResourceDemand(pkg: String): String {
         lower.contains("editor") || lower.contains("youtube") || lower.contains("netflix") -> "MEDIUM"
         else -> "LOW"
     }
-}
-
-fun getAllInstalledApps(context: Context): List<GameInfo> {
-    val pm = context.packageManager
-    val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-    return apps.filter { app ->
-        val isSystem = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-        val isUpdatedSystem = (app.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-        app.packageName != context.packageName && (!isSystem || isUpdatedSystem)
-    }.map { app ->
-        val label = pm.getApplicationLabel(app)?.toString() ?: app.packageName
-        GameInfo(app.packageName, label, isAutoDetected = false)
-    }.sortedBy { it.name }
 }
 
 private fun lerp(start: Float, stop: Float, fraction: Float): Float =

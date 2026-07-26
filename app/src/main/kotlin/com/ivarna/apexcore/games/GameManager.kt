@@ -28,6 +28,19 @@ class GameManager(context: Context) {
         save(current)
     }
 
+    fun addAll(games: List<GameInfo>) {
+        val current = load().toMutableList()
+        val existing = current.map { it.pkg }.toSet()
+        var modified = false
+        for (g in games) {
+            if (g.pkg !in existing) {
+                current.add(g)
+                modified = true
+            }
+        }
+        if (modified) save(current)
+    }
+
     fun remove(pkg: String) {
         save(load().filter { it.pkg != pkg })
     }
@@ -50,6 +63,27 @@ class GameManager(context: Context) {
             val label = pm.getApplicationLabel(app)?.toString() ?: app.packageName
             GameInfo(app.packageName, label, isAutoDetected = true)
         }
+    }
+
+    /** Scan PackageManager for installable launchable non-system apps. */
+    suspend fun listInstallableApps(context: Context): List<GameInfo> = withContext(Dispatchers.IO) {
+        val infoList = if (isAtLeastT) {
+            pm.getInstalledApplications(
+                PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA.toLong())
+            )
+        } else {
+            @Suppress("DEPRECATION") pm.getInstalledApplications(PackageManager.GET_META_DATA)
+        }
+        infoList.filter { app ->
+            val isSystem = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+            val isUpdatedSystem = (app.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+            app.packageName != context.packageName &&
+                (!isSystem || isUpdatedSystem) &&
+                pm.getLaunchIntentForPackage(app.packageName) != null
+        }.map { app ->
+            val label = pm.getApplicationLabel(app)?.toString() ?: app.packageName
+            GameInfo(app.packageName, label, isAutoDetected = false)
+        }.sortedBy { it.name }
     }
 
     /** Accept all detected games, merging into saved list. */
