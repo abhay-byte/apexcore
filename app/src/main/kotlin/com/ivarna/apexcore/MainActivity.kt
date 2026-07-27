@@ -125,7 +125,7 @@ fun MainScreen(gameManager: GameManager) {
         val backend = FreezeFramework.detect()
         backendName = backend.name
         val setupPrefs = context.getSharedPreferences(SetupDialogHelper.PREFS, Context.MODE_PRIVATE)
-        if (!setupPrefs.getBoolean(SetupDialogHelper.KEY_SHOWN, false) && backendName == "cached only") {
+        if (!setupPrefs.getBoolean(SetupDialogHelper.KEY_SHOWN, false) && backendName == "standard") {
             showSetupDialog = true
         }
     }
@@ -370,12 +370,21 @@ fun HomeScreen(
         
         // Status updates description
         val statusColor = if (state == State.BOOSTING) AccentWarning else TextMuted
+        val isLimited = backendName == "standard"
         val statusText = when (state) {
-            State.IDLE -> "● Ready to purge bloat"
+            State.IDLE -> if (isLimited) "● Limited — connect Shizuku for deep freeze"
+                         else "● Ready to purge bloat"
             State.BOOSTING -> "● PURGING BACKGROUND PROCESSES…"
-            State.RESULT -> if ((lastResult?.killed ?: 0) == 0 && (lastResult?.freedKb ?: 0) == 0L) "● Already optimized"
-                            else if ((lastResult?.killed ?: 0) == 0) "● System fully optimized"
-                            else "● Freed ${lastResult?.killed} background apps"
+            State.RESULT -> when {
+                isLimited && (lastResult?.killed ?: 0) == 0 ->
+                    "● No force-stop without Shizuku/Root"
+                (lastResult?.killed ?: 0) == 0 && (lastResult?.freedKb ?: 0) == 0L ->
+                    "● Already optimized"
+                (lastResult?.killed ?: 0) == 0 ->
+                    "● System fully optimized"
+                else ->
+                    "● Freed ${lastResult?.killed} background apps"
+            }
         }
         Text(
             text = statusText.uppercase(),
@@ -385,17 +394,9 @@ fun HomeScreen(
             letterSpacing = 1.sp
         )
         
-        if (backendName == "cached only") {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Limited mode — install Shizuku for deep freeze",
-                color = AccentWarning,
-                fontSize = 11.sp,
-                fontFamily = JetBrainsMono,
-                modifier = Modifier
-                    .clickable { onSetupClick() }
-                    .padding(8.dp)
-            )
+        if (backendName == "standard") {
+            Spacer(modifier = Modifier.height(12.dp))
+            ShizukuConnectBanner(onConnectClick = onSetupClick)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -461,6 +462,64 @@ fun HomeScreen(
 
         SystemDiagnosticsCard(onSetupClick = onSetupClick)
         Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+/**
+ * Shown when active backend is Fallback ("standard").
+ * Standard mode cannot force-stop apps without Shizuku/Root on modern Android.
+ */
+@Composable
+fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(
+                Brush.horizontalGradient(
+                    listOf(
+                        AccentWarning.copy(alpha = 0.18f),
+                        AccentPrimary.copy(alpha = 0.10f)
+                    )
+                )
+            )
+            .border(1.dp, AccentWarning.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
+            .clickable(onClick = onConnectClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
+    ) {
+        Text(
+            text = "SHIZUKU REQUIRED",
+            color = AccentWarning,
+            fontSize = 10.sp,
+            fontFamily = JetBrainsMono,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Connect Shizuku for deep freeze",
+            color = TextTitle,
+            fontSize = 14.sp,
+            fontFamily = SpaceGrotesk,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "Standard mode cannot force-stop apps on modern Android. Shizuku or Root is required for real BOOST freezes.",
+            color = TextMuted,
+            fontSize = 11.sp,
+            fontFamily = Inter,
+            lineHeight = 15.sp
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = "CONNECT SHIZUKU  →",
+            color = AccentPrimary,
+            fontSize = 12.sp,
+            fontFamily = JetBrainsMono,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp
+        )
     }
 }
 
@@ -757,7 +816,18 @@ fun UnifiedResultCard(
         label = "press_scale"
     )
 
+    val isLimitedBackend = lastResult?.backend == "standard"
     val isAlreadyOptimized = lastResult?.killed == 0 && lastResult?.freedKb == 0L
+    val resultTitle = when {
+        isLimitedBackend && (lastResult?.killed ?: 0) == 0 -> "LIMITED MODE"
+        else -> "PURGE COMPLETE"
+    }
+    val resultSubtitle = when {
+        isLimitedBackend && (lastResult?.killed ?: 0) == 0 ->
+            "Connect Shizuku for deep freeze"
+        isAlreadyOptimized -> "Already optimized"
+        else -> "Bloat successfully cleared"
+    }
 
     Box(
         modifier = Modifier
@@ -806,7 +876,7 @@ fun UnifiedResultCard(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
-                            text = "PURGE COMPLETE",
+                            text = resultTitle,
                             color = TextTitle,
                             fontSize = 14.sp,
                             fontFamily = SpaceGrotesk,
@@ -815,7 +885,7 @@ fun UnifiedResultCard(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = if (isAlreadyOptimized) "Already optimized" else "Bloat successfully cleared",
+                            text = resultSubtitle,
                             color = TextBody,
                             fontFamily = Inter,
                             fontSize = 12.sp
@@ -1351,8 +1421,8 @@ fun GlobalBackendDropdown(
         "standard" -> "STANDARD"
         else -> backendName.uppercase()
     }
-    val isElevated = currentPref in listOf("shizuku", "root") ||
-        (currentPref == "standard" && backendName !in listOf("cached only", ""))
+    // Chip color follows real backend: standard = limited (warning); Shizuku/Root = elevated
+    val isElevated = backendName !in listOf("standard", "Detecting…", "")
 
     Box {
         Box(

@@ -158,7 +158,7 @@ fun SetupDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "USE CACHED-ONLY MODE",
+                        text = "USE STANDARD MODE",
                         color = AccentPrimary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,

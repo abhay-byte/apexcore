@@ -7,8 +7,8 @@
 | **Type** | feature / verify |
 | **Priority** | high |
 | **Difficulty** | hard |
-| **Branch** | `T10a-freeze-matrix-ram-stats` (suggested) |
-| **Status** | plan draft — awaiting approval |
+| **Branch** | `T10a-freeze-matrix-ram-stats` |
+| **Status** | **iter-1 reviewed — Standard cannot deep-freeze; Shizuku/Root required** |
 | **Depends on** | none (first slice) |
 | **Unblocks** | T10b, T10c |
 
@@ -20,13 +20,13 @@
   type: feature
   priority: high
   difficulty: hard
-  status: pending
+  status: in_progress
   why: |
-    Home BOOST via freezeAll is neutered on Standard (Fallback skips ForceStop).
-    Shizuku/Root paths exist but need adb proof. RAM Free freed numbers must match
-    /proc/meminfo truth before ship.
+    Home BOOST via freezeAll is neutered on Standard. Real force-stop needs
+    Shizuku or Root (am force-stop). killBackgroundProcesses is not enough
+    on modern Android. RAM Free freed numbers must match /proc/meminfo.
   really_needed: yes
-  impact: FallbackFreezeBackend, FreezeFramework metrics, MemStats, RamFillerManager/UI, adb scripts
+  impact: FallbackFreezeBackend, FreezeFramework metrics, MemStats, Shizuku banner UI, adb scripts
   followups: T10b (overlay + pin), T10c (regression + Play compliance)
   plan: docs/plan/T10a-freeze-matrix-ram-stats.md
 ```
@@ -35,9 +35,55 @@
 
 ## Goal
 
-1. **Freeze backends work and stay decoupled** — Standard / Shizuku / Root each produce real, logged behavior.
-2. **Prove via adb** on device (not unit tests alone).
-3. **RAM Free + Home BOOST stats honest** — only measured MemAvailable (and swap) deltas; never invent freed MB.
+1. **Freeze backends stay decoupled** — Standard / Shizuku / Root honest about capability.
+2. **Deep freeze only via elevation** — Shizuku `am force-stop` or Root `su -c am force-stop`.
+3. **Standard never fakes success** — no inflated killed counts; banner pushes Shizuku.
+4. **RAM Free + Home BOOST stats honest** — MemAvailable (and swap) deltas only.
+
+---
+
+## Iteration 1 review (2026-07-27)
+
+### Commits on branch
+
+| SHA | Change |
+|-----|--------|
+| `ff8d1c0` | Fallback ForceStop → `killBackgroundProcesses` + Success |
+| `78c165e` | `freedKb` = MemAvailable Δ only; RSS log-only |
+| `9203efc` | Limited-mode text + "Already optimized" zero-kill |
+| `4f9712e` | `MemInfo.kt` extract |
+| `93d5aa1` | `scripts/adb-freeze-matrix.sh` |
+
+### What works
+
+| Area | Verdict |
+|------|---------|
+| Metrics honesty (`freedKb` MemAvailable only) | **Good** |
+| MemInfo extract | **Good** |
+| Zero-kill / zero-freed "Already optimized" | **Good** |
+| Unit test for Fallback ForceStop call | **Present** (must re-lock on SKIPPED) |
+| Shizuku / Root backends (`am force-stop` batch) | **Unchanged — correct design** |
+| SetupDialog open Shizuku / Play store | **Exists** |
+
+### What fails product intent
+
+| Issue | Detail |
+|-------|--------|
+| **Standard does not freeze** | `ActivityManager.killBackgroundProcesses` only pokes cached/empty processes of other apps. On Android 12+ (and most OEMs) it is effectively a **no-op for third-party force-stop**. Real stop needs privileged `FORCE_STOP_PACKAGES` / shell `am force-stop` via **Shizuku or Root**. |
+| **Fake Success** | Fallback returns `Result.Success` for every ForceStop → `killed` = target count even when nothing died → UI "Freed N background apps" lies. |
+| **Weak limited-mode UX** | One-line warning text; easy to miss. Not a clear **Connect Shizuku** banner. |
+| **adb matrix** | Script present; device proof for Shizuku/Root still required for merge. |
+
+### Feasibility conclusion
+
+| Mode | Real force-stop possible? | Notes |
+|------|---------------------------|--------|
+| **Standard (no elevation)** | **No** (not for product "deep freeze") | `killBackgroundProcesses` best-effort only; may reclaim tiny cached RAM; cannot match Shizuku. |
+| **Shizuku** | **Yes** | `ShizukuFreezeBackend` → `am force-stop --user current` |
+| **Root** | **Yes** | `RootFreezeBackend` → `su -c am force-stop` |
+| **Accessibility** | **No (stub)** | Out of T10a |
+
+**Decision flip:** Decision **A** (treat killBackground as working Standard path) is **wrong for ship**. Lock **Decision D** below.
 
 ---
 
@@ -47,47 +93,41 @@
 
 ```
 FreezeBackend
-  ├─ ShizukuFreezeBackend   "Shizuku"      → am force-stop via Shizuku
-  ├─ RootFreezeBackend      "Root"         → su -c am force-stop
+  ├─ ShizukuFreezeBackend   "Shizuku"      → am force-stop via Shizuku  ✅ deep freeze
+  ├─ RootFreezeBackend      "Root"         → su -c am force-stop         ✅ deep freeze
   ├─ AccessibilityFreezeBackend            → STUB (T10a: do not rely on)
-  └─ FallbackFreezeBackend  "cached only"  → CRITICAL: ForceStop currently SKIPPED
+  └─ FallbackFreezeBackend  "standard"  → best-effort killBackground + SKIPPED (honest)
 
 FreezeBackendResolver.detect() → preferred if ready, else first ready
 FreezeFramework.freezeAll(filter) → ForceStop for each target
 ```
 
-**Decoupling is good.** Honesty is not.
+### CRITICAL-1 — Standard cannot deep-freeze (platform limit)
 
-### CRITICAL-1 — Standard / cached-only neutered
-
-`FallbackFreezeBackend`: `ForceStop` → always `SKIPPED_FALLBACK`.  
-`freezeAll` only emits `ForceStop` → **Standard mode kills 0 apps**.
-
-Home BOOST uses `FreezeFramework.freezeAll`, **not** `BoostManager.kick` (which still has `killBackgroundProcesses`).
+- `freezeAll` only emits `ForceStop`.
+- Without Shizuku/Root, only `killBackgroundProcesses` is available → **not** force-stop.
+- Home BOOST uses `FreezeFramework.freezeAll`, not `BoostManager.kick` (same weak API).
 
 ### MAJOR — Stats paths
 
 | Path | Source | Risk |
 |------|--------|------|
-| Home gauges | `getSystemMemStats` = MemTotal−MemAvailable | OK baseline |
-| Freeze freed UI | `max(ΔMemAvailable, Δtarget RSS via ps)` | Can over-report |
-| RAM Free freed | afterAvail − beforeAvail from same MemStats | OK if same source |
+| Home gauges | `getSystemMemStats` = MemTotal−MemAvailable | OK |
+| Freeze freed UI | MemAvailable Δ only (iter-1) | OK if honest killed/skipped |
+| RAM Free freed | same MemStats before/after | OK |
 
 ### Code map
 
 | File | Role |
 |------|------|
-| `freeze/FallbackFreezeBackend.kt` | Fix ForceStop |
-| `freeze/ShizukuFreezeBackend.kt` | Verify batch force-stop |
-| `freeze/RootFreezeBackend.kt` | Verify su batch |
-| `freeze/FreezeBackendResolver.kt` | Preferred Standard/Shizuku/Root |
-| `freeze/FreezeFramework.kt` | freezeAll metrics honesty |
-| `MainActivity.kt` | `getSystemMemStats`, BOOST, backend dropdown |
-| `BoostManager.kt` | Legacy kill path — unify or leave dead |
-| `ram/RamFillerManager.kt` | before/after MemStats |
-| `ram/RamFreeScreen.kt` | Result labels |
-| **NEW** `scripts/adb-freeze-matrix.sh` | Device proof |
-| **OPTIONAL** `MemInfo.kt` | Extract shared stats reader |
+| `freeze/FallbackFreezeBackend.kt` | Best-effort kill + **SKIPPED_FALLBACK** (no fake Success) |
+| `freeze/ShizukuFreezeBackend.kt` | Real batch force-stop |
+| `freeze/RootFreezeBackend.kt` | Real su batch |
+| `freeze/FreezeFramework.kt` | MemAvailable freed; counts Success vs skip |
+| `MainActivity.kt` | **Shizuku connect banner** when `standard` |
+| `SetupDialog.kt` | Configure Shizuku / Root |
+| `MemInfo.kt` | Shared stats |
+| `scripts/adb-freeze-matrix.sh` | Device proof |
 
 ---
 
@@ -95,18 +135,19 @@ Home BOOST uses `FreezeFramework.freezeAll`, **not** `BoostManager.kick` (which 
 
 ### In
 
-- Fix Fallback ForceStop → real Standard path (Decision A default)
-- Honest limited-mode UI when backend is `cached only`
-- Freeze freed UI = **MemAvailable Δ primary**; RSS log-only
-- RAM Free: same MemStats before/after; floor 0; already-at-cap honesty
-- adb matrix: Standard / Shizuku / Root
-- Logging: backend, targets, killed/failed/skipped, before/after MemAvailable
+- Acknowledge Standard **cannot** deep-freeze without elevation
+- Fallback: optional `killBackgroundProcesses` but result = **SKIPPED_FALLBACK** (honest metrics)
+- **Prominent Connect Shizuku banner** when backend is `standard` (opens SetupDialog)
+- Freeze freed UI = MemAvailable Δ; RSS log-only
+- RAM Free: same honesty (already largely done)
+- adb matrix: Standard (expect skip / banner) / Shizuku / Root
+- Logging: backend, targets, killed/failed/skipped, MemAvailable before/after
 
 ### Out (other parts)
 
 - Overlay BOOST button → **T10b**
 - Whitelist / pin apps → **T10b**
-- Accessibility product path / privacy rewrite → **T10c** (note: do not claim a11y works in this slice)
+- Accessibility product path / privacy rewrite → **T10c**
 - FreezeReceiver export / Play declarations → **T10c**
 - Full feature regression suite → **T10c**
 
@@ -114,55 +155,51 @@ Home BOOST uses `FreezeFramework.freezeAll`, **not** `BoostManager.kick` (which 
 
 ## Approach
 
-### 1. Fallback ForceStop (Decision A — locked default)
+### 1. Standard path — Decision D (locked after iter-1 review)
 
 ```kotlin
-// FallbackFreezeBackend.execute
-when (op) {
-    is FreezeOperation.ForceStop -> {
-        am.killBackgroundProcesses(op.pkg)
-        Result.Success // best-effort cached reclaim
-    }
-    else -> Result.Failure("unsupported-on-fallback")
-}
+// FallbackFreezeBackend.execute — ForceStop
+try {
+    am.killBackgroundProcesses(op.pkg) // best-effort only; may no-op on modern Android
+} catch (_: Throwable) { /* ignore */ }
+return FreezeOperation.Result.SKIPPED_FALLBACK // never Success — no fake killed count
 ```
 
-UI when `backendName == "cached only"`: short note  
-**"Limited mode — install Shizuku for deep freeze"**.
+**UI when `backendName == "standard"`:**
 
-Alternatives (only if user overrides):
+- **Banner card** (not one-line text):
+  - Title: **Connect Shizuku for deep freeze**
+  - Body: Standard mode cannot force-stop apps on modern Android.
+  - CTA: **CONNECT SHIZUKU** → `onSetupClick()` → existing `SetupDialog` / open Shizuku app / Play.
 
-| B | Block BOOST until Shizuku/Root ready |
-| C | Standard calls `BoostManager.kick` instead of freezeAll |
+BOOST remains tappable (RAM Free still useful; freeze path logs skips). Do **not** claim "Freed N apps" from Standard Success.
+
+| Rejected | Why |
+|----------|-----|
+| **A** killBackground + Success | Inflates killed; user sees "works" when it doesn't |
+| **B** hard-block BOOST | Over-blocks; RAM Free / gauges still useful |
+| **C** wire BoostManager.kick | Same weak API; dual code paths |
 
 ### 2. Freeze metrics honesty
 
-In `FreezeFramework.freezeAll`:
+- UI `freedKb` = MemAvailable Δ only (`coerceAtLeast(0)`)
+- RSS delta log-only
+- killed==0 && freed==0 → "Already optimized"
+- Standard: expect high `skipped`, killed=0 unless another backend used
 
-- Log RSS delta if useful
-- **UI `freedKb` = MemAvailable Δ only** (coerceAtLeast 0)
-- If killed==0 and freed==0 → caller shows "Already optimized"
+### 3. Shared MemStats
 
-### 3. Shared MemStats (optional hygiene)
-
-Move `getSystemMemStats` / `MemStats` from `MainActivity.kt` → `MemInfo.kt` if cheap. Same formulas:
-
-- `ramUsed = MemTotal − MemAvailable`
-- `swapUsed = SwapTotal − SwapFree`
-- Fallback to `ActivityManager.MemoryInfo` if `/proc/meminfo` unreadable
+Done in iter-1 (`MemInfo.kt`). Keep.
 
 ### 4. RAM Free validation
 
-1. `RamFillerManager.run`: before/after = `getSystemMemStats` only  
-2. `freedKb = max(0, afterAvail − beforeAvail)`  
-3. Result card: "MemAvailable Δ +N MB" (or existing copy if already accurate)  
-4. No synthetic positive freed on timeout/cancel without measured progress  
+Unchanged: before/after MemAvailable only; floor 0.
 
-### 5. Backend dropdown (no behavior change except honesty)
+### 5. Backend dropdown
 
 | Pref | Resolver |
 |------|----------|
-| `standard` | preferredName = null → auto-detect |
+| `standard` | preferredName = null → auto-detect (Fallback if no elevation) |
 | `shizuku` | preferred "Shizuku" if ready |
 | `root` | preferred "Root" if ready |
 
@@ -175,16 +212,16 @@ Move `getSystemMemStats` / `MemStats` from `MainActivity.kt` → `MemInfo.kt` if
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 # --- Standard ---
-# Disable Shizuku grant / pick Standard in UI → BOOST
+# No Shizuku grant / pick Standard → BOOST
 adb logcat -c
-# trigger BOOST in UI
+# trigger BOOST
 adb logcat -d -s ApexCore.Freeze:* | tail -80
-# Expect: freezeAll via cached only; killed >= 0 honest; limited-mode note in UI
+# Expect: freezeAll via standard; killed=0; skipped>0; banner visible; no fake multi-GB
 
 # --- Shizuku ---
-# Grant Shizuku to ApexCore; dropdown Shizuku → BOOST
-# Expect: freezeAll via Shizuku; killed > 0 when user apps running
-# Prove: start a user app, BOOST, pidof empty (if not system-protected)
+# Grant Shizuku; dropdown Shizuku → BOOST
+# Expect: freezeAll via Shizuku; killed>0 when targets exist
+# Prove: start user app, BOOST, pidof empty (if not system-protected)
 
 # --- Root ---
 # su available; dropdown Root → BOOST
@@ -192,38 +229,30 @@ adb logcat -d -s ApexCore.Freeze:* | tail -80
 
 # --- RAM Free accuracy ---
 adb shell 'grep -E "MemAvailable|MemTotal|SwapFree|SwapTotal" /proc/meminfo'
-# Run RAM Free in UI; note result
-adb shell 'grep -E "MemAvailable|SwapFree" /proc/meminfo'
-# UI Δ within ~±5% of adb MemAvailable Δ (noise OK)
+# UI Δ within ~±5% of adb MemAvailable Δ
 ```
-
-Optional: commit `scripts/adb-freeze-matrix.sh` with steps + log greps.
 
 ### Pass criteria
 
 | Mode | Expect |
 |------|--------|
-| Standard | backend `cached only`; killBackground best-effort **or** explicit limited message; **no fake multi-GB** |
-| Shizuku | `freezeAll via Shizuku`; force-stop targets; killed>0 when targets exist |
+| Standard | backend `standard`; **killed=0**; skipped honest; **Connect Shizuku banner**; no fake multi-GB |
+| Shizuku | `freezeAll via Shizuku`; real force-stop; killed>0 when targets exist |
 | Root | `freezeAll via Root`; same |
-| Dropdown switch | re-detect after invalidate; no crash |
+| Dropdown | re-detect; no crash |
 | RAM Free | UI Δ matches `/proc/meminfo` within noise |
-| Home BOOST freed | MemAvailable Δ only; 0 → "Already optimized" |
+| Home BOOST freed | MemAvailable Δ only |
 
 ---
 
 ## Files to change
 
-| Action | File |
-|--------|------|
-| **MODIFY** | `freeze/FallbackFreezeBackend.kt` |
-| **MODIFY** | `freeze/FreezeFramework.kt` |
-| **MODIFY** | `MainActivity.kt` (limited-mode copy; optional MemStats extract) |
-| **MODIFY** | `ram/RamFillerManager.kt` / `RamFreeScreen.kt` if labels/deltas wrong |
-| **OPTIONAL** | `BoostManager.kt` — delete dead path or wire as shared kill helper |
-| **OPTIONAL NEW** | `MemInfo.kt` |
-| **NEW** | `scripts/adb-freeze-matrix.sh` |
-| **MODIFY** | unit tests if Fallback behavior assertions exist |
+| Action | File | Notes |
+|--------|------|-------|
+| **MODIFY** | `freeze/FallbackFreezeBackend.kt` | killBackground + **SKIPPED_FALLBACK** |
+| **MODIFY** | `FallbackFreezeBackendTest.kt` | assert SKIPPED + verify kill call |
+| **MODIFY** | `MainActivity.kt` | **ShizukuConnectBanner** replaces weak limited text |
+| DONE | `FreezeFramework.kt` / `MemInfo.kt` / adb script | keep unless bugs |
 
 ---
 
@@ -231,12 +260,11 @@ Optional: commit `scripts/adb-freeze-matrix.sh` with steps + log greps.
 
 | Case | Handling |
 |------|----------|
-| Shizuku installed, not granted | Ready=false; auto Standard |
-| Root preferred, no su | Fall auto-detect |
-| All kills skip / 0 free | "Already optimized" |
-| MemAvailable rises after freeze (noise) | floor 0 |
-| Concurrent BOOST + RAM Free | existing single-flight / cancel |
-| Accessibility `isReady` true somehow | Still stub — do not claim success in T10a |
+| Shizuku installed, not granted | Ready=false; Fallback + banner |
+| Root preferred, no su | Fall auto-detect → banner if standard |
+| User dismisses SetupDialog | Banner stays until elevated backend ready |
+| killBackground throws | Catch; still SKIPPED |
+| Accessibility ready | Still stub — no product claim |
 
 ---
 
@@ -245,13 +273,13 @@ Optional: commit `scripts/adb-freeze-matrix.sh` with steps + log greps.
 ### Automated
 
 - `./gradlew :app:testDebugUnitTest`
-- Resolver tests still pass
-- Add/adjust Fallback ForceStop test if present
+- Fallback: ForceStop → `SKIPPED_FALLBACK` + `killBackgroundProcesses` verified
 
 ### Manual / adb (required)
 
-- Full matrix table above on physical device
-- Screenshot or logcat paste as evidence in PR
+- Standard: banner + killed=0
+- Shizuku: real kill proof once
+- RAM Free Δ vs `/proc/meminfo`
 
 ---
 
@@ -259,10 +287,12 @@ Optional: commit `scripts/adb-freeze-matrix.sh` with steps + log greps.
 
 | # | Decision | Lock |
 |---|----------|------|
-| 1 | Standard fallback | **A**: killBackgroundProcesses on ForceStop + limited-mode copy |
-| 2 | Freed metric (UI) | MemAvailable Δ primary; RSS log-only |
-| 3 | Accessibility | No product work in T10a; do not depend on it for pass criteria |
-| 4 | T9 fill re-arch | Out of T10a unless adb proves fill still broken |
+| 1 | Standard deep freeze | **Impossible without Shizuku/Root** (platform) |
+| 2 | Standard ForceStop result | **D**: best-effort killBackground + **SKIPPED_FALLBACK** (no Success) |
+| 3 | Standard UX | **Connect Shizuku banner** (SetupDialog CTA); BOOST not hard-blocked |
+| 4 | Freed metric (UI) | MemAvailable Δ primary; RSS log-only |
+| 5 | Accessibility | No product work in T10a |
+| 6 | T9 fill re-arch | Out of T10a unless adb proves fill still broken |
 
 ---
 
@@ -270,34 +300,36 @@ Optional: commit `scripts/adb-freeze-matrix.sh` with steps + log greps.
 
 - Overlay CTA, whitelist, receiver export, privacy rewrite, Play Console checklist, full regression (→ T10b/T10c)
 - Boot freeze, tags, `pm disable`, fake GB claims
+- Hard-blocking BOOST without elevation (rejected Decision B)
 
 ---
 
 ## Implementation order
 
-1. Fallback ForceStop fix + unit check  
-2. FreezeFramework UI freed = MemAvailable Δ  
-3. Limited-mode Home copy  
-4. RAM Free before/after audit + label polish  
-5. Optional MemInfo extract  
-6. adb matrix script + device run  
+1. ~~Metrics MemAvailable + MemInfo extract~~ (iter-1)
+2. **Iter-1.1:** Fallback honest SKIPPED + unit test fix  
+3. **Iter-1.1:** Shizuku connect banner  
+4. adb matrix device proof (Shizuku/Root)  
+5. PR  
 
 ---
 
-## Iteration 1 exit
+## Iteration 1 exit (updated)
 
-- Standard path not a no-op (or honestly blocked)  
-- Shizuku + Root proven once via adb logcat  
-- RAM Free Δ validated against `/proc/meminfo`  
-- No inflated freed numbers on zero-kill runs  
+- [x] Metrics honesty (MemAvailable freed)  
+- [x] Limited-mode text (insufficient alone)  
+- [ ] **Standard honest (SKIPPED, no fake killed)** ← iter-1.1  
+- [ ] **Connect Shizuku banner** ← iter-1.1  
+- [ ] Shizuku + Root proven once via adb logcat  
+- [ ] RAM Free Δ validated on device  
 
 ---
 
-## Open questions
+## Open questions (resolved / remaining)
 
-1. Prefer Decision **A** (killBackground) vs **B** (block BOOST without elevation)? Plan default **A**.  
-2. Keep `BoostManager` or delete after Fallback covers Standard?  
-3. Fold any open **T9 iter-4** fill bugs into T10a if device still fails fill?
+1. ~~A vs B?~~ → **D** (honest skip + banner; no hard block).  
+2. Keep `BoostManager`? Leave dead for now; same API as Fallback.  
+3. T9 fill bugs into T10a? Only if device still fails fill.
 
 ---
 
@@ -306,4 +338,4 @@ Optional: commit `scripts/adb-freeze-matrix.sh` with steps + log greps.
 - Parent: `docs/plan/T10-ship-readiness.md`
 - Next: `docs/plan/T10b-overlay-pin-apps.md`
 - `docs/freeze-architecture.md`, `docs/freeze-api.md`, `docs/plan/T9-ram-filler.md`
-)
+- Platform: `ActivityManager.killBackgroundProcesses` ≠ force-stop; needs shell/root UID for `am force-stop`

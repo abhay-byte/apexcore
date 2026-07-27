@@ -72,7 +72,7 @@ shown in the status footer so the user knows which mode they're in:
 - `● Freeze: Shizuku`
 - `● Freeze: Root`
 - `● Freeze: Accessibility`
-- `● Freeze: cached only`   ← fallback
+- `● Freeze: standard`   ← fallback
 
 ---
 
@@ -163,7 +163,7 @@ Accessibility. Per-app Force Stop is a T5 concern.
 
 If no backend is granted, the framework delegates to `BoostManager.kick()`
 which still does `killBackgroundProcesses`. The user sees the same UI
-panel, just with the "● Freeze: cached only" footer and a smaller
+panel, just with the "● Freeze: standard" footer and a smaller
 "Freed MB" number (typically <100 MB, often 0).
 
 This is **not a regression** — it's identical to T2 behavior. The
@@ -216,11 +216,11 @@ package names. Without it, `pm list packages -3` from shell still works
 
 | Device | Backend | Expected |
 |---|---|---|
-| Pixel 7 (no root, no shizuku) | Fallback | T2 behavior unchanged, footer says "cached only" |
+| Pixel 7 (no root, no shizuku) | Fallback | T2 behavior unchanged, footer says "standard" |
 | Pixel 7 + Shizuku (adb) | Shizuku | 15-30 apps force-stopped, ~400-800 MB freed |
 | OnePlus 9 + Magisk | Root | same as Shizuku |
 | Pixel 4a + a11y grant | Accessibility | "Clear all" recents, 0-3 apps force-stopped, slow |
-| Pixel 7 + Shizuku dead | Shizuku → resolver fails | footer flips to "cached only" within 1s |
+| Pixel 7 + Shizuku dead | Shizuku → resolver fails | footer flips to "standard" within 1s |
 
 Build verification: `./gradlew :app:assembleDebug` must succeed.
 Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.

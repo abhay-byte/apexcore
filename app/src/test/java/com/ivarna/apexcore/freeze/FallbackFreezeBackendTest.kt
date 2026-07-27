@@ -13,7 +13,7 @@ import org.mockito.Mockito.`when`
 class FallbackFreezeBackendTest {
 
     @Test
-    fun `forceStop calls killBackgroundProcesses and returns Success`() = runTest {
+    fun `forceStop best-effort killBackground then SKIPPED_FALLBACK`() = runTest {
         val context = mock(Context::class.java)
         val am = mock(ActivityManager::class.java)
         `when`(context.getSystemService(Context.ACTIVITY_SERVICE)).thenReturn(am)
@@ -22,7 +22,8 @@ class FallbackFreezeBackendTest {
         val backend = FallbackFreezeBackend(context)
         val result = backend.execute(FreezeOperation.ForceStop("com.example.app"))
 
-        assertEquals(FreezeOperation.Result.Success, result)
+        assertEquals(FreezeOperation.Result.SKIPPED_FALLBACK, result)
+        assertTrue((result as FreezeOperation.Result.Failure).isSkipped)
         verify(am).killBackgroundProcesses("com.example.app")
     }
 

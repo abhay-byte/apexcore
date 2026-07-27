@@ -22,7 +22,7 @@ echo "=== Clearing logcat ==="
 adb logcat -c
 
 echo ""
-echo "=== Standard (cached only) ==="
+echo "=== Standard (standard) ==="
 echo "1. Open app, ensure Shizuku is NOT granted, pick Standard in dropdown"
 echo "2. Tap BOOST"
 echo "3. Press Enter when done"
@@ -65,7 +65,7 @@ echo "=== Pass criteria ==="
 cat <<'EOF'
 | Mode          | Expect                                                   |
 |---------------|----------------------------------------------------------|
-| Standard      | backend=cached only; limited-mode UI; no fake multi-GB  |
+| Standard      | backend=standard; limited-mode UI; no fake multi-GB  |
 | Shizuku       | freezeAll via Shizuku; killed>0 when targets exist        |
 | Root          | freezeAll via Root; same                                  |
 | Dropdown      | re-detect; no crash                                       |
