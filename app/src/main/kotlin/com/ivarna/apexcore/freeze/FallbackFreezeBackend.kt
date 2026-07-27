@@ -16,16 +16,14 @@ class FallbackFreezeBackend(private val appContext: Context) : FreezeBackend {
 
     override suspend fun execute(op: FreezeOperation): FreezeOperation.Result =
         withContext(Dispatchers.IO) {
-            if (op is FreezeOperation.ForceStop) {
-                return@withContext FreezeOperation.Result.SKIPPED_FALLBACK
-            }
-            try {
-                val am = appContext.getSystemService(Context.ACTIVITY_SERVICE)
-                    as android.app.ActivityManager
-                am.killBackgroundProcesses(op.pkg)
-                FreezeOperation.Result.Success
-            } catch (t: Throwable) {
-                FreezeOperation.Result.Failure(t.message ?: "kill-failed")
+            val am = appContext.getSystemService(Context.ACTIVITY_SERVICE)
+                as android.app.ActivityManager
+            when (op) {
+                is FreezeOperation.ForceStop -> {
+                    am.killBackgroundProcesses(op.pkg)
+                    FreezeOperation.Result.Success
+                }
+                else -> FreezeOperation.Result.Failure("unsupported-on-fallback")
             }
         }
 }
