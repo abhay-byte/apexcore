@@ -34,6 +34,10 @@ object FreezeFramework {
 
     fun resolver(): FreezeBackendResolver? = resolver
 
+    fun setPreferredBackend(name: String?) {
+        resolver?.setPreferredBackend(name)
+    }
+
     suspend fun detect(): FreezeBackend {
         val r = resolver ?: error("FreezeFramework.init() not called")
         val b = r.detect()

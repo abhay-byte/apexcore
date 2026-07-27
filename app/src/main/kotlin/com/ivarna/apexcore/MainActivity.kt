@@ -29,6 +29,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.runtime.*
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Alignment
@@ -56,6 +58,8 @@ import com.ivarna.apexcore.freeze.AccessibilityFreezeBackend
 import com.ivarna.apexcore.games.GamesScreen
 import com.ivarna.apexcore.games.GameManager
 import com.ivarna.apexcore.games.GameOverlayService
+import com.ivarna.apexcore.ram.RamFreeScreen
+import com.ivarna.apexcore.ram.RamFillMode
 import com.ivarna.apexcore.ui.components.SimpleMemoryDisplay
 import com.ivarna.apexcore.ui.theme.*
 import kotlinx.coroutines.delay
@@ -94,16 +98,34 @@ fun MainScreen(gameManager: GameManager) {
     var backendName by remember { mutableStateOf("Detecting…") }
     var showSetupDialog by remember { mutableStateOf(false) }
     var lastResult by remember { mutableStateOf<FreezeResult?>(null) }
+    var showRamFree by remember { mutableStateOf(false) }
+    var globalBackendPref by remember {
+        mutableStateOf(
+            context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
+                .getString("preferred_backend", "standard") ?: "standard"
+        )
+    }
+    var showGlobalDropdown by remember { mutableStateOf(false) }
 
     // Purge animation states
     var isPurgeAnimActive by remember { mutableStateOf(false) }
     var freedRamText by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
+        // Cold-start: apply preferred backend before first detect()
+        val prefs = context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
+        val prefBackend = prefs.getString("preferred_backend", "standard") ?: "standard"
+        val preferredName = when (prefBackend) {
+            "shizuku" -> "Shizuku"
+            "root" -> "Root"
+            else -> null
+        }
+        FreezeFramework.setPreferredBackend(preferredName)
+
         val backend = FreezeFramework.detect()
         backendName = backend.name
-        val prefs = context.getSharedPreferences(SetupDialogHelper.PREFS, Context.MODE_PRIVATE)
-        if (!prefs.getBoolean(SetupDialogHelper.KEY_SHOWN, false) && backendName == "cached only") {
+        val setupPrefs = context.getSharedPreferences(SetupDialogHelper.PREFS, Context.MODE_PRIVATE)
+        if (!setupPrefs.getBoolean(SetupDialogHelper.KEY_SHOWN, false) && backendName == "cached only") {
             showSetupDialog = true
         }
     }
@@ -125,143 +147,167 @@ fun MainScreen(gameManager: GameManager) {
                 .windowInsetsPadding(WindowInsets.statusBars)
         ) {
             // Unified Top Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_app_logo),
-                        contentDescription = "App Icon",
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text("APEX", color = TextTitle, fontSize = 16.sp, fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("CORE", color = AccentPrimary, fontSize = 16.sp, fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                }
-                
-                // Mode indicator / Setup toggle
-                Box(
+            if (showRamFree) {
+                // RamFreeScreen has its own chrome — just add a spacer for status bars
+                Spacer(modifier = Modifier.height(0.dp))
+            } else {
+                Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(if (backendName == "cached only") AccentWarning.copy(alpha = 0.15f) else AccentSuccess.copy(alpha = 0.15f))
-                        .clickable { showSetupDialog = true }
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = backendName.uppercase(),
-                        color = if (backendName == "cached only") AccentWarning else AccentSuccess,
-                        fontSize = 9.sp,
-                        fontFamily = JetBrainsMono,
-                        fontWeight = FontWeight.Bold
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_app_logo),
+                            contentDescription = "App Icon",
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("APEX", color = TextTitle, fontSize = 16.sp, fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("CORE", color = AccentPrimary, fontSize = 16.sp, fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                    }
+                    
+                    // Global backend dropdown
+                    GlobalBackendDropdown(
+                        currentPref = globalBackendPref,
+                        backendName = backendName,
+                        showDropdown = showGlobalDropdown,
+                        onToggleDropdown = { showGlobalDropdown = !showGlobalDropdown },
+                        onSelectPref = { pref ->
+                            globalBackendPref = pref
+                            context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
+                                .edit().putString("preferred_backend", pref).apply()
+                            showGlobalDropdown = false
+                            val preferredName = when (pref) {
+                                "shizuku" -> "Shizuku"
+                                "root" -> "Root"
+                                else -> null
+                            }
+                            FreezeFramework.setPreferredBackend(preferredName)
+                            coroutineScope.launch {
+                                try {
+                                    FreezeFramework.detect()
+                                } catch (_: Throwable) {}
+                            }
+                        },
+                        onOpenSetup = { showSetupDialog = true }
                     )
                 }
             }
 
-            // Page Content with Smooth Transition
-            AnimatedContent(
-                targetState = currentTab,
-                transitionSpec = {
-                    if (targetState == Tab.HOME) {
-                        slideInHorizontally { width -> -width } + fadeIn() togetherWith
-                        slideOutHorizontally { width -> width } + fadeOut()
-                    } else if (initialState == Tab.HOME) {
-                        slideInHorizontally { width -> width } + fadeIn() togetherWith
-                        slideOutHorizontally { width -> -width } + fadeOut()
-                    } else if (targetState == Tab.GAMES) {
-                        slideInHorizontally { width -> -width } + fadeIn() togetherWith
-                        slideOutHorizontally { width -> width } + fadeOut()
-                    } else {
-                        slideInHorizontally { width -> width } + fadeIn() togetherWith
-                        slideOutHorizontally { width -> -width } + fadeOut()
-                    }
-                },
-                modifier = Modifier.weight(1f)
-            ) { tab ->
-                when (tab) {
-                    Tab.HOME -> HomeScreen(
-                        state = state,
-                        backendName = backendName,
-                        lastResult = lastResult,
-                        isPurgeAnimActive = isPurgeAnimActive,
-                        freedRamText = freedRamText,
-                        onPurgeAnimComplete = {
-                            isPurgeAnimActive = false
-                            state = State.RESULT
-                        },
-                        onBoostClick = {
-                            if (state == State.BOOSTING || isPurgeAnimActive) return@HomeScreen
-                            if (state == State.RESULT) {
-                                state = State.IDLE
-                                freedRamText = ""
-                                return@HomeScreen
-                            }
-                            state = State.BOOSTING
-                            isPurgeAnimActive = true
-                            coroutineScope.launch {
-                                val result = FreezeFramework.freezeAll(context)
-                                lastResult = result
-                                val freedMb = result.freedKb / 1024f
-                                val swapFreedMb = result.swapFreedKb / 1024f
-                                val totalFreedMb = freedMb + swapFreedMb
-                                freedRamText = if (swapFreedMb > 0f) {
-                                    "+%d MB (+%d MB Swap)".format(totalFreedMb.toInt(), swapFreedMb.toInt())
-                                } else {
-                                    "+%d MB".format(totalFreedMb.toInt())
+            // Page Content
+            if (showRamFree) {
+                RamFreeScreen(
+                    onBack = { showRamFree = false },
+                    modifier = Modifier.weight(1f)
+                )
+            } else {
+                AnimatedContent(
+                    targetState = currentTab,
+                    transitionSpec = {
+                        if (targetState == Tab.HOME) {
+                            slideInHorizontally { width -> -width } + fadeIn() togetherWith
+                            slideOutHorizontally { width -> width } + fadeOut()
+                        } else if (initialState == Tab.HOME) {
+                            slideInHorizontally { width -> width } + fadeIn() togetherWith
+                            slideOutHorizontally { width -> -width } + fadeOut()
+                        } else if (targetState == Tab.GAMES) {
+                            slideInHorizontally { width -> -width } + fadeIn() togetherWith
+                            slideOutHorizontally { width -> width } + fadeOut()
+                        } else {
+                            slideInHorizontally { width -> width } + fadeIn() togetherWith
+                            slideOutHorizontally { width -> -width } + fadeOut()
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) { tab ->
+                    when (tab) {
+                        Tab.HOME -> HomeScreen(
+                            state = state,
+                            backendName = backendName,
+                            lastResult = lastResult,
+                            isPurgeAnimActive = isPurgeAnimActive,
+                            freedRamText = freedRamText,
+                            onPurgeAnimComplete = {
+                                isPurgeAnimActive = false
+                                state = State.RESULT
+                            },
+                            onBoostClick = {
+                                if (state == State.BOOSTING || isPurgeAnimActive) return@HomeScreen
+                                if (state == State.RESULT) {
+                                    state = State.IDLE
+                                    freedRamText = ""
+                                    return@HomeScreen
                                 }
-                            }
-                        },
-                        onSetupClick = { showSetupDialog = true }
-                    )
-                    Tab.GAMES -> GamesScreen(gameManager = gameManager)
-                    Tab.OVERLAY -> OverlayScreen()
+                                state = State.BOOSTING
+                                isPurgeAnimActive = true
+                                coroutineScope.launch {
+                                    val result = FreezeFramework.freezeAll(context)
+                                    lastResult = result
+                                    val freedMb = result.freedKb / 1024f
+                                    val swapFreedMb = result.swapFreedKb / 1024f
+                                    val totalFreedMb = freedMb + swapFreedMb
+                                    freedRamText = if (swapFreedMb > 0f) {
+                                        "+%d MB (+%d MB Swap)".format(totalFreedMb.toInt(), swapFreedMb.toInt())
+                                    } else {
+                                        "+%d MB".format(totalFreedMb.toInt())
+                                    }
+                                }
+                            },
+                            onSetupClick = { showSetupDialog = true },
+                            onRamFreeClick = { showRamFree = true }
+                        )
+                        Tab.GAMES -> GamesScreen(gameManager = gameManager)
+                        Tab.OVERLAY -> OverlayScreen()
+                    }
                 }
             }
 
             // Fixed Bottom Navigation Bar
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(SurfaceCard.copy(alpha = 0.95f))
-                    .navigationBarsPadding()
-            ) {
-                Box(
+            AnimatedVisibility(visible = !showRamFree) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(1.dp)
-                        .background(BorderGlass)
-                )
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                        .background(SurfaceCard.copy(alpha = 0.95f))
+                        .navigationBarsPadding()
                 ) {
-                    NavBarItem(
-                        label = "BOOST",
-                        icon = Icons.Default.Home,
-                        isActive = currentTab == Tab.HOME,
-                        onClick = { currentTab = Tab.HOME }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(BorderGlass)
                     )
-                    NavBarItem(
-                        label = "GAMES",
-                        icon = Icons.Default.PlayArrow,
-                        isActive = currentTab == Tab.GAMES,
-                        onClick = { currentTab = Tab.GAMES }
-                    )
-                    NavBarItem(
-                        label = "OVERLAY",
-                        icon = Icons.Default.Settings,
-                        isActive = currentTab == Tab.OVERLAY,
-                        onClick = { currentTab = Tab.OVERLAY }
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        NavBarItem(
+                            label = "BOOST",
+                            icon = Icons.Default.Home,
+                            isActive = currentTab == Tab.HOME,
+                            onClick = { currentTab = Tab.HOME }
+                        )
+                        NavBarItem(
+                            label = "GAMES",
+                            icon = Icons.Default.PlayArrow,
+                            isActive = currentTab == Tab.GAMES,
+                            onClick = { currentTab = Tab.GAMES }
+                        )
+                        NavBarItem(
+                            label = "OVERLAY",
+                            icon = Icons.Default.Settings,
+                            isActive = currentTab == Tab.OVERLAY,
+                            onClick = { currentTab = Tab.OVERLAY }
+                        )
+                    }
                 }
             }
         }
@@ -322,7 +368,8 @@ fun HomeScreen(
     freedRamText: String,
     onPurgeAnimComplete: () -> Unit,
     onBoostClick: () -> Unit,
-    onSetupClick: () -> Unit
+    onSetupClick: () -> Unit,
+    onRamFreeClick: () -> Unit
 ) {
     val context = LocalContext.current
     var memStats by remember { mutableStateOf(getSystemMemStats(context)) }
@@ -408,6 +455,45 @@ fun HomeScreen(
                 )
             } else {
                 MainActionCard(state = targetState, onClick = onBoostClick)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // RAM FREE secondary card
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(SurfaceCard)
+                .border(1.dp, BorderGlass, RoundedCornerShape(20.dp))
+                .clickable(enabled = state != State.BOOSTING) { onRamFreeClick() }
+                .alpha(if (state == State.BOOSTING) 0.4f else 1f)
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        "RAM FREE",
+                        color = if (state == State.BOOSTING) TextMuted else AccentWarning,
+                        fontSize = 14.sp,
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        "Force system reclaim",
+                        color = TextBody,
+                        fontSize = 11.sp,
+                        fontFamily = Inter
+                    )
+                }
+                Text("→", color = AccentWarning, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -1276,5 +1362,133 @@ fun DiagnosticRow(
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold
         )
+    }
+}
+
+@Composable
+fun GlobalBackendDropdown(
+    currentPref: String,
+    backendName: String,
+    showDropdown: Boolean,
+    onToggleDropdown: () -> Unit,
+    onSelectPref: (String) -> Unit,
+    onOpenSetup: () -> Unit
+) {
+    var dropdownReadiness by remember { mutableStateOf<Map<String, Boolean?>>(emptyMap()) }
+
+    LaunchedEffect(showDropdown) {
+        if (showDropdown) {
+            dropdownReadiness = mapOf(
+                "shizuku" to ShizukuFreezeBackend().isReady(),
+                "root" to RootFreezeBackend().isReady()
+            )
+        }
+    }
+
+    val displayName = when (currentPref) {
+        "shizuku" -> "SHIZUKU"
+        "root" -> "ROOT"
+        "standard" -> "STANDARD"
+        else -> backendName.uppercase()
+    }
+    val isElevated = currentPref in listOf("shizuku", "root") ||
+        (currentPref == "standard" && backendName !in listOf("cached only", ""))
+
+    Box {
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(if (isElevated) AccentSuccess.copy(alpha = 0.15f) else AccentWarning.copy(alpha = 0.15f))
+                .clickable { onToggleDropdown() }
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Text(
+                text = displayName,
+                color = if (isElevated) AccentSuccess else AccentWarning,
+                fontSize = 9.sp,
+                fontFamily = JetBrainsMono,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        DropdownMenu(
+            expanded = showDropdown,
+            onDismissRequest = { onToggleDropdown() },
+            modifier = Modifier.background(SurfaceCard)
+        ) {
+            DropdownMenuItem(
+                text = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Standard (Auto)", color = if (currentPref == "standard") AccentPrimary else TextTitle, fontSize = 13.sp, fontWeight = if (currentPref == "standard") FontWeight.Bold else FontWeight.Normal)
+                        Text("Always ready", color = AccentSuccess, fontSize = 10.sp, fontFamily = JetBrainsMono)
+                    }
+                },
+                onClick = { onSelectPref("standard") }
+            )
+
+            DropdownMenuItem(
+                text = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Shizuku", color = if (currentPref == "shizuku") AccentPrimary else TextTitle, fontSize = 13.sp, fontWeight = if (currentPref == "shizuku") FontWeight.Bold else FontWeight.Normal)
+                        Text(
+                            when (dropdownReadiness["shizuku"]) {
+                                true -> "Ready"
+                                false -> "Not available"
+                                else -> "Checking…"
+                            },
+                            color = when (dropdownReadiness["shizuku"]) {
+                                true -> AccentSuccess
+                                false -> AccentWarning
+                                else -> TextMuted
+                            },
+                            fontSize = 10.sp,
+                            fontFamily = JetBrainsMono
+                        )
+                    }
+                },
+                onClick = {
+                    if (dropdownReadiness["shizuku"] == true) onSelectPref("shizuku")
+                    else onOpenSetup()
+                }
+            )
+
+            DropdownMenuItem(
+                text = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Root", color = if (currentPref == "root") AccentPrimary else TextTitle, fontSize = 13.sp, fontWeight = if (currentPref == "root") FontWeight.Bold else FontWeight.Normal)
+                        Text(
+                            when (dropdownReadiness["root"]) {
+                                true -> "Ready"
+                                false -> "Not available"
+                                else -> "Checking…"
+                            },
+                            color = when (dropdownReadiness["root"]) {
+                                true -> AccentSuccess
+                                false -> AccentWarning
+                                else -> TextMuted
+                            },
+                            fontSize = 10.sp,
+                            fontFamily = JetBrainsMono
+                        )
+                    }
+                },
+                onClick = {
+                    if (dropdownReadiness["root"] == true) onSelectPref("root")
+                    else onOpenSetup()
+                }
+            )
+        }
     }
 }

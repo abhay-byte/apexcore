@@ -23,6 +23,7 @@
     <application
         android:label="ApexCore"
         android:icon="@drawable/ic_launcher"
+        android:largeHeap="true"
         android:theme="@style/Theme.App">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
@@ -55,5 +56,10 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Draggable performance HUD to monitor game stats (FPS, RAM, CPU) and trigger memory boost during gameplay." />
         </service>
+        <service
+            android:name=".ram.RamFillerService"
+            android:exported="false"
+            android:process=":ramfiller" />
+
     </application>
 </manifest>
