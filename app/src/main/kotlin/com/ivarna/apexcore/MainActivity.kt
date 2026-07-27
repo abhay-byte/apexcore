@@ -318,47 +318,6 @@ fun MainScreen(gameManager: GameManager) {
     }
 }
 
-data class MemStats(
-    val ramUsedKb: Long,
-    val ramTotalKb: Long,
-    val swapUsedKb: Long,
-    val swapTotalKb: Long
-)
-
-fun getSystemMemStats(context: Context): MemStats {
-    var ramTotal = 0L; var ramAvail = 0L
-    var swapTotal = 0L; var swapFree = 0L
-    try {
-        java.io.File("/proc/meminfo").useLines { lines ->
-            for (line in lines) {
-                when {
-                    line.startsWith("MemTotal:") -> ramTotal = line.split(Regex("\\s+"))[1].toLongOrNull() ?: 0L
-                    line.startsWith("MemAvailable:") -> ramAvail = line.split(Regex("\\s+"))[1].toLongOrNull() ?: 0L
-                    line.startsWith("SwapTotal:") -> swapTotal = line.split(Regex("\\s+"))[1].toLongOrNull() ?: 0L
-                    line.startsWith("SwapFree:") -> swapFree = line.split(Regex("\\s+"))[1].toLongOrNull() ?: 0L
-                }
-            }
-        }
-    } catch (_: Throwable) {}
-    if (ramTotal == 0L) {
-        try {
-            val actManager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-            val memInfo = android.app.ActivityManager.MemoryInfo()
-            actManager.getMemoryInfo(memInfo)
-            ramTotal = memInfo.totalMem / 1024
-            ramAvail = memInfo.availMem / 1024
-        } catch (_: Throwable) {}
-    }
-    val ramUsed = (ramTotal - ramAvail).coerceAtLeast(0)
-    val swapUsed = (swapTotal - swapFree).coerceAtLeast(0)
-    return MemStats(ramUsed, ramTotal, swapUsed, swapTotal)
-}
-
-fun getSystemRamKb(context: Context): Pair<Long, Long> {
-    val stats = getSystemMemStats(context)
-    return stats.ramUsedKb to stats.ramTotalKb
-}
-
 @Composable
 fun HomeScreen(
     state: State,
@@ -414,7 +373,8 @@ fun HomeScreen(
         val statusText = when (state) {
             State.IDLE -> "● Ready to purge bloat"
             State.BOOSTING -> "● PURGING BACKGROUND PROCESSES…"
-            State.RESULT -> if ((lastResult?.killed ?: 0) == 0) "● System fully optimized" 
+            State.RESULT -> if ((lastResult?.killed ?: 0) == 0 && (lastResult?.freedKb ?: 0) == 0L) "● Already optimized"
+                            else if ((lastResult?.killed ?: 0) == 0) "● System fully optimized"
                             else "● Freed ${lastResult?.killed} background apps"
         }
         Text(
@@ -428,7 +388,7 @@ fun HomeScreen(
         if (backendName == "cached only") {
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "> CONFIGURE ELEVATED ACCESS",
+                text = "Limited mode — install Shizuku for deep freeze",
                 color = AccentWarning,
                 fontSize = 11.sp,
                 fontFamily = JetBrainsMono,
@@ -797,7 +757,7 @@ fun UnifiedResultCard(
         label = "press_scale"
     )
 
-    val isZero = lastResult?.killed == 0
+    val isAlreadyOptimized = lastResult?.killed == 0 && lastResult?.freedKb == 0L
 
     Box(
         modifier = Modifier
@@ -855,7 +815,7 @@ fun UnifiedResultCard(
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = if (isZero) "Memory fully purified" else "Bloat successfully cleared",
+                            text = if (isAlreadyOptimized) "Already optimized" else "Bloat successfully cleared",
                             color = TextBody,
                             fontFamily = Inter,
                             fontSize = 12.sp
@@ -900,7 +860,7 @@ fun UnifiedResultCard(
                     StatItem(
                         modifier = Modifier.weight(1f),
                         title = "FREED SIZE",
-                        value = if (isZero) "0 MB" else "%d MB".format(totalFreedMb),
+                        value = "%d MB".format(totalFreedMb),
                         subtitle = "RAM: %d MB | Swap: %d MB".format(freedMb, swapFreedMb),
                         indicatorColor = AccentPrimary,
                         valueColor = AccentPrimary,
