@@ -96,11 +96,10 @@ object FreezeFramework {
         val afterSwapFreeKb = readMemLine("SwapFree:")
         val afterRssKb = calculateTargetRssKb(backend, targetPkgs)
 
-        val freedKbFromMem = (afterAvailKb - beforeMemKb).coerceAtLeast(0)
+        val freedKb = (afterAvailKb - beforeMemKb).coerceAtLeast(0)
         val appsFreedKb = (beforeRssKb - afterRssKb).coerceAtLeast(0)
-        val freedKb = maxOf(freedKbFromMem, appsFreedKb)
         val swapFreedKb = (afterSwapFreeKb - beforeSwapFreeKb).coerceAtLeast(0)
-        Log.i(TAG, "beforeAvail=${beforeMemKb}KB afterAvail=${afterAvailKb}KB freedFromMem=${freedKbFromMem}KB beforeRss=${beforeRssKb}KB afterRss=${afterRssKb}KB appsFreed=${appsFreedKb}KB chosen=${freedKb}KB swapFreed=${swapFreedKb}KB")
+        Log.i(TAG, "beforeAvail=${beforeMemKb}KB afterAvail=${afterAvailKb}KB freed=${freedKb}KB beforeRss=${beforeRssKb}KB afterRss=${afterRssKb}KB appsFreed=${appsFreedKb}KB swapFreed=${swapFreedKb}KB")
         val duration = System.currentTimeMillis() - start
 
         val result = FreezeResult(
