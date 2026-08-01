@@ -21,33 +21,67 @@ class FreezeBackendResolverTest {
     fun `detect returns highest priority ready backend - Shizuku first`() = runTest {
         val shizuku = TestBackend("Shizuku", 0, ready = true)
         val root = TestBackend("Root", 1)
-        val a11y = TestBackend("Accessibility", 2)
-        val fallback = TestBackend("standard", 99)
 
-        val resolver = FreezeBackendResolver(listOf(shizuku, root, a11y, fallback))
-        assertEquals("Shizuku", resolver.detect().name)
+        val resolver = FreezeBackendResolver(listOf(shizuku, root))
+        assertEquals("Shizuku", resolver.detect()?.name)
     }
 
     @Test
     fun `detect falls through to Root when Shizuku unavailable`() = runTest {
         val shizuku = TestBackend("Shizuku", 0)
         val root = TestBackend("Root", 1, ready = true)
-        val a11y = TestBackend("Accessibility", 2)
-        val fallback = TestBackend("standard", 99)
 
-        val resolver = FreezeBackendResolver(listOf(shizuku, root, a11y, fallback))
-        assertEquals("Root", resolver.detect().name)
+        val resolver = FreezeBackendResolver(listOf(shizuku, root))
+        assertEquals("Root", resolver.detect()?.name)
     }
 
     @Test
-    fun `detect falls through to fallback when no elevated backend ready`() = runTest {
+    fun `detect returns null when no elevated backend ready`() = runTest {
         val shizuku = TestBackend("Shizuku", 0)
         val root = TestBackend("Root", 1)
-        val a11y = TestBackend("Accessibility", 2)
-        val fallback = TestBackend("standard", 99, ready = true)
 
-        val resolver = FreezeBackendResolver(listOf(shizuku, root, a11y, fallback))
-        assertEquals("standard", resolver.detect().name)
+        val resolver = FreezeBackendResolver(listOf(shizuku, root))
+        assertNull(resolver.detect())
+    }
+
+    @Test
+    fun `detect never returns a standard fallback backend`() = runTest {
+        val shizuku = TestBackend("Shizuku", 0)
+        val root = TestBackend("Root", 1)
+        val standard = TestBackend("standard", 99, ready = true)
+
+        val resolver = FreezeBackendResolver(listOf(shizuku, root, standard))
+        assertNull(resolver.detect())
+    }
+
+    @Test
+    fun `detect returns null when only Accessibility ready`() = runTest {
+        val shizuku = TestBackend("Shizuku", 0)
+        val root = TestBackend("Root", 1)
+        val a11y = TestBackend("Accessibility", 2, ready = true)
+
+        val resolver = FreezeBackendResolver(listOf(shizuku, root, a11y))
+        assertNull(resolver.detect())
+    }
+
+    @Test
+    fun `detect prefers Root when preferred backend set and both ready`() = runTest {
+        val shizuku = TestBackend("Shizuku", 0, ready = true)
+        val root = TestBackend("Root", 1, ready = true)
+
+        val resolver = FreezeBackendResolver(listOf(shizuku, root))
+        resolver.setPreferredBackend("Root")
+        assertEquals("Root", resolver.detect()?.name)
+    }
+
+    @Test
+    fun `preferred backend not ready falls through to other elevated`() = runTest {
+        val shizuku = TestBackend("Shizuku", 0)
+        val root = TestBackend("Root", 1, ready = true)
+
+        val resolver = FreezeBackendResolver(listOf(shizuku, root))
+        resolver.setPreferredBackend("Shizuku")
+        assertEquals("Root", resolver.detect()?.name)
     }
 
     @Test
@@ -63,11 +97,10 @@ class FreezeBackendResolverTest {
             override suspend fun execute(op: FreezeOperation): FreezeOperation.Result =
                 FreezeOperation.Result.Success
         }
-        val fallback = TestBackend("standard", 99, ready = true)
 
-        val resolver = FreezeBackendResolver(listOf(shizuku, fallback))
-        assertEquals("Shizuku", resolver.detect().name)
-        assertEquals("Shizuku", resolver.detect().name)
+        val resolver = FreezeBackendResolver(listOf(shizuku))
+        assertEquals("Shizuku", resolver.detect()?.name)
+        assertEquals("Shizuku", resolver.detect()?.name)
         assertEquals(1, probeCount)
     }
 
@@ -84,12 +117,11 @@ class FreezeBackendResolverTest {
             override suspend fun execute(op: FreezeOperation): FreezeOperation.Result =
                 FreezeOperation.Result.Success
         }
-        val fallback = TestBackend("standard", 99, ready = true)
 
-        val resolver = FreezeBackendResolver(listOf(shizuku, fallback))
-        assertEquals("Shizuku", resolver.detect().name)
+        val resolver = FreezeBackendResolver(listOf(shizuku))
+        assertEquals("Shizuku", resolver.detect()?.name)
         resolver.invalidate()
-        assertEquals("standard", resolver.detect().name)
+        assertNull(resolver.detect())
         assertEquals(2, probeCount)
     }
 
@@ -99,12 +131,11 @@ class FreezeBackendResolverTest {
             listOf(
                 TestBackend("Shizuku", 0),
                 TestBackend("Root", 1),
-                TestBackend("Accessibility", 2),
-                TestBackend("standard", 99)
+                TestBackend("Accessibility", 2)
             )
         )
         val priorities = resolver.candidates.map { it.priority }
-        assertEquals(listOf(0, 1, 2, 99), priorities)
+        assertEquals(listOf(0, 1, 2), priorities)
     }
 
     @Test
@@ -116,9 +147,9 @@ class FreezeBackendResolverTest {
             override suspend fun execute(op: FreezeOperation): FreezeOperation.Result =
                 FreezeOperation.Result.Success
         }
-        val fallback = TestBackend("standard", 99, ready = true)
+        val root = TestBackend("Root", 1, ready = true)
 
-        val resolver = FreezeBackendResolver(listOf(throws, fallback))
-        assertEquals("standard", resolver.detect().name)
+        val resolver = FreezeBackendResolver(listOf(throws, root))
+        assertEquals("Root", resolver.detect()?.name)
     }
 }

@@ -86,7 +86,7 @@ fun SetupDialog(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Select a mode to enable deep process freezing.",
+                    text = "Deep freeze (BOOST) requires Shizuku or Root access.",
                     color = TextBody,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
@@ -124,7 +124,7 @@ fun SetupDialog(
                         coroutineScope.launch {
                             resolver.invalidate()
                             val backend = FreezeFramework.detect()
-                            if (backend.priority < 99) {
+                            if (backend != null) {
                                 onDismiss()
                             } else {
                                 Toast.makeText(context, "Root permission not found yet", Toast.LENGTH_SHORT).show()
@@ -134,7 +134,7 @@ fun SetupDialog(
 
                     OptionCard(
                         title = "Accessibility",
-                        sub = "Automates app settings UI.",
+                        sub = "App UI automation only — not a freeze path in this build.",
                         cta = "OPEN SETTINGS",
                         isRecommended = false,
                         modifier = Modifier.weight(1f)
@@ -146,7 +146,7 @@ fun SetupDialog(
 
                 Spacer(modifier = Modifier.height(28.dp))
 
-                // Skip / Cached Only Action
+                // Dismiss — no "Standard mode" fallback exists for freeze (Decision E)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -158,8 +158,8 @@ fun SetupDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "USE STANDARD MODE",
-                        color = AccentPrimary,
+                        text = "NOT NOW",
+                        color = TextBody,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
@@ -261,7 +261,7 @@ private fun openShizuku(context: Context) {
         }
     }
     val play = Intent(Intent.ACTION_VIEW).apply {
-        data = android.net.Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.manager")
+        data = android.net.Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api&hl=en&pli=1")
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
     try { context.startActivity(play) } catch (_: Throwable) {}

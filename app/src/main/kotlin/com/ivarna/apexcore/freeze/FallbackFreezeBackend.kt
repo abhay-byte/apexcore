@@ -5,11 +5,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Standard / no-elevation backend.
+ * Internal safety backend — NOT a product freeze mode (Decision E).
  *
- * Real force-stop requires Shizuku or Root (`am force-stop`). On modern Android,
- * [android.app.ActivityManager.killBackgroundProcesses] is best-effort only and
- * often a no-op for third-party apps — never report Success so UI killed counts stay honest.
+ * Excluded from [FreezeBackendResolver] product candidates, so auto-detect never
+ * presents "standard" freeze as working. Retained only for tests / defensive
+ * paths: ForceStop is best-effort [android.app.ActivityManager.killBackgroundProcesses]
+ * and must NEVER report Success, so killed counts stay honest if this backend is ever hit.
  */
 class FallbackFreezeBackend(private val appContext: Context) : FreezeBackend {
     override val name = "standard"

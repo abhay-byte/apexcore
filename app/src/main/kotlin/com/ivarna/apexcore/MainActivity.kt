@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -49,6 +50,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.lifecycleScope
 import androidx.core.view.WindowCompat
 import com.ivarna.apexcore.freeze.FreezeFramework
 import com.ivarna.apexcore.freeze.FreezeResult
@@ -81,6 +83,10 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         FreezeFramework.resolver()?.invalidate()
+        // Re-detect so chip/banner refresh immediately after granting Shizuku/Root
+        lifecycleScope.launch {
+            FreezeFramework.detect()
+        }
     }
 }
 
@@ -102,19 +108,24 @@ fun MainScreen(gameManager: GameManager) {
     var globalBackendPref by remember {
         mutableStateOf(
             context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
-                .getString("preferred_backend", "standard") ?: "standard"
+                .getString("preferred_backend", null)?.takeIf { it == "shizuku" || it == "root" }
         )
     }
     var showGlobalDropdown by remember { mutableStateOf(false) }
+    var detectionDone by remember { mutableStateOf(false) }
 
     // Purge animation states
     var isPurgeAnimActive by remember { mutableStateOf(false) }
     var freedRamText by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        // Cold-start: apply preferred backend before first detect()
+        // Cold-start: migrate legacy "standard" pref → needs setup; apply preferred backend
         val prefs = context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
-        val prefBackend = prefs.getString("preferred_backend", "standard") ?: "standard"
+        var prefBackend = prefs.getString("preferred_backend", null)
+        if (prefBackend == "standard") {
+            prefs.edit().remove("preferred_backend").apply()
+            prefBackend = null
+        }
         val preferredName = when (prefBackend) {
             "shizuku" -> "Shizuku"
             "root" -> "Root"
@@ -123,16 +134,23 @@ fun MainScreen(gameManager: GameManager) {
         FreezeFramework.setPreferredBackend(preferredName)
 
         val backend = FreezeFramework.detect()
-        backendName = backend.name
+        detectionDone = true
+        backendName = backend?.name ?: "SETUP REQUIRED"
         val setupPrefs = context.getSharedPreferences(SetupDialogHelper.PREFS, Context.MODE_PRIVATE)
-        if (!setupPrefs.getBoolean(SetupDialogHelper.KEY_SHOWN, false) && backendName == "standard") {
+        if (!setupPrefs.getBoolean(SetupDialogHelper.KEY_SHOWN, false) && backend == null) {
             showSetupDialog = true
         }
     }
 
     val activeBackend by FreezeFramework.activeBackend.collectAsState(initial = null)
     LaunchedEffect(activeBackend) {
-        backendName = activeBackend?.name ?: "Detecting…"
+        // Elevated→null mid-session (revoke / grant loss) must flip the chip back to
+        // setup; before the first probe settles, keep "Detecting…" (no flash).
+        val backend = activeBackend
+        when {
+            backend != null -> backendName = backend.name
+            detectionDone -> backendName = "SETUP REQUIRED"
+        }
     }
 
     Box(
@@ -244,18 +262,22 @@ fun MainScreen(gameManager: GameManager) {
                                     freedRamText = ""
                                     return@HomeScreen
                                 }
-                                state = State.BOOSTING
-                                isPurgeAnimActive = true
                                 coroutineScope.launch {
+                                    if (!FreezeFramework.isReady()) {
+                                        // Decision E: no freezeAll without Shizuku/Root — setup instead
+                                        showSetupDialog = true
+                                        return@launch
+                                    }
+                                    state = State.BOOSTING
+                                    isPurgeAnimActive = true
                                     val result = FreezeFramework.freezeAll(context)
                                     lastResult = result
                                     val freedMb = result.freedKb / 1024f
                                     val swapFreedMb = result.swapFreedKb / 1024f
-                                    val totalFreedMb = freedMb + swapFreedMb
                                     freedRamText = if (swapFreedMb > 0f) {
-                                        "+%d MB (+%d MB Swap)".format(totalFreedMb.toInt(), swapFreedMb.toInt())
+                                        "+%d MB RAM (+%d MB Swap)".format(freedMb.toInt(), swapFreedMb.toInt())
                                     } else {
-                                        "+%d MB".format(totalFreedMb.toInt())
+                                        "+%d MB".format(freedMb.toInt())
                                     }
                                 }
                             },
@@ -343,6 +365,11 @@ fun HomeScreen(
         }
     }
 
+    // Refresh gauges the moment a purge result lands, so bars don't lag the FREED chip
+    LaunchedEffect(lastResult) {
+        if (lastResult != null) memStats = getSystemMemStats(context)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -370,14 +397,14 @@ fun HomeScreen(
         
         // Status updates description
         val statusColor = if (state == State.BOOSTING) AccentWarning else TextMuted
-        val isLimited = backendName == "standard"
+        val isElevatedBackend = backendName == "Shizuku" || backendName == "Root"
         val statusText = when (state) {
-            State.IDLE -> if (isLimited) "● Limited — connect Shizuku for deep freeze"
-                         else "● Ready to purge bloat"
+            State.IDLE -> if (isElevatedBackend) "● Ready to purge bloat"
+                         else "● Connect Shizuku or Root for deep freeze"
             State.BOOSTING -> "● PURGING BACKGROUND PROCESSES…"
             State.RESULT -> when {
-                isLimited && (lastResult?.killed ?: 0) == 0 ->
-                    "● No force-stop without Shizuku/Root"
+                (lastResult?.backend ?: "") !in listOf("Shizuku", "Root") ->
+                    "● Freeze blocked — connect Shizuku or Root"
                 (lastResult?.killed ?: 0) == 0 && (lastResult?.freedKb ?: 0) == 0L ->
                     "● Already optimized"
                 (lastResult?.killed ?: 0) == 0 ->
@@ -394,7 +421,7 @@ fun HomeScreen(
             letterSpacing = 1.sp
         )
         
-        if (backendName == "standard") {
+        if (!isElevatedBackend && backendName != "Detecting…") {
             Spacer(modifier = Modifier.height(12.dp))
             ShizukuConnectBanner(onConnectClick = onSetupClick)
         }
@@ -466,8 +493,8 @@ fun HomeScreen(
 }
 
 /**
- * Shown when active backend is Fallback ("standard").
- * Standard mode cannot force-stop apps without Shizuku/Root on modern Android.
+ * Shown when no elevated backend (Shizuku / Root) is ready.
+ * There is no product "standard" freeze mode — deep freeze needs elevation.
  */
 @Composable
 fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
@@ -488,7 +515,7 @@ fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Text(
-            text = "SHIZUKU REQUIRED",
+            text = "ELEVATION REQUIRED",
             color = AccentWarning,
             fontSize = 10.sp,
             fontFamily = JetBrainsMono,
@@ -497,7 +524,7 @@ fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            text = "Connect Shizuku for deep freeze",
+            text = "Connect Shizuku or Root for deep freeze",
             color = TextTitle,
             fontSize = 14.sp,
             fontFamily = SpaceGrotesk,
@@ -505,7 +532,7 @@ fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Standard mode cannot force-stop apps on modern Android. Shizuku or Root is required for real BOOST freezes.",
+            text = "BOOST freeze is gated until Shizuku or Root is ready. No elevation means apps cannot be force-stopped on modern Android.",
             color = TextMuted,
             fontSize = 11.sp,
             fontFamily = Inter,
@@ -513,7 +540,7 @@ fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "CONNECT SHIZUKU  →",
+            text = "CONNECT SHIZUKU / ROOT  →",
             color = AccentPrimary,
             fontSize = 12.sp,
             fontFamily = JetBrainsMono,
@@ -816,18 +843,22 @@ fun UnifiedResultCard(
         label = "press_scale"
     )
 
-    val isLimitedBackend = lastResult?.backend == "standard"
-    val isAlreadyOptimized = lastResult?.killed == 0 && lastResult?.freedKb == 0L
+    val isElevatedResult = lastResult?.backend == "Shizuku" || lastResult?.backend == "Root"
+    val isBlockedResult = !isElevatedResult && (lastResult?.killed ?: 0) == 0
+    val isAlreadyOptimized = lastResult?.killed == 0 && lastResult?.freedKb == 0L && isElevatedResult
+    val skipped = lastResult?.skipped ?: 0
+    val failed = lastResult?.failed ?: 0
     val resultTitle = when {
-        isLimitedBackend && (lastResult?.killed ?: 0) == 0 -> "LIMITED MODE"
+        isBlockedResult -> "FREEZE BLOCKED"
         else -> "PURGE COMPLETE"
     }
     val resultSubtitle = when {
-        isLimitedBackend && (lastResult?.killed ?: 0) == 0 ->
-            "Connect Shizuku for deep freeze"
+        isBlockedResult -> "Connect Shizuku or Root for deep freeze"
         isAlreadyOptimized -> "Already optimized"
         else -> "Bloat successfully cleared"
     }
+    // Blocked / incomplete freeze: warning tone — not a green success checkmark
+    val statusAccent = if (isBlockedResult) AccentWarning else AccentSuccess
 
     Box(
         modifier = Modifier
@@ -838,7 +869,11 @@ fun UnifiedResultCard(
             .border(
                 width = 1.5.dp,
                 brush = Brush.linearGradient(
-                    colors = listOf(AccentPrimary.copy(alpha = 0.6f), AccentSecondary.copy(alpha = 0.6f))
+                    colors = if (isBlockedResult) {
+                        listOf(AccentWarning.copy(alpha = 0.55f), AccentPrimary.copy(alpha = 0.35f))
+                    } else {
+                        listOf(AccentPrimary.copy(alpha = 0.6f), AccentSecondary.copy(alpha = 0.6f))
+                    }
                 ),
                 shape = RoundedCornerShape(32.dp)
             )
@@ -854,24 +889,41 @@ fun UnifiedResultCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Canvas(modifier = Modifier.size(28.dp)) {
                         drawCircle(
-                            color = AccentSuccess.copy(alpha = 0.15f),
+                            color = statusAccent.copy(alpha = 0.15f),
                             radius = size.minDimension / 2
                         )
                         drawCircle(
-                            color = AccentSuccess,
+                            color = statusAccent,
                             radius = size.minDimension / 2.4f,
                             style = Stroke(width = 1.5.dp.toPx())
                         )
-                        val path = Path().apply {
-                            moveTo(size.width * 0.35f, size.height * 0.5f)
-                            lineTo(size.width * 0.45f, size.height * 0.6f)
-                            lineTo(size.width * 0.65f, size.height * 0.4f)
+                        if (isBlockedResult) {
+                            // Warning "!" mark for blocked freeze
+                            val cx = size.width / 2f
+                            drawLine(
+                                color = statusAccent,
+                                start = Offset(cx, size.height * 0.28f),
+                                end = Offset(cx, size.height * 0.58f),
+                                strokeWidth = 2.5.dp.toPx(),
+                                cap = StrokeCap.Round
+                            )
+                            drawCircle(
+                                color = statusAccent,
+                                radius = 1.8.dp.toPx(),
+                                center = Offset(cx, size.height * 0.72f)
+                            )
+                        } else {
+                            val path = Path().apply {
+                                moveTo(size.width * 0.35f, size.height * 0.5f)
+                                lineTo(size.width * 0.45f, size.height * 0.6f)
+                                lineTo(size.width * 0.65f, size.height * 0.4f)
+                            }
+                            drawPath(
+                                path = path,
+                                color = statusAccent,
+                                style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                            )
                         }
-                        drawPath(
-                            path = path,
-                            color = AccentSuccess,
-                            style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
-                        )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
@@ -931,7 +983,7 @@ fun UnifiedResultCard(
                         modifier = Modifier.weight(1f),
                         title = "FREED SIZE",
                         value = "%d MB".format(totalFreedMb),
-                        subtitle = "RAM: %d MB | Swap: %d MB".format(freedMb, swapFreedMb),
+                        subtitle = "RAM: %d MB | Swap: %d MB · incl. cache reclaim".format(freedMb, swapFreedMb),
                         indicatorColor = AccentPrimary,
                         valueColor = AccentPrimary,
                         delayMs = 100
@@ -940,7 +992,7 @@ fun UnifiedResultCard(
                         modifier = Modifier.weight(1f),
                         title = "PURGED APPS",
                         value = (lastResult?.killed ?: 0).toString(),
-                        subtitle = "Processes killed",
+                        subtitle = "Force-stop success",
                         indicatorColor = AccentWarning,
                         valueColor = TextTitle,
                         delayMs = 150
@@ -960,13 +1012,18 @@ fun UnifiedResultCard(
                         valueColor = TextTitle,
                         delayMs = 200
                     )
+                    // Skipped = excluded targets on elevated runs; blocked path keeps zeros
                     StatItem(
                         modifier = Modifier.weight(1f),
-                        title = "ERRORS",
-                        value = (lastResult?.failed ?: 0).toString(),
-                        subtitle = "Skipped processes",
-                        indicatorColor = if ((lastResult?.failed ?: 0) > 0) AccentWarning else TextMuted,
-                        valueColor = if ((lastResult?.failed ?: 0) > 0) AccentWarning else TextBody,
+                        title = "SKIPPED",
+                        value = skipped.toString(),
+                        subtitle = when {
+                            failed > 0 -> "Errors: $failed"
+                            isElevatedResult -> if (skipped > 0) "Excluded targets" else "None skipped"
+                            else -> "No deep freeze"
+                        },
+                        indicatorColor = if (skipped > 0 || failed > 0) AccentWarning else TextMuted,
+                        valueColor = if (skipped > 0 || failed > 0) AccentWarning else TextBody,
                         delayMs = 250
                     )
                 }
@@ -1397,7 +1454,7 @@ fun DiagnosticRow(
 
 @Composable
 fun GlobalBackendDropdown(
-    currentPref: String,
+    currentPref: String?,
     backendName: String,
     showDropdown: Boolean,
     onToggleDropdown: () -> Unit,
@@ -1418,11 +1475,10 @@ fun GlobalBackendDropdown(
     val displayName = when (currentPref) {
         "shizuku" -> "SHIZUKU"
         "root" -> "ROOT"
-        "standard" -> "STANDARD"
-        else -> backendName.uppercase()
+        else -> if (backendName == "Shizuku" || backendName == "Root") backendName.uppercase() else "SETUP"
     }
-    // Chip color follows real backend: standard = limited (warning); Shizuku/Root = elevated
-    val isElevated = backendName !in listOf("standard", "Detecting…", "")
+    // Chip color follows real backend: no elevation = warning; Shizuku/Root = elevated
+    val isElevated = backendName == "Shizuku" || backendName == "Root"
 
     Box {
         Box(
@@ -1446,20 +1502,6 @@ fun GlobalBackendDropdown(
             onDismissRequest = { onToggleDropdown() },
             modifier = Modifier.background(SurfaceCard)
         ) {
-            DropdownMenuItem(
-                text = {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Standard (Auto)", color = if (currentPref == "standard") AccentPrimary else TextTitle, fontSize = 13.sp, fontWeight = if (currentPref == "standard") FontWeight.Bold else FontWeight.Normal)
-                        Text("Always ready", color = AccentSuccess, fontSize = 10.sp, fontFamily = JetBrainsMono)
-                    }
-                },
-                onClick = { onSelectPref("standard") }
-            )
-
             DropdownMenuItem(
                 text = {
                     Row(

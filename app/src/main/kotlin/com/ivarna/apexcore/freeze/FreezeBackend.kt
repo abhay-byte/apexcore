@@ -11,4 +11,7 @@ interface FreezeBackend {
     suspend fun executeWithOutput(cmd: String): String {
         return ""
     }
+
+    /** Clears cached readiness state; called when the resolver invalidates. */
+    fun invalidate() {}
 }

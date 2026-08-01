@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# adb-freeze-matrix.sh — T10a device validation
+# adb-freeze-matrix.sh — T10a device validation (Decision E: Shizuku/Root only)
 # Usage: ./scripts/adb-freeze-matrix.sh
 # Prerequisites: debug APK built, device connected
 
@@ -22,12 +22,12 @@ echo "=== Clearing logcat ==="
 adb logcat -c
 
 echo ""
-echo "=== Standard (standard) ==="
-echo "1. Open app, ensure Shizuku is NOT granted, pick Standard in dropdown"
-echo "2. Tap BOOST"
+echo "=== No elevation (freeze blocked) ==="
+echo "1. Open app with Shizuku NOT granted and no root; dropdown must show Shizuku/Root only"
+echo "2. Tap BOOST — expect NO freezeAll run; setup CTA / elevation banner shown"
 echo "3. Press Enter when done"
 read -r
-echo "--- Standard logs ---"
+echo "--- No-elevation logs (expect NO 'freezeAll via' line) ---"
 adb logcat -d -s "ApexCore.Freeze:*" | tail -40
 
 echo ""
@@ -49,15 +49,14 @@ echo "--- Root logs ---"
 adb logcat -d -s "ApexCore.Freeze:*" | tail -40
 
 echo ""
-echo "=== RAM Free accuracy ==="
+echo "=== RAM Free accuracy (no elevation OK) ==="
+echo "--- meminfo BEFORE ---"
+adb shell 'grep -E "MemAvailable|MemTotal|SwapFree|SwapTotal" /proc/meminfo'
+echo ""
 echo "1. Go to RAM FREE screen, tap FREE RAM"
 echo "2. Press Enter when done"
 read -r
-echo "--- meminfo before ---"
-adb shell 'grep -E "MemAvailable|MemTotal|SwapFree|SwapTotal" /proc/meminfo'
-
-echo ""
-echo "=== meminfo after ==="
+echo "--- meminfo AFTER ---"
 adb shell 'grep -E "MemAvailable|SwapFree" /proc/meminfo'
 
 echo ""
@@ -65,10 +64,10 @@ echo "=== Pass criteria ==="
 cat <<'EOF'
 | Mode          | Expect                                                   |
 |---------------|----------------------------------------------------------|
-| Standard      | backend=standard; limited-mode UI; no fake multi-GB  |
-| Shizuku       | freezeAll via Shizuku; killed>0 when targets exist        |
-| Root          | freezeAll via Root; same                                  |
-| Dropdown      | re-detect; no crash                                       |
-| Home BOOST    | MemAvailable Δ only; 0 → Already optimized                |
-| RAM Free      | UI Δ matches /proc/meminfo within ~±5% noise             |
+| No elevation  | freeze gated; setup CTA; NO 'freezeAll via' log line     |
+| Shizuku       | freezeAll via Shizuku; killed>0 when targets exist       |
+| Root          | freezeAll via Root; no pending→Success inflation         |
+| Dropdown      | Shizuku/Root only; re-detect; no crash                   |
+| Home BOOST    | MemAvailable Δ only; 0 → Already optimized               |
+| RAM Free      | UI Δ matches true before/after MemAvailable (~±5%)       |
 EOF

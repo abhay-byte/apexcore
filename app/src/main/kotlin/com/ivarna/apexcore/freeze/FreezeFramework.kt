@@ -34,11 +34,16 @@ object FreezeFramework {
 
     fun resolver(): FreezeBackendResolver? = resolver
 
+    /** Test seam: replace the resolver to force a backend state in unit tests. */
+    fun setResolverForTest(r: FreezeBackendResolver?) {
+        resolver = r
+    }
+
     fun setPreferredBackend(name: String?) {
         resolver?.setPreferredBackend(name)
     }
 
-    suspend fun detect(): FreezeBackend {
+    suspend fun detect(): FreezeBackend? {
         val r = resolver ?: error("FreezeFramework.init() not called")
         val b = r.detect()
         _activeBackend.value = b
@@ -46,7 +51,7 @@ object FreezeFramework {
     }
 
     suspend fun isReady(): Boolean = try {
-        detect().priority < FallbackFreezeBackend.PRIORITY
+        detect() != null
     } catch (_: Throwable) { false }
 
     suspend fun freezeAll(
@@ -54,6 +59,25 @@ object FreezeFramework {
         filter: (ApplicationInfo) -> Boolean = { FreezeFilter.default(context, it) }
     ): FreezeResult = withContext(Dispatchers.IO) {
         val backend = detect()
+        if (backend == null) {
+            // Decision E safety: never run a skip-all "freeze" without elevation.
+            Log.w(TAG, "freezeAll blocked: no elevated backend (Shizuku/Root required)")
+            val (totalMemKb, beforeMemKb) = readMemInfo()
+            val result = FreezeResult(
+                killed = 0,
+                failed = 0,
+                skipped = 0,
+                durationMs = 0,
+                backend = "blocked",
+                totalMemMb = totalMemKb / 1024,
+                beforeAvailMb = beforeMemKb / 1024,
+                afterAvailMb = beforeMemKb / 1024,
+                swapTotalMb = readMemLine("SwapTotal:") / 1024,
+                swapFreeMb = readMemLine("SwapFree:") / 1024
+            )
+            _lastResult.value = result
+            return@withContext result
+        }
         val pm = context.packageManager
         val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
         val targets = apps.filter(filter)
@@ -122,7 +146,7 @@ object FreezeFramework {
     }
 
     suspend fun forceStopOne(context: Context, pkg: String): FreezeOperation.Result {
-        val backend = detect()
+        val backend = detect() ?: return FreezeOperation.Result.Failure("no-elevated-backend")
         return try {
             backend.execute(FreezeOperation.ForceStop(pkg))
         } catch (t: Throwable) {

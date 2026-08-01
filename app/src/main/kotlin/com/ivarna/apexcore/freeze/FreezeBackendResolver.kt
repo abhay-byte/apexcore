@@ -3,6 +3,15 @@ package com.ivarna.apexcore.freeze
 import android.content.Context
 import android.util.Log
 
+/**
+ * Resolves the active freeze backend for product freeze features.
+ *
+ * Decision E: there is no product "standard" freeze mode. Only elevated backends
+ * (Shizuku / Root) can force-stop apps. [detect] returns null when no elevated
+ * backend is ready — callers must gate freeze (UI setup) instead of running a
+ * useless skip-all path. [FallbackFreezeBackend] and the Accessibility stub are
+ * intentionally NOT candidates (Accessibility product path → T10c).
+ */
 class FreezeBackendResolver(candidates: List<FreezeBackend>) {
 
     internal val candidates: List<FreezeBackend> = candidates
@@ -10,9 +19,7 @@ class FreezeBackendResolver(candidates: List<FreezeBackend>) {
     constructor(appContext: Context) : this(
         listOf(
             ShizukuFreezeBackend(),
-            RootFreezeBackend(),
-            AccessibilityFreezeBackend(),
-            FallbackFreezeBackend(appContext.applicationContext)
+            RootFreezeBackend()
         )
     )
 
@@ -26,13 +33,18 @@ class FreezeBackendResolver(candidates: List<FreezeBackend>) {
         }
     }
 
-    suspend fun detect(): FreezeBackend {
+    /**
+     * Returns the preferred elevated backend if ready, otherwise the first other
+     * elevated backend that is ready, otherwise null (not-ready → setup gate).
+     * Never returns a non-elevated fallback ("standard") or the Accessibility stub.
+     */
+    suspend fun detect(): FreezeBackend? {
         resolved?.let { return it }
 
         // If user has a preference, try that backend first
         if (preferredBackendName != null) {
             val pref = preferredBackendName
-            val candidate = candidates.find { it.name.equals(pref, ignoreCase = true) }
+            val candidate = candidates.find { it.name.equals(pref, ignoreCase = true) && isElevated(it) }
             if (candidate != null) {
                 try {
                     if (candidate.isReady()) {
@@ -49,6 +61,7 @@ class FreezeBackendResolver(candidates: List<FreezeBackend>) {
         }
 
         for (backend in candidates) {
+            if (!isElevated(backend)) continue
             try {
                 if (backend.isReady()) {
                     Log.i(TAG, "Resolved backend: ${backend.name} (priority=${backend.priority})")
@@ -59,13 +72,17 @@ class FreezeBackendResolver(candidates: List<FreezeBackend>) {
                 Log.w(TAG, "Backend ${backend.name} threw: ${t.message}")
             }
         }
-        val fb = candidates.last()
-        resolved = fb
-        return fb
+        Log.i(TAG, "No elevated backend ready — freeze gated (Shizuku/Root setup required)")
+        return null
     }
+
+    /** Only Shizuku / Root can force-stop — Decision E excludes every other backend. */
+    private fun isElevated(backend: FreezeBackend): Boolean =
+        backend.name == "Shizuku" || backend.name == "Root"
 
     fun invalidate() {
         resolved = null
+        candidates.forEach { it.invalidate() }
     }
 
     companion object {

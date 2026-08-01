@@ -12,6 +12,10 @@ class RootFreezeBackend : FreezeBackend {
 
     @Volatile private var cached: Boolean? = null
 
+    override fun invalidate() {
+        cached = null
+    }
+
     override suspend fun isReady(): Boolean = withContext(Dispatchers.IO) {
         cached?.let { return@withContext it }
         val ok = tryProbe()
@@ -93,10 +97,12 @@ class RootFreezeBackend : FreezeBackend {
                                 }
                             }
                         }
+                        // Match Shizuku: missing OK/FAIL line is Failure, not Success
+                        // (Success would inflate killed counts when batch output is incomplete)
                         for (i in forceStopOps.indices) {
                             val origIdx = ops.indexOf(forceStopOps[i])
                             if (origIdx >= 0 && results[origIdx].let { it is FreezeOperation.Result.Failure && it.reason == "pending" }) {
-                                results[origIdx] = FreezeOperation.Result.Success
+                                results[origIdx] = FreezeOperation.Result.Failure("no-output-line")
                             }
                         }
                     } else {

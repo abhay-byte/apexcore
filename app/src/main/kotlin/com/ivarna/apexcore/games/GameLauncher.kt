@@ -19,6 +19,9 @@ object GameLauncher {
                 val keep = appInfo.packageName == gamePkg
                 !keep && com.ivarna.apexcore.freeze.FreezeFilter.default(context, appInfo)
             }
+            if (result.backend == "blocked") {
+                Log.w(TAG, "Pre-launch freeze skipped: no Shizuku/Root elevation (backend=blocked)")
+            }
 
             // Build launch intent
             val intent = context.packageManager.getLaunchIntentForPackage(gamePkg)
