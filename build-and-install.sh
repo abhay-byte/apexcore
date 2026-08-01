@@ -40,7 +40,7 @@ done
 VARIANT_CAP="${VARIANT^}"
 
 APP_NAME="ApexCore"
-PACKAGE="com.apexcore.app"
+PACKAGE="com.ivarna.apexcore"
 ACTIVITY=".MainActivity"
 
 if $BUNDLE_ONLY; then
@@ -60,7 +60,6 @@ cleanup_gradle() {
     pkill -f gradle || true
 }
 trap cleanup_gradle EXIT
-
 ./gradlew "$GRADLE_TASK" --quiet --no-daemon
 
 if $BUNDLE_ONLY; then

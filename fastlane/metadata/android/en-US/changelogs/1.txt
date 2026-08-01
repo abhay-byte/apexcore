@@ -1,0 +1,6 @@
+Initial release of ApexCore features:
+- Hail-style deep freeze framework using Shizuku, Root, and accessibility fallback.
+- Big circle BOOST button UI with smooth animations.
+- Draggable performance HUD overlay showing real-time FPS, RAM, and CPU stats during gameplay.
+- Added bento-style elevated system access configuration.
+- Added comprehensive local Privacy Policy.
