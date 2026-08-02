@@ -7,6 +7,7 @@ object FreezeFilter {
 
     fun default(context: Context, pkg: ApplicationInfo): Boolean {
         if (pkg.packageName == context.packageName) return false
+        if (WhitelistStore.isPinned(context, pkg.packageName)) return false
         if ((pkg.flags and ApplicationInfo.FLAG_STOPPED) != 0) return false
         val isPureSystem =
             (pkg.flags and ApplicationInfo.FLAG_SYSTEM) != 0 &&
