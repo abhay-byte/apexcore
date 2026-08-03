@@ -181,7 +181,7 @@ fun MainScreen(gameManager: GameManager) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Image(
                             painter = painterResource(id = R.drawable.ic_app_logo),
-                            contentDescription = "App Icon",
+                            contentDescription = "Apex Core",
                             modifier = Modifier
                                 .size(28.dp)
                                 .clip(RoundedCornerShape(8.dp))
