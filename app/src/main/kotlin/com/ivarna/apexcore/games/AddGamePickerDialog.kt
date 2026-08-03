@@ -18,11 +18,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ivarna.apexcore.ui.components.ZenDialog
 import com.ivarna.apexcore.ui.components.ZenTextField
+import com.ivarna.apexcore.ui.components.zenDialogSheet
 import com.ivarna.apexcore.ui.components.zenGlassBackground
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenDimens
@@ -62,17 +62,7 @@ fun AddGamePickerDialog(
     val dialogShape = RoundedCornerShape(28.dp)
     val rowShape = RoundedCornerShape(ZenDimens.roundedLg)
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(scheme.inverseSurface.copy(alpha = 0.40f))
-                .clickable(onClick = onDismiss),
-            contentAlignment = Alignment.Center
-        ) {
+    ZenDialog(onDismissRequest = onDismiss) {
             Column(
                 modifier = Modifier
                     .padding(horizontal = 24.dp, vertical = 40.dp)
@@ -83,7 +73,7 @@ fun AddGamePickerDialog(
                         fill = scheme.surfaceContainerLowest.copy(alpha = 0.96f),
                         borderColor = scheme.outlineVariant.copy(alpha = 0.6f)
                     )
-                    .clickable(enabled = false) {} // block click propagation
+                    .zenDialogSheet()
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
@@ -272,6 +262,5 @@ fun AddGamePickerDialog(
                     }
                 }
             }
-        }
     }
 }

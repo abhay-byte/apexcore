@@ -12,18 +12,28 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ivarna.apexcore.ui.theme.ZenColors
 import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeChild
 
 /**
  * Shared frosted-glass chrome tokens (top bar + bottom nav).
  * Same tint/blur/noise so both bars read as one material.
+ *
+ * Haze 1.0 applies **blur of the [haze] source**, then **[tints]** on top.
+ * [backgroundColor] is the solid base / fallback sample — not the glass veil.
+ * Without [tints], only a weak translucent plate shows (no real frost).
  */
 object ZenFrost {
-    /** Stronger than finalbenchmark 30dp so content under the glass softens clearly. */
-    val blurRadius = 56.dp
-    val noiseFactor = 0.08f
-    /** Frost overlay — high enough for even color, low enough to keep glass. */
-    const val tintAlpha = 0.42f
+    /** Strong soften under chrome — in the ballpark of dialog FLAG_BLUR_BEHIND. */
+    val blurRadius = 48.dp
+    val noiseFactor = 0.15f
+    /**
+     * Glass veil alpha on [HazeTint]. High enough that scrolled text under bars
+     * is soft/illegible; low enough to keep material as glass not solid.
+     */
+    const val tintAlpha = 0.78f
+    /** When RenderEffect blur is unavailable, stay nearly solid so chrome still reads. */
+    const val fallbackTintAlpha = 0.94f
 
     fun tint(surface: Color): Color = surface.copy(alpha = tintAlpha)
 }
@@ -49,7 +59,11 @@ fun Modifier.zenFrostChild(
     hazeState: HazeState,
     surface: Color
 ): Modifier = this.hazeChild(state = hazeState) {
-    backgroundColor = ZenFrost.tint(surface)
+    // Opaque base (Haze samples this when content can't be drawn / for compositing)
+    backgroundColor = surface
+    // Actual glass veil — required for a visible frost (was missing before)
+    tints = listOf(HazeTint(surface.copy(alpha = ZenFrost.tintAlpha)))
+    fallbackTint = HazeTint(surface.copy(alpha = ZenFrost.fallbackTintAlpha))
     blurRadius = ZenFrost.blurRadius
     noiseFactor = ZenFrost.noiseFactor
 }

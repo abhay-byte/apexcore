@@ -26,10 +26,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import com.ivarna.apexcore.freeze.FreezeBackendResolver
 import com.ivarna.apexcore.freeze.FreezeFramework
+import com.ivarna.apexcore.ui.components.ZenDialog
+import com.ivarna.apexcore.ui.components.zenDialogSheet
 import com.ivarna.apexcore.ui.components.zenGlassBackground
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenDimens
@@ -59,17 +59,7 @@ fun SetupDialog(
         }
     }
 
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(scheme.inverseSurface.copy(alpha = 0.40f))
-                .clickable(onClick = onDismiss),
-            contentAlignment = Alignment.Center
-        ) {
+    ZenDialog(onDismissRequest = onDismiss) {
             Column(
                 modifier = Modifier
                     .padding(horizontal = ZenDimens.containerPadding)
@@ -79,7 +69,7 @@ fun SetupDialog(
                         fill = scheme.surfaceContainerLowest.copy(alpha = 0.96f),
                         borderColor = scheme.outlineVariant.copy(alpha = 0.6f)
                     )
-                    .clickable(enabled = false) {} // block click propagation
+                    .zenDialogSheet()
                     .padding(ZenDimens.containerPadding)
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -180,7 +170,6 @@ fun SetupDialog(
                     )
                 }
             }
-        }
     }
 }
 
