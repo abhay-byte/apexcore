@@ -1,52 +1,54 @@
 package com.ivarna.apexcore.games
 
 import android.content.Context
+import android.util.LruCache
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.foundation.Image
-import android.util.LruCache
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
-import com.ivarna.apexcore.ui.theme.*
+import com.ivarna.apexcore.ui.components.ZenTextField
+import com.ivarna.apexcore.ui.components.zenBloom
+import com.ivarna.apexcore.ui.components.zenGlassBackground
+import com.ivarna.apexcore.ui.theme.PlusJakartaSans
+import com.ivarna.apexcore.ui.theme.ZenColors
+import com.ivarna.apexcore.ui.theme.ZenDimens
+import com.ivarna.apexcore.ui.theme.ZenIcons
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -131,46 +133,44 @@ fun GamesScreen(
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Minimalist Search and Toggle Row
+            // Soft search + action row
             Column(modifier = Modifier.fillMaxWidth()) {
+                val scheme = MaterialTheme.colorScheme
+                val glassShape = RoundedCornerShape(ZenDimens.roundedLg)
+                val glassFill = scheme.surfaceContainerLowest.copy(alpha = 0.92f)
+                val glassBorder = scheme.outlineVariant.copy(alpha = 0.6f)
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Search Input Field
-                    BasicTextField(
+                    ZenTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontFamily = PlusJakartaSans),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        decorationBox = { innerTextField ->
-                            if (searchQuery.isEmpty()) {
-                                Text("SEARCH PACKAGES...", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f), fontSize = 13.sp, fontFamily = PlusJakartaSans)
-                            }
-                            innerTextField()
-                        }
+                        placeholder = "Search packages…",
+                        modifier = Modifier.weight(1f)
                     )
 
-                    // Show '+' button next to search bar if library is not empty
+                    // Show add button next to search bar if library is not empty
                     if (customGames.isNotEmpty()) {
                         Spacer(modifier = Modifier.width(12.dp))
                         Box(
                             modifier = Modifier
                                 .size(48.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
-                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+                                .zenGlassBackground(
+                                    shape = glassShape,
+                                    fill = glassFill,
+                                    borderColor = glassBorder
+                                )
                                 .clickable { showAddPicker = true },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("+", color = MaterialTheme.colorScheme.primary, fontSize = 24.sp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold)
+                            Icon(
+                                imageVector = Icons.Filled.Add,
+                                contentDescription = "Add games",
+                                tint = scheme.primary,
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
                     }
 
@@ -179,22 +179,24 @@ fun GamesScreen(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+                            .zenGlassBackground(
+                                shape = glassShape,
+                                fill = glassFill,
+                                borderColor = glassBorder
+                            )
                             .clickable { showPinPicker = true },
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
-                                imageVector = Icons.Default.Lock,
+                                imageVector = ZenIcons.PushPin,
                                 contentDescription = "Pin apps",
-                                tint = MaterialTheme.colorScheme.primary,
+                                tint = scheme.primary,
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
                                 text = "PIN",
-                                color = MaterialTheme.colorScheme.primary,
+                                color = scheme.primary,
                                 fontSize = 7.sp,
                                 fontFamily = PlusJakartaSans,
                                 fontWeight = FontWeight.Bold,
@@ -203,25 +205,28 @@ fun GamesScreen(
                         }
                     }
                 }
-                
+
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Mode Toggle Bar (GAMES vs ALL APPS)
+                // Mode Toggle Bar (GAMES vs ALL APPS) — soft glass segment
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(50))
-                        .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                        .zenGlassBackground(
+                            shape = RoundedCornerShape(50),
+                            fill = glassFill,
+                            borderColor = glassBorder
+                        )
                         .padding(3.dp)
                 ) {
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(50))
-                            .background(if (!showAllApps) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent)
+                            .background(if (!showAllApps) scheme.primary.copy(alpha = 0.15f) else Color.Transparent)
                             .border(
                                 width = if (!showAllApps) 1.dp else 0.dp,
-                                color = if (!showAllApps) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.Transparent,
+                                color = if (!showAllApps) scheme.primary.copy(alpha = 0.3f) else Color.Transparent,
                                 shape = RoundedCornerShape(50)
                             )
                             .clickable { showAllApps = false }
@@ -230,7 +235,7 @@ fun GamesScreen(
                     ) {
                         Text(
                             text = "GAMES",
-                            color = if (!showAllApps) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                            color = if (!showAllApps) scheme.primary else scheme.onSurfaceVariant.copy(alpha = 0.72f),
                             fontSize = 11.sp,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold
@@ -240,10 +245,10 @@ fun GamesScreen(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(50))
-                            .background(if (showAllApps) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent)
+                            .background(if (showAllApps) scheme.primary.copy(alpha = 0.15f) else Color.Transparent)
                             .border(
                                 width = if (showAllApps) 1.dp else 0.dp,
-                                color = if (showAllApps) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.Transparent,
+                                color = if (showAllApps) scheme.primary.copy(alpha = 0.3f) else Color.Transparent,
                                 shape = RoundedCornerShape(50)
                             )
                             .clickable { showAllApps = true }
@@ -252,7 +257,7 @@ fun GamesScreen(
                     ) {
                         Text(
                             text = "ALL APPS",
-                            color = if (showAllApps) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                            color = if (showAllApps) scheme.primary else scheme.onSurfaceVariant.copy(alpha = 0.72f),
                             fontSize = 11.sp,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold
@@ -286,11 +291,12 @@ fun GamesScreen(
                             letterSpacing = 1.sp
                         )
                         if (!showAllApps) {
+                            val emptyCtaShape = RoundedCornerShape(ZenDimens.roundedLg)
                             Spacer(modifier = Modifier.height(24.dp))
                             // CTA: ADD GAMES
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .clip(emptyCtaShape)
                                     .background(MaterialTheme.colorScheme.primary)
                                     .clickable { showAddPicker = true }
                                     .padding(horizontal = 24.dp, vertical = 12.dp)
@@ -307,9 +313,11 @@ fun GamesScreen(
                             // CTA: SCAN FOR GAMES
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(MaterialTheme.colorScheme.background)
-                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+                                    .zenGlassBackground(
+                                        shape = emptyCtaShape,
+                                        fill = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.92f),
+                                        borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                                    )
                                     .clickable {
                                         coroutineScope.launch {
                                             val oldSize = customGames.size
@@ -355,8 +363,11 @@ fun GamesScreen(
                         val customThemeColor = remember(game.pkg) {
                             getIconThemeColor(context, game.pkg)
                         }
+                        val cardShape = RoundedCornerShape(32.dp)
+                        val cardActive = absOffset < 0.2f
+                        val scheme = MaterialTheme.colorScheme
 
-                        Card(
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(280.dp)
@@ -371,130 +382,126 @@ fun GamesScreen(
                                     rotationY = pageOffset * -18f
                                 }
                                 .zIndex(zIndex)
-                                .clip(RoundedCornerShape(32.dp))
-                                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
-                                .border(
-                                    width = if (absOffset < 0.2f) 1.5.dp else 1.dp,
-                                    brush = if (absOffset < 0.2f) {
-                                        Brush.verticalGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primary))
+                                .zenGlassBackground(
+                                    shape = cardShape,
+                                    fill = scheme.surfaceContainerLowest.copy(alpha = 0.94f),
+                                    borderColor = if (cardActive) {
+                                        scheme.primary.copy(alpha = 0.55f)
                                     } else {
-                                        SolidColor(MaterialTheme.colorScheme.outlineVariant)
+                                        scheme.outlineVariant.copy(alpha = 0.6f)
                                     },
-                                    shape = RoundedCornerShape(32.dp)
+                                    borderWidth = if (cardActive) 1.5.dp else 1.dp
                                 )
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(
-                                        Brush.radialGradient(
-                                            colors = listOf(customThemeColor, Color.Transparent),
-                                            radius = 350f
-                                        )
+                                .background(
+                                    Brush.radialGradient(
+                                        colors = listOf(customThemeColor, Color.Transparent),
+                                        radius = 350f
                                     )
-                                    .combinedClickable(
-                                        onClick = {
-                                            launchingPkg = game.pkg
-                                            isLaunching = true
-                                        },
-                                        onLongClick = {
-                                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                            if (showAllApps) {
-                                                if (customGames.any { it.pkg == game.pkg }) {
-                                                    Toast.makeText(context, "Already in library", Toast.LENGTH_SHORT).show()
-                                                } else {
-                                                    gameManager.add(game.pkg, game.name, false)
-                                                    customGames = gameManager.load()
-                                                    Toast.makeText(context, "Added to library", Toast.LENGTH_SHORT).show()
-                                                }
+                                )
+                                .combinedClickable(
+                                    onClick = {
+                                        launchingPkg = game.pkg
+                                        isLaunching = true
+                                    },
+                                    onLongClick = {
+                                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                        if (showAllApps) {
+                                            if (customGames.any { it.pkg == game.pkg }) {
+                                                Toast.makeText(context, "Already in library", Toast.LENGTH_SHORT).show()
                                             } else {
-                                                gameManager.remove(game.pkg)
+                                                gameManager.add(game.pkg, game.name, false)
                                                 customGames = gameManager.load()
-                                                Toast.makeText(context, "Removed from library", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "Added to library", Toast.LENGTH_SHORT).show()
                                             }
+                                        } else {
+                                            gameManager.remove(game.pkg)
+                                            customGames = gameManager.load()
+                                            Toast.makeText(context, "Removed from library", Toast.LENGTH_SHORT).show()
                                         }
-                                    ),
-                                contentAlignment = Alignment.Center
+                                    }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.padding(24.dp)
                             ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center,
-                                    modifier = Modifier.padding(24.dp)
+                                // App Icon Wrapper
+                                Box(
+                                    modifier = Modifier
+                                        .size(72.dp)
+                                        .zenGlassBackground(
+                                            shape = RoundedCornerShape(22.dp),
+                                            fill = scheme.surfaceContainerLowest.copy(alpha = 0.92f),
+                                            borderColor = scheme.outlineVariant.copy(alpha = 0.6f)
+                                        )
+                                        .padding(10.dp)
                                 ) {
-                                    // App Icon Wrapper
+                                    AppIcon(
+                                        packageName = game.pkg,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // App Name
+                                Text(
+                                    text = game.name,
+                                    color = scheme.onSurface,
+                                    fontSize = 18.sp,
+                                    fontFamily = PlusJakartaSans,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
+                                )
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                // Package Name
+                                Text(
+                                    text = game.pkg,
+                                    color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                                    fontSize = 11.sp,
+                                    fontFamily = PlusJakartaSans,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
+                                )
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Resource Demand Meter
+                                val demand = remember(game.pkg) { getResourceDemand(game.pkg) }
+                                val demandColor = when (demand) {
+                                    "HIGH" -> scheme.secondary
+                                    "MEDIUM" -> scheme.primary
+                                    else -> scheme.primary
+                                }
+
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = "RESOURCE DEMAND",
+                                        color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                                        fontSize = 8.sp,
+                                        fontFamily = PlusJakartaSans,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Box(
                                         modifier = Modifier
-                                            .size(72.dp)
-                                            .clip(RoundedCornerShape(22.dp))
-                                            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
-                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(22.dp))
-                                            .padding(10.dp)
+                                            .clip(RoundedCornerShape(ZenDimens.roundedSm))
+                                            .background(demandColor.copy(alpha = 0.15f))
+                                            .border(1.dp, demandColor.copy(alpha = 0.4f), RoundedCornerShape(ZenDimens.roundedSm))
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
                                     ) {
-                                        AppIcon(
-                                            packageName = game.pkg,
-                                            modifier = Modifier.fillMaxSize()
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    // App Name
-                                    Text(
-                                        text = game.name,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        fontSize = 18.sp,
-                                        fontFamily = PlusJakartaSans,
-                                        fontWeight = FontWeight.Bold,
-                                        textAlign = TextAlign.Center,
-                                        maxLines = 1
-                                    )
-
-                                    Spacer(modifier = Modifier.height(4.dp))
-
-                                    // Package Name
-                                    Text(
-                                        text = game.pkg,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-                                        fontSize = 11.sp,
-                                        fontFamily = PlusJakartaSans,
-                                        textAlign = TextAlign.Center,
-                                        maxLines = 1
-                                    )
-
-                                    Spacer(modifier = Modifier.height(16.dp))
-
-                                    // Resource Demand Meter
-                                    val demand = remember(game.pkg) { getResourceDemand(game.pkg) }
-                                    val demandColor = when (demand) {
-                                        "HIGH" -> MaterialTheme.colorScheme.secondary
-                                        "MEDIUM" -> MaterialTheme.colorScheme.primary
-                                        else -> MaterialTheme.colorScheme.primary
-                                    }
-                                    
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Text(
-                                            text = "RESOURCE DEMAND",
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-                                            fontSize = 8.sp,
+                                            text = demand,
+                                            color = demandColor,
+                                            fontSize = 9.sp,
                                             fontFamily = PlusJakartaSans,
                                             fontWeight = FontWeight.Bold
                                         )
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(4.dp))
-                                                .background(demandColor.copy(alpha = 0.15f))
-                                                .border(1.dp, demandColor.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
-                                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                                        ) {
-                                            Text(
-                                                text = demand,
-                                                color = demandColor,
-                                                fontSize = 9.sp,
-                                                fontFamily = PlusJakartaSans,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
                                     }
                                 }
                             }
@@ -505,18 +512,27 @@ fun GamesScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // bottom Launch Trigger Button
+            // bottom Launch Trigger — pebble-style CTA
             val activeApp = currentList.getOrNull(pagerState.currentPage)
+            val pebbleShape = RoundedCornerShape(32.dp)
+            val scheme = MaterialTheme.colorScheme
             val buttonBgModifier = if (activeApp == null) {
-                Modifier.background(MaterialTheme.colorScheme.outlineVariant)
+                Modifier.background(scheme.outlineVariant)
             } else {
-                Modifier.background(Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primary)))
+                Modifier.background(
+                    Brush.verticalGradient(
+                        listOf(scheme.primary, scheme.primaryContainer)
+                    )
+                )
             }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 24.dp)
-                    .clip(RoundedCornerShape(18.dp))
+                    .then(
+                        if (activeApp != null) Modifier.zenBloom(pebbleShape) else Modifier
+                    )
+                    .clip(pebbleShape)
                     .then(buttonBgModifier)
                     .clickable(enabled = activeApp != null) {
                         activeApp?.let { app ->
@@ -529,7 +545,11 @@ fun GamesScreen(
             ) {
                 Text(
                     text = "ALLOCATE & LAUNCH",
-                    color = if (activeApp == null) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f) else MaterialTheme.colorScheme.onPrimary,
+                    color = if (activeApp == null) {
+                        scheme.onSurfaceVariant.copy(alpha = 0.72f)
+                    } else {
+                        scheme.onPrimary
+                    },
                     fontSize = 13.sp,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
