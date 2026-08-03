@@ -60,6 +60,7 @@ import com.ivarna.apexcore.freeze.AccessibilityFreezeBackend
 import com.ivarna.apexcore.games.GamesScreen
 import com.ivarna.apexcore.games.GameManager
 import com.ivarna.apexcore.games.GameOverlayService
+import com.ivarna.apexcore.games.WhitelistPickerDialog
 import com.ivarna.apexcore.ram.RamFreeScreen
 import com.ivarna.apexcore.ram.RamFillMode
 import com.ivarna.apexcore.ui.components.SimpleMemoryDisplay
@@ -103,6 +104,7 @@ fun MainScreen(gameManager: GameManager) {
     var currentTab by remember { mutableStateOf(Tab.HOME) }
     var backendName by remember { mutableStateOf("Detecting…") }
     var showSetupDialog by remember { mutableStateOf(false) }
+    var showPinPicker by remember { mutableStateOf(false) }
     var lastResult by remember { mutableStateOf<FreezeResult?>(null) }
     var showRamFree by remember { mutableStateOf(false) }
     var globalBackendPref by remember {
@@ -282,7 +284,8 @@ fun MainScreen(gameManager: GameManager) {
                                 }
                             },
                             onSetupClick = { showSetupDialog = true },
-                            onRamFreeClick = { showRamFree = true }
+                            onRamFreeClick = { showRamFree = true },
+                            onPinClick = { showPinPicker = true }
                         )
                         Tab.GAMES -> GamesScreen(gameManager = gameManager)
                         Tab.OVERLAY -> OverlayScreen()
@@ -337,6 +340,13 @@ fun MainScreen(gameManager: GameManager) {
         if (showSetupDialog && FreezeFramework.resolver() != null) {
             SetupDialog(resolver = FreezeFramework.resolver()!!, onDismiss = { showSetupDialog = false })
         }
+
+        if (showPinPicker) {
+            WhitelistPickerDialog(
+                gameManager = gameManager,
+                onDismiss = { showPinPicker = false }
+            )
+        }
     }
 }
 
@@ -350,7 +360,8 @@ fun HomeScreen(
     onPurgeAnimComplete: () -> Unit,
     onBoostClick: () -> Unit,
     onSetupClick: () -> Unit,
-    onRamFreeClick: () -> Unit
+    onRamFreeClick: () -> Unit,
+    onPinClick: () -> Unit
 ) {
     val context = LocalContext.current
     var memStats by remember { mutableStateOf(getSystemMemStats(context)) }
@@ -482,6 +493,45 @@ fun HomeScreen(
                     )
                 }
                 Text("→", color = AccentWarning, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // PIN APPS card
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(SurfaceCard)
+                .border(1.dp, AccentPrimary.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                .clickable(enabled = state != State.BOOSTING) { onPinClick() }
+                .alpha(if (state == State.BOOSTING) 0.4f else 1f)
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        "PIN APPS",
+                        color = if (state == State.BOOSTING) TextMuted else AccentPrimary,
+                        fontSize = 14.sp,
+                        fontFamily = SpaceGrotesk,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        "Protect apps from being frozen",
+                        color = TextBody,
+                        fontSize = 11.sp,
+                        fontFamily = Inter
+                    )
+                }
+                Text("→", color = AccentPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -1354,13 +1404,11 @@ fun SystemDiagnosticsCard(
 ) {
     var hasRoot by remember { mutableStateOf<Boolean?>(null) }
     var hasShizuku by remember { mutableStateOf<Boolean?>(null) }
-    var hasAccessibility by remember { mutableStateOf<Boolean?>(null) }
 
     LaunchedEffect(Unit) {
         while (true) {
             hasRoot = RootFreezeBackend().isReady()
             hasShizuku = ShizukuFreezeBackend().isReady()
-            hasAccessibility = AccessibilityFreezeBackend().isReady()
             delay(3000)
         }
     }
@@ -1395,12 +1443,6 @@ fun SystemDiagnosticsCard(
                 label = "Shizuku Service Connection",
                 status = hasShizuku,
                 description = "Checks if Shizuku binder is running & authorized"
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            DiagnosticRow(
-                label = "Manual Torture (Accessibility)",
-                status = hasAccessibility,
-                description = "Checks if force-stop automation is enabled"
             )
         }
     }

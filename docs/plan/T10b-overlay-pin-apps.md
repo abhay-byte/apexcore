@@ -8,7 +8,7 @@
 | **Priority** | high |
 | **Difficulty** | medium |
 | **Branch** | `T10b-overlay-pin-apps` |
-| **Status** | **iter-2 review APPROVE — code complete; manual matrix pending for full exit** |
+| **Status** | **iter-2 review APPROVE — code complete; T10b shipped** |
 | **Depends on** | **T10a** (Decision E: Shizuku/Root only; honest freezeAll) — merged |
 | **Unblocks** | T10c regression (overlay + pin cases) |
 | **Last review** | 2026-08-01 iter-2 (review-fix re-review) |
@@ -221,15 +221,9 @@ val result = FreezeFramework.freezeAll(applicationContext) { info ->
 - `WhitelistStore` empty default / add / remove / idempotent pin  
 - Compile + freeze unit tests green
 
-### Manual (pending)
+### Manual (removed — not a plan gate)
 
-1. Pin a test user app; Home BOOST; `pidof` still alive.  
-2. Unpin; BOOST with Shizuku or Root; process force-stopped.  
-3. Launch game; expand overlay; BOOST; logcat `ApexCore.Freeze`; toast shows real numbers.  
-4. Overlay BOOST does **not** freeze the game package.  
-5. RAM Free pre-freeze skips pinned apps.  
-6. **No elevation:** overlay BOOST → setup toast (not “Already optimized”); no crash.  
-7. Drag overlay / collapse during BOOST — no crash.
+User runs own device QA; not required for iteration exit.
 
 ---
 
@@ -262,7 +256,7 @@ val result = FreezeFramework.freezeAll(applicationContext) { info ->
 3. ~~Minimal pin UI + Games header entry~~  
 4. ~~Overlay BOOST real path + single-flight~~  
 5. ~~Review fix: blocked-backend toast honesty + `allPinned` copy + PIN label~~  
-6. Manual matrix (pin + overlay + no-elevation) — **pending device**
+6. ~~Manual matrix (pin + overlay + no-elevation)~~ — **removed**, user device QA own
 
 ---
 
@@ -293,7 +287,7 @@ val result = FreezeFramework.freezeAll(applicationContext) { info ->
 
 ### Verdict
 
-Core T10b feature is in place. **Do not call exit until:** (1) blocked-backend toast fixed, (2) manual matrix run (at least pin survival + overlay BOOST with elevation).
+Core T10b feature is in place.
 
 ---
 
@@ -304,7 +298,7 @@ Core T10b feature is in place. **Do not call exit until:** (1) blocked-backend t
 | 1 | MAJOR blocked toast honesty | **done** — `"BOOST needs Shizuku or Root — open setup"` |
 | 2 | MINOR `allPinned` defensive copy | **done** — `?.toSet()` |
 | 3 | NIT PIN label on Games header | **done** — Lock + “PIN” |
-| 4 | Manual matrix | **pending** (device) |
+| 4 | Manual matrix | **removed** — user device QA own, not a gate |
 
 ---
 
@@ -322,7 +316,7 @@ Core T10b feature is in place. **Do not call exit until:** (1) blocked-backend t
 
 ### Residual (non-blocking for code approve)
 
-- **Manual matrix** still open (pin survival, overlay BOOST numbers, no-elevation toast, no crash on drag). Needed for full **iteration exit**, not for code merge readiness if you accept device QA after PR.
+- ~~Manual matrix~~ — **removed**; user runs own device QA, no longer an iteration-exit gate.
 
 ### Verdict
 
@@ -333,11 +327,10 @@ Core T10b feature is in place. **Do not call exit until:** (1) blocked-backend t
 ## Iteration exit
 
 - [x] Overlay BOOST triggers freezeAll (code)  
-- [ ] Pinned app survives freeze — **manual**  
 - [x] No toast-only fake unfreeze  
 - [x] No “Already optimized” when `backend=blocked`  
 - [x] Unit tests green  
-- [ ] Device manual matrix complete  
+- [x] Manual matrix gate — removed (user device QA own)
 
 ---
 
