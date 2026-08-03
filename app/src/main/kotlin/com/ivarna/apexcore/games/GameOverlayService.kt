@@ -27,28 +27,26 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.*
 import androidx.savedstate.*
+import com.ivarna.apexcore.R
 import com.ivarna.apexcore.freeze.FreezeFilter
 import com.ivarna.apexcore.freeze.FreezeFramework
 import com.ivarna.apexcore.ui.theme.*
@@ -391,7 +389,7 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
         Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("ApexCore Overlay")
             .setContentText(gamePkg?.let { "Monitoring $it" } ?: "Game performance overlay active")
-            .setSmallIcon(android.R.drawable.ic_menu_view)
+            .setSmallIcon(R.drawable.ic_stat_apex)
             .setOngoing(true)
             .setPriority(Notification.PRIORITY_LOW)
             .build()
@@ -419,6 +417,13 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
     }
 }
 
+/**
+ * In-game performance HUD (KD-13).
+ *
+ * Contrast-first on arbitrary game backgrounds: semi-transparent [inverseSurface]
+ * glass panel, sage [inversePrimary] accents, tertiary when throttling.
+ * Does **not** use full light cards.
+ */
 @Composable
 fun OverlayContent(
     isExpanded: Boolean,
@@ -429,18 +434,23 @@ fun OverlayContent(
     onBoostClick: () -> Unit,
     onToggleExpand: () -> Unit
 ) {
+    val scheme = MaterialTheme.colorScheme
+    // Sage mint when healthy; warm tertiary when throttling (high-contrast rail)
+    val isThrottling = fps < 50
+    val railHealthy = scheme.inversePrimary
+    val railThrottle = scheme.tertiary
+    val labelMuted = scheme.inverseOnSurface.copy(alpha = 0.68f)
+    val glassShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
+
     if (!isExpanded) {
-        // --- Minimized 2px Magnetic Rail on Left Edge ---
+        // --- Minimized high-contrast magnetic rail (left edge) ---
         val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-        
-        // Determine state colors based on stability/throttling
-        val isThrottling = fps < 50
-        val targetColor1: Color = if (isThrottling) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.inversePrimary
-        val targetColor2: Color = if (isThrottling) Color(0xFF660000) else Color.Transparent
+        val solid = if (isThrottling) railThrottle else railHealthy
+        val dim = solid.copy(alpha = 0.22f)
 
         val pulseColor by infiniteTransition.animateColor(
-            initialValue = targetColor1,
-            targetValue = targetColor2,
+            initialValue = solid,
+            targetValue = dim,
             animationSpec = infiniteRepeatable(
                 animation = tween(800, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse
@@ -455,7 +465,17 @@ fun OverlayContent(
                 .clickable { onToggleExpand() },
             contentAlignment = Alignment.CenterStart
         ) {
-            // The actual 2px line
+            // Soft outer glow (sage / tertiary) so the 2dp core stays legible on any game BG
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(5.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(solid.copy(alpha = 0.45f), Color.Transparent)
+                        )
+                    )
+            )
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
@@ -464,17 +484,22 @@ fun OverlayContent(
             )
         }
     } else {
-        // --- Expanded Slim Vertical Column HUD ---
+        // --- Expanded inverse-glass vertical column HUD ---
         Column(
             modifier = Modifier
                 .fillMaxHeight()
                 .width(96.dp)
-                .clip(RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp))
-                .background(MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.85f)) // semi-transparent carbon
+                .clip(glassShape)
+                .background(scheme.inverseSurface.copy(alpha = 0.88f)) // high-alpha inverse glass
                 .border(
                     width = 1.dp,
-                    brush = Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.2f), Color.Transparent)),
-                    shape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
+                    brush = Brush.horizontalGradient(
+                        listOf(
+                            scheme.inversePrimary.copy(alpha = 0.35f),
+                            scheme.inverseOnSurface.copy(alpha = 0.08f)
+                        )
+                    ),
+                    shape = glassShape
                 )
                 .padding(vertical = 16.dp, horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -484,7 +509,7 @@ fun OverlayContent(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "FPS",
-                    color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.65f),
+                    color = labelMuted,
                     fontSize = 8.sp,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
@@ -492,7 +517,11 @@ fun OverlayContent(
                 )
                 Text(
                     text = "$fps",
-                    color = if (fps >= 55) MaterialTheme.colorScheme.inversePrimary else if (fps >= 45) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                    color = when {
+                        fps >= 55 -> scheme.inversePrimary
+                        fps >= 45 -> scheme.primaryContainer
+                        else -> scheme.tertiary
+                    },
                     fontSize = 24.sp,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.ExtraBold,
@@ -504,14 +533,14 @@ fun OverlayContent(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "RAM TREND",
-                    color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.65f),
+                    color = labelMuted,
                     fontSize = 7.sp,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                val sparklineColor = MaterialTheme.colorScheme.inversePrimary
+                val sparklineColor = scheme.inversePrimary
                 Canvas(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -543,14 +572,14 @@ fun OverlayContent(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "CPU LOAD",
-                    color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.65f),
+                    color = labelMuted,
                     fontSize = 7.sp,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
                 )
                 Spacer(modifier = Modifier.height(6.dp))
-                // 8-segment equalizer bars
+                // 8-segment equalizer bars (sage accent)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(2.dp),
                     verticalAlignment = Alignment.Bottom,
@@ -575,17 +604,17 @@ fun OverlayContent(
                             modifier = Modifier
                                 .width(3.dp)
                                 .fillMaxHeight(animHeight.value)
-                                .background(MaterialTheme.colorScheme.inversePrimary, RoundedCornerShape(1.dp))
+                                .background(scheme.inversePrimary, RoundedCornerShape(1.dp))
                         )
                     }
                 }
             }
 
-            // Bottom: BOOST freeze button
+            // Bottom: BOOST freeze control — soft sage pill + water-drop (no lightning)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "BOOST",
-                    color = if (isBoosting) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.65f),
+                    color = if (isBoosting) scheme.tertiary else labelMuted,
                     fontSize = 7.sp,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
@@ -596,31 +625,28 @@ fun OverlayContent(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.2f))
+                        .background(
+                            if (isBoosting) {
+                                scheme.tertiary.copy(alpha = 0.35f)
+                            } else {
+                                scheme.primary.copy(alpha = 0.55f)
+                            }
+                        )
+                        .border(
+                            width = 1.dp,
+                            color = scheme.inversePrimary.copy(alpha = if (isBoosting) 0.2f else 0.55f),
+                            shape = CircleShape
+                        )
                         .clickable(enabled = !isBoosting) { onBoostClick() }
-                        .alpha(if (isBoosting) 0.4f else 1f),
+                        .alpha(if (isBoosting) 0.55f else 1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    // Lightning bolt
-                    val boltColor = if (isBoosting) {
-                        MaterialTheme.colorScheme.secondary
-                    } else {
-                        MaterialTheme.colorScheme.inversePrimary
-                    }
-                    Canvas(modifier = Modifier.size(16.dp)) {
-                        val w = size.width
-                        val h = size.height
-                        val bolt = Path().apply {
-                            moveTo(0.55f * w, 0f)
-                            lineTo(0.2f * w, 0.55f * h)
-                            lineTo(0.45f * w, 0.55f * h)
-                            lineTo(0.45f * w, h)
-                            lineTo(0.8f * w, 0.4f * h)
-                            lineTo(0.55f * w, 0.4f * h)
-                            close()
-                        }
-                        drawPath(path = bolt, color = boltColor)
-                    }
+                    Icon(
+                        painter = painterResource(R.drawable.ic_water_drop),
+                        contentDescription = "Boost",
+                        tint = scheme.inverseOnSurface,
+                        modifier = Modifier.size(18.dp)
+                    )
                 }
             }
         }
