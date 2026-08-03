@@ -12,4 +12,8 @@ object ZenDimens {
     val roundedMd = 12.dp
     val roundedLg = 16.dp
     val roundedXl = 24.dp
+    /** Space reserved under scroll content for the floating bottom-nav island. */
+    val bottomNavClearance = 88.dp
+    /** Space reserved above scroll content for the floating frosted top bar. */
+    val topBarClearance = 60.dp
 }

@@ -131,6 +131,9 @@ fun GamesScreen(
                 .fillMaxSize()
                 .padding(horizontal = 24.dp)
         ) {
+            // Clearance: status bar + floating frosted top bar
+            Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+            Spacer(modifier = Modifier.height(ZenDimens.topBarClearance))
             Spacer(modifier = Modifier.height(16.dp))
 
             // Soft search + action row
@@ -174,7 +177,7 @@ fun GamesScreen(
                         }
                     }
 
-                    // Pin apps (never freeze) button
+                    // Pin apps (never freeze) — icon-only, matches Add
                     Spacer(modifier = Modifier.width(12.dp))
                     Box(
                         modifier = Modifier
@@ -187,22 +190,12 @@ fun GamesScreen(
                             .clickable { showPinPicker = true },
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = ZenIcons.PushPin,
-                                contentDescription = "Pin apps",
-                                tint = scheme.primary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = "PIN",
-                                color = scheme.primary,
-                                fontSize = 7.sp,
-                                fontFamily = PlusJakartaSans,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            )
-                        }
+                        Icon(
+                            imageVector = ZenIcons.PushPin,
+                            contentDescription = "Pin apps",
+                            tint = scheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
                     }
                 }
 
@@ -235,7 +228,7 @@ fun GamesScreen(
                     ) {
                         Text(
                             text = "GAMES",
-                            color = if (!showAllApps) scheme.primary else scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                            color = if (!showAllApps) scheme.primary else scheme.onSurfaceVariant,
                             fontSize = 11.sp,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold
@@ -245,10 +238,10 @@ fun GamesScreen(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(50))
-                            .background(if (showAllApps) scheme.primary.copy(alpha = 0.15f) else Color.Transparent)
+                            .background(if (showAllApps) scheme.primary.copy(alpha = 0.18f) else Color.Transparent)
                             .border(
                                 width = if (showAllApps) 1.dp else 0.dp,
-                                color = if (showAllApps) scheme.primary.copy(alpha = 0.3f) else Color.Transparent,
+                                color = if (showAllApps) scheme.primary.copy(alpha = 0.35f) else Color.Transparent,
                                 shape = RoundedCornerShape(50)
                             )
                             .clickable { showAllApps = true }
@@ -257,7 +250,7 @@ fun GamesScreen(
                     ) {
                         Text(
                             text = "ALL APPS",
-                            color = if (showAllApps) scheme.primary else scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                            color = if (showAllApps) scheme.primary else scheme.onSurfaceVariant,
                             fontSize = 11.sp,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold
@@ -285,7 +278,7 @@ fun GamesScreen(
                     ) {
                         Text(
                             text = "NO ITEMS FOUND",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontFamily = PlusJakartaSans,
                             fontSize = 12.sp,
                             letterSpacing = 1.sp
@@ -462,7 +455,7 @@ fun GamesScreen(
                                 // Package Name
                                 Text(
                                     text = game.pkg,
-                                    color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                                    color = scheme.onSurfaceVariant,
                                     fontSize = 11.sp,
                                     fontFamily = PlusJakartaSans,
                                     textAlign = TextAlign.Center,
@@ -482,7 +475,7 @@ fun GamesScreen(
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(
                                         text = "RESOURCE DEMAND",
-                                        color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                                        color = scheme.onSurfaceVariant,
                                         fontSize = 8.sp,
                                         fontFamily = PlusJakartaSans,
                                         fontWeight = FontWeight.Bold
@@ -517,20 +510,17 @@ fun GamesScreen(
             val pebbleShape = RoundedCornerShape(32.dp)
             val scheme = MaterialTheme.colorScheme
             val buttonBgModifier = if (activeApp == null) {
-                Modifier.background(scheme.outlineVariant)
+                Modifier.background(scheme.surfaceContainerHighest)
             } else {
-                Modifier.background(
-                    Brush.verticalGradient(
-                        listOf(scheme.primary, scheme.primaryContainer)
-                    )
-                )
+                // Solid primary — onPrimary text stays high-contrast in light + dark
+                Modifier.background(scheme.primary)
             }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 24.dp)
+                    .padding(bottom = ZenDimens.bottomNavClearance)
                     .then(
-                        if (activeApp != null) Modifier.zenBloom(pebbleShape) else Modifier
+                        if (activeApp != null) Modifier.zenBloom(pebbleShape, color = scheme.primary) else Modifier
                     )
                     .clip(pebbleShape)
                     .then(buttonBgModifier)
@@ -546,7 +536,7 @@ fun GamesScreen(
                 Text(
                     text = "ALLOCATE & LAUNCH",
                     color = if (activeApp == null) {
-                        scheme.onSurfaceVariant.copy(alpha = 0.72f)
+                        scheme.onSurfaceVariant
                     } else {
                         scheme.onPrimary
                     },

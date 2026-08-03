@@ -65,7 +65,7 @@ fun ZenTextField(
                 Icon(
                     imageVector = leadingIcon,
                     contentDescription = null,
-                    tint = if (focused) scheme.primary else scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    tint = if (focused) scheme.primary else scheme.onSurfaceVariant,
                     modifier = Modifier
                         .padding(end = 8.dp)
                         .size(20.dp)
@@ -76,7 +76,7 @@ fun ZenTextField(
                     Text(
                         text = placeholder,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = scheme.onSurfaceVariant.copy(alpha = 0.55f)
+                        color = scheme.onSurfaceVariant.copy(alpha = 0.75f)
                     )
                 }
                 BasicTextField(

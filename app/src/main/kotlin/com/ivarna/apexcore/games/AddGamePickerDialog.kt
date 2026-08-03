@@ -99,7 +99,7 @@ fun AddGamePickerDialog(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Select apps to register in library",
-                    color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    color = scheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     fontFamily = PlusJakartaSans
                 )
@@ -126,7 +126,7 @@ fun AddGamePickerDialog(
                     } else if (filteredApps.isEmpty()) {
                         Text(
                             text = "NO APPS FOUND",
-                            color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                            color = scheme.onSurfaceVariant,
                             fontFamily = PlusJakartaSans,
                             fontSize = 12.sp,
                             letterSpacing = 1.sp
@@ -191,7 +191,7 @@ fun AddGamePickerDialog(
                                         )
                                         Text(
                                             text = app.pkg,
-                                            color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                                            color = scheme.onSurfaceVariant,
                                             fontSize = 10.sp,
                                             fontFamily = PlusJakartaSans,
                                             maxLines = 1
@@ -204,7 +204,7 @@ fun AddGamePickerDialog(
                                         onCheckedChange = { selectedPackages[app.pkg] = it },
                                         colors = CheckboxDefaults.colors(
                                             checkedColor = scheme.primary,
-                                            uncheckedColor = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                                            uncheckedColor = scheme.onSurfaceVariant,
                                             checkmarkColor = scheme.onPrimary
                                         )
                                     )
@@ -264,7 +264,7 @@ fun AddGamePickerDialog(
                     ) {
                         Text(
                             text = "ADD${if (selectedCount > 0) " $selectedCount" else ""}",
-                            color = if (isAddEnabled) scheme.onPrimary else scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                            color = if (isAddEnabled) scheme.onPrimary else scheme.onSurfaceVariant,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = PlusJakartaSans

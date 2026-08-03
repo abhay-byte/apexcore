@@ -24,6 +24,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,11 +48,21 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.*
 import androidx.savedstate.*
 import com.ivarna.apexcore.R
+import com.ivarna.apexcore.fps.FpsStack
+import com.ivarna.apexcore.fps.model.FpsMethod
 import com.ivarna.apexcore.freeze.FreezeFilter
 import com.ivarna.apexcore.freeze.FreezeFramework
+import com.ivarna.apexcore.ui.components.zenGlassBackground
 import com.ivarna.apexcore.ui.theme.*
 import kotlinx.coroutines.*
 
+/**
+ * Game HUD overlay.
+ *
+ * FPS uses the factualstats multi-tier stack:
+ * DMA daemon (Adreno cmdbatch-hybrid / Mali dma_fence) → SurfaceFlinger → gfxinfo,
+ * with Choreographer only as last-resort for the own-app test overlay.
+ */
 class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
 
     private lateinit var wm: WindowManager
@@ -60,12 +71,17 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
     private var gamePkg: String? = null
     private var scope = CoroutineScope(Dispatchers.Main + Job())
     private var statsJob: Job? = null
+    private var fpsJob: Job? = null
     private var exitWatcher: Job? = null
     private var autoCollapseJob: Job? = null
 
-    // FPS tracking
+    // Choreographer fallback (own-app test only when real stack returns 0)
     private var frameCount = 0
     private var lastFpsTime = 0L
+    private var choreographerFps = 0
+    private var useChoreographerFallback = false
+
+    private val fpsStack by lazy { FpsStack.get(applicationContext) }
 
     // Lifecycle/Compose Boilerplate for Service
     private val lifecycleRegistry = LifecycleRegistry(this)
@@ -78,7 +94,7 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
 
     // Dynamic UI states
     private val isExpandedState = mutableStateOf(false)
-    private val fpsState = mutableStateOf(60)
+    private val fpsState = mutableStateOf(0)
     private val ramHistory = mutableStateListOf<Float>()
     private val cpuLoadState = mutableStateOf(0.15f)
     private val isBoosting = mutableStateOf(false)
@@ -105,8 +121,11 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
             wm.addView(overlayView, createLayoutParams())
         }
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
-        
-        startFpsCounter()
+
+        fpsStack.repository.setTargetPackage(gamePkg)
+        fpsStack.repository.ensureDaemonStarted()
+        startChoreographerFallback()
+        startFpsPolling()
         startStatsUpdates()
         startExitWatcher()
         return START_REDELIVER_INTENT
@@ -115,9 +134,14 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
     override fun onDestroy() {
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         statsJob?.cancel()
+        fpsJob?.cancel()
         exitWatcher?.cancel()
         autoCollapseJob?.cancel()
         Choreographer.getInstance().removeFrameCallback(this)
+        try {
+            fpsStack.repository.stopDaemon()
+        } catch (_: Throwable) {
+        }
         try {
             if (overlayView.parent != null) wm.removeView(overlayView)
         } catch (_: Throwable) {}
@@ -130,25 +154,60 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
     override fun doFrame(frameTimeNanos: Long) {
         val now = SystemClock.elapsedRealtime()
         frameCount++
-        if (now - lastFpsTime >= 500) { // Update FPS every 500ms per specs
-            fpsState.value = frameCount * 2
+        if (now - lastFpsTime >= 500) {
+            choreographerFps = frameCount * 2
             frameCount = 0
             lastFpsTime = now
+            if (useChoreographerFallback) {
+                fpsState.value = choreographerFps
+            }
         }
         Choreographer.getInstance().postFrameCallback(this)
     }
 
-    private fun startFpsCounter() {
+    private fun startChoreographerFallback() {
         lastFpsTime = SystemClock.elapsedRealtime()
         frameCount = 0
         Choreographer.getInstance().postFrameCallback(this)
+    }
+
+    /**
+     * Poll factualstats cascade every 1s (DMA daemon samples on 1s windows).
+     */
+    private fun startFpsPolling() {
+        fpsJob?.cancel()
+        fpsJob = scope.launch {
+            while (isActive) {
+                try {
+                    val snapshot = withContext(Dispatchers.IO) {
+                        fpsStack.repository.getFps()
+                    }
+                    if (snapshot.currentFps > 0f && snapshot.method != FpsMethod.NONE) {
+                        useChoreographerFallback = false
+                        fpsState.value = snapshot.currentFps.toInt().coerceIn(1, 240)
+                    } else {
+                        // No real reading — allow Choreographer only for self-test HUD
+                        useChoreographerFallback =
+                            gamePkg == null || gamePkg == packageName
+                        if (useChoreographerFallback && choreographerFps > 0) {
+                            fpsState.value = choreographerFps
+                        }
+                    }
+                } catch (t: Throwable) {
+                    android.util.Log.w(TAG, "FPS poll failed: ${t.message}")
+                    useChoreographerFallback =
+                        gamePkg == null || gamePkg == packageName
+                }
+                delay(1000L)
+            }
+        }
     }
 
     private fun startStatsUpdates() {
         statsJob = scope.launch {
             // Seed history
             for (i in 0 until 60) ramHistory.add(0.4f + (0f..0.1f).random())
-            
+
             while (isActive) {
                 updateStats()
                 delay(1000L)
@@ -162,7 +221,7 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
         val avail = mem.second
         val used = (total - avail).coerceAtLeast(0)
         val fraction = if (total > 0) used.toFloat() / total else 0.45f
-        
+
         if (ramHistory.size >= 60) {
             ramHistory.removeAt(0)
         }
@@ -228,8 +287,13 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
     private fun shutdown() {
         Choreographer.getInstance().removeFrameCallback(this)
         statsJob?.cancel()
+        fpsJob?.cancel()
         exitWatcher?.cancel()
         autoCollapseJob?.cancel()
+        try {
+            fpsStack.repository.stopDaemon()
+        } catch (_: Throwable) {
+        }
         stopForeground(STOP_FOREGROUND_REMOVE)
         try {
             if (overlayView.parent != null) wm.removeView(overlayView)
@@ -238,8 +302,8 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
     }
 
     private fun createLayoutParams(): WindowManager.LayoutParams {
-        val w = if (isExpandedState.value) dpf(100f).toInt() else dpf(16f).toInt() // 2px rail with 16dp touch target
-        val h = if (isExpandedState.value) dpf(320f).toInt() else dpf(140f).toInt()
+        val w = if (isExpandedState.value) dpf(104f).toInt() else dpf(16f).toInt() // Zen glass column
+        val h = if (isExpandedState.value) dpf(340f).toInt() else dpf(140f).toInt()
         val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         } else {
@@ -274,7 +338,11 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
             setViewTreeViewModelStoreOwner(this@GameOverlayService)
             setViewTreeSavedStateRegistryOwner(this@GameOverlayService)
             setContent {
-                ApexCoreTheme {
+                // Match Settings theme preference (System / Light / Dark)
+                val systemDark = isSystemInDarkTheme()
+                val darkTheme = ThemePreferences.get(this@GameOverlayService)
+                    .resolveDark(systemDark)
+                ApexCoreTheme(darkTheme = darkTheme) {
                     OverlayContent(
                         isExpanded = isExpandedState.value,
                         fps = fpsState.value,
@@ -320,12 +388,12 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
         isExpandedState.value = !isExpandedState.value
         val lp = params ?: return
         if (isExpandedState.value) {
-            lp.width = dpf(100f).toInt() // slim vertical column
-            lp.height = dpf(320f).toInt()
+            lp.width = dpf(104f).toInt() // Zen glass column
+            lp.height = dpf(340f).toInt()
             wm.updateViewLayout(overlayView, lp)
             startAutoCollapseTimer()
         } else {
-            lp.width = dpf(16f).toInt() // 2px rail (16dp touch target)
+            lp.width = dpf(16f).toInt() // slim rail touch target
             lp.height = dpf(140f).toInt()
             wm.updateViewLayout(overlayView, lp)
             autoCollapseJob?.cancel()
@@ -395,6 +463,7 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
             .build()
 
     companion object {
+        private const val TAG = "GameOverlayService"
         private const val CHANNEL_ID = "apexcore_overlay"
         private const val NOTIF_ID = 1001
         const val EXTRA_PKG = "game_pkg"
@@ -418,11 +487,11 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
 }
 
 /**
- * In-game performance HUD (KD-13).
+ * In-game performance HUD — Zen Organic glass.
  *
- * Contrast-first on arbitrary game backgrounds: semi-transparent [inverseSurface]
- * glass panel, sage [inversePrimary] accents, tertiary when throttling.
- * Does **not** use full light cards.
+ * Same material language as [GlassCard]: theme [surfaceContainerLowest] shell,
+ * primary accents, onSurface labels. Follows Settings theme (System/Light/Dark).
+ * Left-edge dock: flat start, rounded end (island pebble).
  */
 @Composable
 fun OverlayContent(
@@ -435,18 +504,25 @@ fun OverlayContent(
     onToggleExpand: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
-    // Sage mint when healthy; warm tertiary when throttling (high-contrast rail)
     val isThrottling = fps < 50
-    val railHealthy = scheme.inversePrimary
-    val railThrottle = scheme.tertiary
-    val labelMuted = scheme.inverseOnSurface.copy(alpha = 0.68f)
-    val glassShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
+    val accent = if (isThrottling) scheme.tertiary else scheme.primary
+    val labelMuted = scheme.onSurfaceVariant.copy(alpha = 0.78f)
+    // Edge-docked island: flat against left, soft Zen radius on free edge
+    val glassShape = RoundedCornerShape(
+        topStart = 4.dp,
+        bottomStart = 4.dp,
+        topEnd = ZenDimens.roundedXl,
+        bottomEnd = ZenDimens.roundedXl
+    )
+    // Same glass recipe as GlassCard — near-opaque for legibility over any game BG
+    val glassFill = scheme.surfaceContainerLowest.copy(alpha = 0.94f)
+    val glassBorder = scheme.outlineVariant.copy(alpha = 0.72f)
 
     if (!isExpanded) {
-        // --- Minimized high-contrast magnetic rail (left edge) ---
+        // --- Minimized magnetic rail (theme primary / tertiary) ---
         val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-        val solid = if (isThrottling) railThrottle else railHealthy
-        val dim = solid.copy(alpha = 0.22f)
+        val solid = accent
+        val dim = solid.copy(alpha = 0.28f)
 
         val pulseColor by infiniteTransition.animateColor(
             initialValue = solid,
@@ -461,129 +537,130 @@ fun OverlayContent(
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .width(16.dp) // Touch target
+                .width(16.dp)
                 .clickable { onToggleExpand() },
             contentAlignment = Alignment.CenterStart
         ) {
-            // Soft outer glow (sage / tertiary) so the 2dp core stays legible on any game BG
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(5.dp)
+                    .width(6.dp)
                     .background(
                         Brush.horizontalGradient(
-                            listOf(solid.copy(alpha = 0.45f), Color.Transparent)
+                            listOf(solid.copy(alpha = 0.50f), Color.Transparent)
                         )
                     )
             )
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(2.dp)
+                    .width(3.dp)
+                    .clip(RoundedCornerShape(topEnd = 2.dp, bottomEnd = 2.dp))
                     .background(pulseColor)
             )
         }
     } else {
-        // --- Expanded inverse-glass vertical column HUD ---
+        // --- Expanded Zen glass vertical column ---
+        // No elevation shadow — TYPE_APPLICATION_OVERLAY clips outside window bounds
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .width(96.dp)
-                .clip(glassShape)
-                .background(scheme.inverseSurface.copy(alpha = 0.88f)) // high-alpha inverse glass
-                .border(
-                    width = 1.dp,
-                    brush = Brush.horizontalGradient(
-                        listOf(
-                            scheme.inversePrimary.copy(alpha = 0.35f),
-                            scheme.inverseOnSurface.copy(alpha = 0.08f)
-                        )
-                    ),
-                    shape = glassShape
+                .width(100.dp)
+                .zenGlassBackground(
+                    shape = glassShape,
+                    fill = glassFill,
+                    borderColor = glassBorder
                 )
-                .padding(vertical = 16.dp, horizontal = 8.dp),
+                .padding(vertical = 18.dp, horizontal = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Top: FPS Monitor
+            // FPS
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "FPS",
                     color = labelMuted,
-                    fontSize = 8.sp,
+                    fontSize = 9.sp,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
+                    letterSpacing = 1.2.sp
                 )
                 Text(
                     text = "$fps",
                     color = when {
-                        fps >= 55 -> scheme.inversePrimary
-                        fps >= 45 -> scheme.primaryContainer
+                        fps >= 55 -> scheme.primary
+                        fps >= 45 -> scheme.secondary
                         else -> scheme.tertiary
                     },
-                    fontSize = 24.sp,
+                    fontSize = 28.sp,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.ExtraBold,
                     modifier = Modifier.padding(top = 2.dp)
                 )
             }
 
-            // Center-Top: RAM Sparkline
+            // RAM sparkline
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "RAM TREND",
                     color = labelMuted,
-                    fontSize = 7.sp,
+                    fontSize = 8.sp,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
+                    letterSpacing = 0.6.sp
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                val sparklineColor = scheme.inversePrimary
+                Spacer(modifier = Modifier.height(6.dp))
+                val sparklineColor = scheme.primary
+                val sparkFill = scheme.primary.copy(alpha = 0.12f)
                 Canvas(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(35.dp)
-                        .padding(horizontal = 4.dp)
+                        .height(36.dp)
+                        .padding(horizontal = 2.dp)
                 ) {
                     if (ramHistory.size >= 2) {
                         val path = Path()
+                        val fillPath = Path()
                         val pointsCount = ramHistory.size
                         ramHistory.forEachIndexed { index, valFrac ->
                             val x = index * (size.width / (pointsCount - 1))
                             val y = size.height - (valFrac.coerceIn(0f, 1f) * size.height)
                             if (index == 0) {
                                 path.moveTo(x, y)
+                                fillPath.moveTo(x, size.height)
+                                fillPath.lineTo(x, y)
                             } else {
                                 path.lineTo(x, y)
+                                fillPath.lineTo(x, y)
                             }
                         }
+                        fillPath.lineTo(size.width, size.height)
+                        fillPath.close()
+                        drawPath(path = fillPath, color = sparkFill)
                         drawPath(
                             path = path,
                             color = sparklineColor,
-                            style = Stroke(width = 1.5.dp.toPx())
+                            style = Stroke(width = 2.dp.toPx())
                         )
                     }
                 }
             }
 
-            // Center-Bottom: CPU Equalizer
+            // CPU equalizer
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "CPU LOAD",
                     color = labelMuted,
-                    fontSize = 7.sp,
+                    fontSize = 8.sp,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
+                    letterSpacing = 0.6.sp
                 )
-                Spacer(modifier = Modifier.height(6.dp))
-                // 8-segment equalizer bars (sage accent)
+                Spacer(modifier = Modifier.height(8.dp))
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                     verticalAlignment = Alignment.Bottom,
-                    modifier = Modifier.height(28.dp)
+                    modifier = Modifier.height(30.dp)
                 ) {
                     repeat(8) { barIdx ->
                         val animHeight = remember { Animatable(0.1f) }
@@ -594,58 +671,66 @@ fun OverlayContent(
                                 2, 5 -> 0.8f
                                 else -> 1.0f
                             }
-                            val targetHeight = (cpuLoad * factor * (0.6f..1.2f).random()).coerceIn(0.1f, 1f)
+                            val targetHeight =
+                                (cpuLoad * factor * (0.6f..1.2f).random()).coerceIn(0.12f, 1f)
                             animHeight.animateTo(
                                 targetValue = targetHeight,
-                                animationSpec = tween((300..600).random(), easing = FastOutSlowInEasing)
+                                animationSpec = tween(
+                                    (300..600).random(),
+                                    easing = FastOutSlowInEasing
+                                )
                             )
                         }
                         Box(
                             modifier = Modifier
-                                .width(3.dp)
+                                .width(4.dp)
                                 .fillMaxHeight(animHeight.value)
-                                .background(scheme.inversePrimary, RoundedCornerShape(1.dp))
+                                .background(scheme.primary, RoundedCornerShape(2.dp))
                         )
                     }
                 }
             }
 
-            // Bottom: BOOST freeze control — soft sage pill + water-drop (no lightning)
+            // BOOST — primary pebble + water-drop (matches home CTAs)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "BOOST",
                     color = if (isBoosting) scheme.tertiary else labelMuted,
-                    fontSize = 7.sp,
+                    fontSize = 8.sp,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Box(
                     modifier = Modifier
-                        .size(36.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                         .background(
                             if (isBoosting) {
-                                scheme.tertiary.copy(alpha = 0.35f)
+                                scheme.tertiaryContainer
                             } else {
-                                scheme.primary.copy(alpha = 0.55f)
+                                scheme.primary
                             }
                         )
                         .border(
                             width = 1.dp,
-                            color = scheme.inversePrimary.copy(alpha = if (isBoosting) 0.2f else 0.55f),
+                            color = if (isBoosting) {
+                                scheme.tertiary.copy(alpha = 0.45f)
+                            } else {
+                                scheme.primary.copy(alpha = 0.35f)
+                            },
                             shape = CircleShape
                         )
                         .clickable(enabled = !isBoosting) { onBoostClick() }
-                        .alpha(if (isBoosting) 0.55f else 1f),
+                        .alpha(if (isBoosting) 0.72f else 1f),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_water_drop),
                         contentDescription = "Boost",
-                        tint = scheme.inverseOnSurface,
-                        modifier = Modifier.size(18.dp)
+                        tint = if (isBoosting) scheme.onTertiaryContainer else scheme.onPrimary,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }

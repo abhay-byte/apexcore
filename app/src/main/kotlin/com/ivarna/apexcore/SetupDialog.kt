@@ -87,7 +87,7 @@ fun SetupDialog(
                 // Header
                 Text(
                     text = "SYSTEM ACCESS CONFIG",
-                    color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    color = scheme.onSurfaceVariant,
                     fontSize = 10.sp,
                     fontFamily = PlusJakartaSans,
                     letterSpacing = 2.sp
@@ -149,7 +149,7 @@ fun SetupDialog(
                 ) {
                     Text(
                         text = "PRIVACY POLICY",
-                        color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                        color = scheme.onSurfaceVariant,
                         fontSize = 10.sp,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Bold,
@@ -267,7 +267,7 @@ fun OptionCard(
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = sub,
-            color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+            color = scheme.onSurfaceVariant,
             fontSize = 11.sp,
             lineHeight = 15.sp
         )

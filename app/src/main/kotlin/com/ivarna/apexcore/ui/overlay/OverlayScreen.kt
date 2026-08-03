@@ -48,6 +48,9 @@ fun OverlayScreen(context: Context = LocalContext.current) {
             .padding(horizontal = ZenDimens.containerPadding)
             .verticalScroll(rememberScrollState())
     ) {
+        // Clearance: status bar + floating frosted top bar
+        Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+        Spacer(modifier = Modifier.height(ZenDimens.topBarClearance))
         Spacer(modifier = Modifier.height(ZenDimens.elementGap))
         Text(
             text = "HUD Overlay",
@@ -58,7 +61,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "Configure floating gameplay monitor",
-            color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+            color = scheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium
         )
 
@@ -210,6 +213,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                 }
             }
         }
-        Spacer(modifier = Modifier.height(ZenDimens.containerPadding))
+        // Clearance for floating bottom-nav island
+        Spacer(modifier = Modifier.height(ZenDimens.bottomNavClearance))
     }
 }

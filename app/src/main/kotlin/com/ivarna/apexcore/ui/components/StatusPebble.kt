@@ -16,13 +16,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.ivarna.apexcore.ui.theme.ZenColors
+import com.ivarna.apexcore.ui.theme.LocalZenSemantics
 
 /**
  * Compact status indicator pebble.
- * - true  → solid statusActive (primary)
+ * - true  → solid statusActive (theme primary)
  * - false → statusInactive
  * - null  → outline pulse (checking)
  */
@@ -32,23 +33,25 @@ fun StatusPebble(
     modifier: Modifier = Modifier,
     size: Dp = 12.dp
 ) {
+    val zen = LocalZenSemantics.current
+    val outline = MaterialTheme.colorScheme.outline
     when (active) {
         true -> Box(
             modifier = modifier
                 .size(size)
                 .clip(CircleShape)
-                .background(ZenColors.statusActive)
+                .background(zen.statusActive)
         )
         false -> Box(
             modifier = modifier
                 .size(size)
                 .clip(CircleShape)
-                .background(ZenColors.statusInactive)
+                .background(zen.statusInactive)
         )
         null -> {
             val infinite = rememberInfiniteTransition(label = "statusPebblePulse")
             val alpha by infinite.animateFloat(
-                initialValue = 0.35f,
+                initialValue = 0.45f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
                     animation = tween(900, easing = FastOutSlowInEasing),
@@ -62,7 +65,7 @@ fun StatusPebble(
                     .clip(CircleShape)
                     .border(
                         width = 1.5.dp,
-                        color = ZenColors.outline.copy(alpha = alpha),
+                        color = outline.copy(alpha = alpha),
                         shape = CircleShape
                     )
                     .background(Color.Transparent)

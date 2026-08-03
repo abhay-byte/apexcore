@@ -73,6 +73,10 @@ dependencies {
     implementation("dev.rikka.shizuku:api:13.1.5")
     implementation("dev.rikka.shizuku:provider:13.1.5")
 
+    // Frosted glass blur — same stack as finalbenchmark-platform (haze 1.0 haze/hazeChild)
+    implementation("dev.chrisbanes.haze:haze:1.0.0")
+    implementation("dev.chrisbanes.haze:haze-materials:1.0.0")
+
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testImplementation("org.mockito:mockito-core:5.14.2")

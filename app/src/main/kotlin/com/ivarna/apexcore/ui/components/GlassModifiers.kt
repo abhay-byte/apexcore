@@ -11,11 +11,25 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ivarna.apexcore.ui.theme.ZenColors
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeChild
 
 /**
- * Normative v1 glass surface. Use for ZenBottomNav island, GlassCard, dialog chrome.
- * Same behavior on minSdk 24 through current target — no API branch required.
- * Solid glass only: fill + border. Do **not** apply RenderEffect blur.
+ * Shared frosted-glass chrome tokens (top bar + bottom nav).
+ * Same tint/blur/noise so both bars read as one material.
+ */
+object ZenFrost {
+    /** Stronger than finalbenchmark 30dp so content under the glass softens clearly. */
+    val blurRadius = 56.dp
+    val noiseFactor = 0.08f
+    /** Frost overlay — high enough for even color, low enough to keep glass. */
+    const val tintAlpha = 0.42f
+
+    fun tint(surface: Color): Color = surface.copy(alpha = tintAlpha)
+}
+
+/**
+ * Normative solid glass surface for cards/dialogs (no backdrop blur).
  */
 fun Modifier.zenGlassBackground(
     shape: Shape = RoundedCornerShape(50),
@@ -28,7 +42,21 @@ fun Modifier.zenGlassBackground(
     .border(borderWidth, borderColor, shape)
 
 /**
+ * True backdrop frost via Haze (same recipe on top bar + bottom nav).
+ * Prefer [MaterialTheme.colorScheme.surface] as [surface] for light/dark match.
+ */
+fun Modifier.zenFrostChild(
+    hazeState: HazeState,
+    surface: Color
+): Modifier = this.hazeChild(state = hazeState) {
+    backgroundColor = ZenFrost.tint(surface)
+    blurRadius = ZenFrost.blurRadius
+    noiseFactor = ZenFrost.noiseFactor
+}
+
+/**
  * Soft primary-tinted bloom shadow for floating island chrome.
+ * Prefer passing theme primary from the call site for dark-mode correctness.
  */
 fun Modifier.zenBloom(
     shape: Shape,
@@ -36,6 +64,6 @@ fun Modifier.zenBloom(
 ): Modifier = this.shadow(
     elevation = 12.dp,
     shape = shape,
-    ambientColor = color.copy(alpha = 0.08f),
-    spotColor = color.copy(alpha = 0.06f)
+    ambientColor = color.copy(alpha = 0.10f),
+    spotColor = color.copy(alpha = 0.08f)
 )

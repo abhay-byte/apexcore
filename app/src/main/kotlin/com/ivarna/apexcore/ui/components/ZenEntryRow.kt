@@ -67,13 +67,13 @@ fun ZenEntryRow(
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodyMedium,
-                color = scheme.onSurfaceVariant.copy(alpha = 0.72f * contentAlpha)
+                color = scheme.onSurfaceVariant.copy(alpha = contentAlpha)
             )
         }
         Icon(
             imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = scheme.onSurfaceVariant.copy(alpha = 0.72f * contentAlpha),
+            tint = scheme.onSurfaceVariant.copy(alpha = contentAlpha),
             modifier = Modifier.size(22.dp)
         )
     }

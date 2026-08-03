@@ -2,24 +2,26 @@ package com.ivarna.apexcore.ui.shell
 
 import android.content.Context
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
 import com.ivarna.apexcore.SetupDialog
 import com.ivarna.apexcore.SetupDialogHelper
+import com.ivarna.apexcore.fps.FpsStack
 import com.ivarna.apexcore.freeze.FreezeFramework
 import com.ivarna.apexcore.freeze.FreezeResult
 import com.ivarna.apexcore.freeze.RootFreezeBackend
@@ -30,12 +32,21 @@ import com.ivarna.apexcore.games.WhitelistPickerDialog
 import com.ivarna.apexcore.ram.RamFreeScreen
 import com.ivarna.apexcore.ui.home.HomeScreen
 import com.ivarna.apexcore.ui.overlay.OverlayScreen
+import com.ivarna.apexcore.ui.settings.SettingsScreen
 import com.ivarna.apexcore.ui.theme.*
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalAnimationApi::class)
 @Composable
-fun MainScreen(gameManager: GameManager) {
+fun MainScreen(
+    gameManager: GameManager,
+    themeMode: ThemeMode = ThemeMode.SYSTEM,
+    onThemeModeChange: (ThemeMode) -> Unit = {},
+    lightTankBg: Boolean = true,
+    onLightTankBgChange: (Boolean) -> Unit = {}
+) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -73,6 +84,8 @@ fun MainScreen(gameManager: GameManager) {
             else -> null
         }
         FreezeFramework.setPreferredBackend(preferredName)
+        // FPS stack follows same mode (Root / Shizuku / Auto)
+        FpsStack.get(context).syncPreferredBackend(prefBackend)
 
         val backend = FreezeFramework.detect()
         detectionDone = true
@@ -94,53 +107,21 @@ fun MainScreen(gameManager: GameManager) {
         }
     }
 
+    // Shared HazeState — content uses .haze(), chrome uses .hazeChild() (finalbenchmark pattern)
+    val hazeState = remember { HazeState() }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Main Layout Container
+        // Content is the blur source — edge-to-edge (incl. under status bar + top chrome)
+        // so frost has real pixels to sample. Screens reserve top/bottom clearance.
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .windowInsetsPadding(WindowInsets.statusBars)
+                .haze(state = hazeState)
         ) {
-            // Unified Top Bar
-            if (showRamFree) {
-                // RamFreeScreen has its own chrome — just add a spacer for status bars
-                Spacer(modifier = Modifier.height(0.dp))
-            } else {
-                ZenTopBar(
-                    backendChip = {
-                        GlobalBackendDropdown(
-                            currentPref = globalBackendPref,
-                            backendName = backendName,
-                            showDropdown = showGlobalDropdown,
-                            onToggleDropdown = { showGlobalDropdown = !showGlobalDropdown },
-                            onSelectPref = { pref ->
-                                globalBackendPref = pref
-                                context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
-                                    .edit().putString("preferred_backend", pref).apply()
-                                showGlobalDropdown = false
-                                val preferredName = when (pref) {
-                                    "shizuku" -> "Shizuku"
-                                    "root" -> "Root"
-                                    else -> null
-                                }
-                                FreezeFramework.setPreferredBackend(preferredName)
-                                coroutineScope.launch {
-                                    try {
-                                        FreezeFramework.detect()
-                                    } catch (_: Throwable) {}
-                                }
-                            },
-                            onOpenSetup = { showSetupDialog = true }
-                        )
-                    }
-                )
-            }
-
-            // Page Content
             if (showRamFree) {
                 RamFreeScreen(
                     onBack = { showRamFree = false },
@@ -150,18 +131,14 @@ fun MainScreen(gameManager: GameManager) {
                 AnimatedContent(
                     targetState = currentTab,
                     transitionSpec = {
-                        if (targetState == Tab.HOME) {
-                            slideInHorizontally { width -> -width } + fadeIn() togetherWith
-                            slideOutHorizontally { width -> width } + fadeOut()
-                        } else if (initialState == Tab.HOME) {
+                        // Nav order: HOME → GAMES → OVERLAY → SETTINGS (left → right)
+                        val goingRight = targetState.ordinal > initialState.ordinal
+                        if (goingRight) {
                             slideInHorizontally { width -> width } + fadeIn() togetherWith
-                            slideOutHorizontally { width -> -width } + fadeOut()
-                        } else if (targetState == Tab.GAMES) {
-                            slideInHorizontally { width -> -width } + fadeIn() togetherWith
-                            slideOutHorizontally { width -> width } + fadeOut()
+                                slideOutHorizontally { width -> -width } + fadeOut()
                         } else {
-                            slideInHorizontally { width -> width } + fadeIn() togetherWith
-                            slideOutHorizontally { width -> -width } + fadeOut()
+                            slideInHorizontally { width -> -width } + fadeIn() togetherWith
+                                slideOutHorizontally { width -> width } + fadeOut()
                         }
                     },
                     modifier = Modifier.weight(1f)
@@ -173,6 +150,7 @@ fun MainScreen(gameManager: GameManager) {
                             lastResult = lastResult,
                             isPurgeAnimActive = isPurgeAnimActive,
                             freedRamText = freedRamText,
+                            lightTankBg = lightTankBg,
                             onPurgeAnimComplete = {
                                 isPurgeAnimActive = false
                                 state = State.RESULT
@@ -209,17 +187,72 @@ fun MainScreen(gameManager: GameManager) {
                         )
                         Tab.GAMES -> GamesScreen(gameManager = gameManager)
                         Tab.OVERLAY -> OverlayScreen()
+                        Tab.SETTINGS -> SettingsScreen(
+                            themeMode = themeMode,
+                            onThemeModeChange = onThemeModeChange,
+                            lightTankBg = lightTankBg,
+                            onLightTankBgChange = onLightTankBgChange,
+                            activeBackendName = backendName,
+                            preferredBackend = globalBackendPref,
+                            onSetupClick = { showSetupDialog = true }
+                        )
                     }
                 }
             }
+        }
 
-            // Floating glass island bottom nav
-            AnimatedVisibility(visible = !showRamFree) {
-                ZenBottomNav(
-                    currentTab = currentTab,
-                    onTabSelected = { currentTab = it }
-                )
-            }
+        // Frosted top bar + status bar — absolute top, full-bleed haze strip
+        AnimatedVisibility(
+            visible = !showRamFree,
+            modifier = Modifier.align(Alignment.TopCenter),
+            enter = fadeIn() + slideInVertically { -it / 2 },
+            exit = fadeOut() + slideOutVertically { -it / 2 }
+        ) {
+            ZenTopBar(
+                hazeState = hazeState,
+                backendChip = {
+                    GlobalBackendDropdown(
+                        currentPref = globalBackendPref,
+                        backendName = backendName,
+                        showDropdown = showGlobalDropdown,
+                        onToggleDropdown = { showGlobalDropdown = !showGlobalDropdown },
+                        onSelectPref = { pref ->
+                            globalBackendPref = pref
+                            context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
+                                .edit().putString("preferred_backend", pref).apply()
+                            showGlobalDropdown = false
+                            val preferredName = when (pref) {
+                                "shizuku" -> "Shizuku"
+                                "root" -> "Root"
+                                else -> null
+                            }
+                            FreezeFramework.setPreferredBackend(preferredName)
+                            // FPS privilege mode tracks top-bar selection
+                            FpsStack.get(context).syncPreferredBackend(pref)
+                            coroutineScope.launch {
+                                try {
+                                    FreezeFramework.detect()
+                                } catch (_: Throwable) {}
+                            }
+                        },
+                        onOpenSetup = { showSetupDialog = true }
+                    )
+                }
+            )
+        }
+
+        // Frosted bottom island — overlays content; screens reserve bottomNavClearance
+        AnimatedVisibility(
+            visible = !showRamFree,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = fadeIn() + slideInVertically { it / 2 },
+            exit = fadeOut() + slideOutVertically { it / 2 }
+        ) {
+            ZenBottomNav(
+                currentTab = currentTab,
+                onTabSelected = { currentTab = it },
+                hazeState = hazeState
+            )
         }
 
         if (showSetupDialog && FreezeFramework.resolver() != null) {
@@ -263,17 +296,22 @@ fun GlobalBackendDropdown(
     // Chip color follows real backend: no elevation = warning; Shizuku/Root = elevated
     val isElevated = backendName == "Shizuku" || backendName == "Root"
 
+    val scheme = MaterialTheme.colorScheme
     Box {
+        // High-contrast chip: primaryContainer fill + onPrimaryContainer text when elevated
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(50))
-                .background(if (isElevated) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f))
+                .background(
+                    if (isElevated) scheme.primaryContainer
+                    else scheme.secondaryContainer
+                )
                 .clickable { onToggleDropdown() }
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Text(
                 text = displayName,
-                color = if (isElevated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                color = if (isElevated) scheme.onPrimaryContainer else scheme.onSecondaryContainer,
                 fontSize = 9.sp,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold
@@ -283,7 +321,15 @@ fun GlobalBackendDropdown(
         DropdownMenu(
             expanded = showDropdown,
             onDismissRequest = { onToggleDropdown() },
-            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerLowest)
+            shape = RoundedCornerShape(16.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.98f),
+            tonalElevation = 0.dp,
+            shadowElevation = 8.dp,
+            border = BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+            ),
+            modifier = Modifier.widthIn(min = 200.dp)
         ) {
             DropdownMenuItem(
                 text = {
@@ -292,7 +338,13 @@ fun GlobalBackendDropdown(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Shizuku", color = if (currentPref == "shizuku") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = if (currentPref == "shizuku") FontWeight.Bold else FontWeight.Normal)
+                        Text(
+                            "Shizuku",
+                            color = if (currentPref == "shizuku") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            fontSize = 13.sp,
+                            fontFamily = PlusJakartaSans,
+                            fontWeight = if (currentPref == "shizuku") FontWeight.Bold else FontWeight.Normal
+                        )
                         Text(
                             when (dropdownReadiness["shizuku"]) {
                                 true -> "Ready"
@@ -302,7 +354,7 @@ fun GlobalBackendDropdown(
                             color = when (dropdownReadiness["shizuku"]) {
                                 true -> MaterialTheme.colorScheme.primary
                                 false -> MaterialTheme.colorScheme.secondary
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
                             },
                             fontSize = 10.sp,
                             fontFamily = PlusJakartaSans
@@ -322,7 +374,13 @@ fun GlobalBackendDropdown(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Root", color = if (currentPref == "root") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = if (currentPref == "root") FontWeight.Bold else FontWeight.Normal)
+                        Text(
+                            "Root",
+                            color = if (currentPref == "root") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            fontSize = 13.sp,
+                            fontFamily = PlusJakartaSans,
+                            fontWeight = if (currentPref == "root") FontWeight.Bold else FontWeight.Normal
+                        )
                         Text(
                             when (dropdownReadiness["root"]) {
                                 true -> "Ready"
@@ -332,7 +390,7 @@ fun GlobalBackendDropdown(
                             color = when (dropdownReadiness["root"]) {
                                 true -> MaterialTheme.colorScheme.primary
                                 false -> MaterialTheme.colorScheme.secondary
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
                             },
                             fontSize = 10.sp,
                             fontFamily = PlusJakartaSans

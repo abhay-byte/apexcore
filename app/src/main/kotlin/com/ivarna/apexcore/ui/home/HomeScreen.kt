@@ -20,12 +20,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -52,21 +55,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ivarna.apexcore.freeze.FreezeResult
-import com.ivarna.apexcore.freeze.RootFreezeBackend
-import com.ivarna.apexcore.freeze.ShizukuFreezeBackend
 import com.ivarna.apexcore.getSystemMemStats
-import com.ivarna.apexcore.openPrivacyPolicy
-import com.ivarna.apexcore.ui.components.GlassCard
 import com.ivarna.apexcore.ui.components.MemoryLeafPair
 import com.ivarna.apexcore.ui.components.StatusPebble
 import com.ivarna.apexcore.ui.components.ZenEntryRow
 import com.ivarna.apexcore.ui.shell.State
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
-import com.ivarna.apexcore.ui.theme.ZenColors
 import com.ivarna.apexcore.ui.theme.ZenDimens
 import com.ivarna.apexcore.ui.theme.ZenIcons
 import kotlinx.coroutines.delay
@@ -78,6 +75,7 @@ fun HomeScreen(
     lastResult: FreezeResult?,
     isPurgeAnimActive: Boolean,
     freedRamText: String,
+    lightTankBg: Boolean = true,
     onPurgeAnimComplete: () -> Unit,
     onBoostClick: () -> Unit,
     onSetupClick: () -> Unit,
@@ -102,7 +100,8 @@ fun HomeScreen(
 
     val scheme = MaterialTheme.colorScheme
     val isElevatedBackend = backendName == "Shizuku" || backendName == "Root"
-    val statusColor = if (state == State.BOOSTING) scheme.secondary else scheme.onSurfaceVariant.copy(alpha = 0.72f)
+    // Full onSurfaceVariant — no extra alpha wash (contrast)
+    val statusColor = if (state == State.BOOSTING) scheme.secondary else scheme.onSurfaceVariant
     val statusActive: Boolean? = when (state) {
         State.IDLE -> if (isElevatedBackend) true else false
         State.BOOSTING -> null
@@ -130,13 +129,13 @@ fun HomeScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Atmosphere orbs (Canvas gradients — not blur-dependent)
+        // Atmosphere orbs — theme-aware (works light + dark)
+        val primaryOrbColor = scheme.primaryContainer.copy(alpha = 0.14f)
+        val secondaryOrbColor = scheme.secondaryContainer.copy(alpha = 0.12f)
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val primaryOrb = Color(0xFF008376).copy(alpha = 0.10f)
-            val secondaryOrb = Color(0xFFFFD87C).copy(alpha = 0.08f)
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(primaryOrb, Color.Transparent),
+                    colors = listOf(primaryOrbColor, Color.Transparent),
                     center = Offset(size.width * 0.18f, size.height * 0.08f),
                     radius = size.minDimension * 0.55f
                 ),
@@ -145,7 +144,7 @@ fun HomeScreen(
             )
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(secondaryOrb, Color.Transparent),
+                    colors = listOf(secondaryOrbColor, Color.Transparent),
                     center = Offset(size.width * 0.88f, size.height * 0.72f),
                     radius = size.minDimension * 0.5f
                 ),
@@ -161,6 +160,9 @@ fun HomeScreen(
                 .padding(horizontal = ZenDimens.containerPadding),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Clearance: status bar + floating frosted top bar
+            Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+            Spacer(modifier = Modifier.height(ZenDimens.topBarClearance))
             Spacer(modifier = Modifier.height(ZenDimens.elementGap))
 
             MemoryLeafPair(
@@ -172,6 +174,7 @@ fun HomeScreen(
                 actualFreedMb = actualFreedMb,
                 freedRamText = freedRamText,
                 onPurgeAnimComplete = onPurgeAnimComplete,
+                lightTankBg = lightTankBg,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -241,26 +244,8 @@ fun HomeScreen(
                 onClick = onPinClick
             )
 
-            Spacer(modifier = Modifier.height(ZenDimens.sectionMargin))
-
-            SystemDiagnosticsCard(onSetupClick = onSetupClick)
-
-            // C1: PRIVACY POLICY underlined → openPrivacyPolicy
-            Spacer(modifier = Modifier.height(20.dp))
-            Text(
-                text = "PRIVACY POLICY",
-                color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
-                fontSize = 10.sp,
-                fontFamily = PlusJakartaSans,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
-                textDecoration = TextDecoration.Underline,
-                modifier = Modifier
-                    .clickable { openPrivacyPolicy(context) }
-                    .padding(vertical = 8.dp, horizontal = 12.dp)
-            )
-            // Spacer for floating nav
-            Spacer(modifier = Modifier.height(88.dp))
+            // Clearance for floating bottom-nav island (true overlay)
+            Spacer(modifier = Modifier.height(ZenDimens.bottomNavClearance))
         }
     }
 }
@@ -307,7 +292,7 @@ fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "BOOST freeze is gated until Shizuku or Root is ready. No elevation means apps cannot be force-stopped on modern Android.",
-            color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+            color = scheme.onSurfaceVariant,
             fontSize = 11.sp,
             fontFamily = PlusJakartaSans,
             lineHeight = 15.sp
@@ -480,7 +465,7 @@ fun UnifiedResultCard(
                         title = "DURATION",
                         value = if (lastResult != null) "${lastResult.durationMs / 1000f}s" else "—",
                         subtitle = "Purge execution",
-                        indicatorColor = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                        indicatorColor = scheme.onSurfaceVariant,
                         valueColor = scheme.onSurface,
                         delayMs = 200
                     )
@@ -493,7 +478,7 @@ fun UnifiedResultCard(
                             isElevatedResult -> if (skipped > 0) "Excluded targets" else "None skipped"
                             else -> "No deep freeze"
                         },
-                        indicatorColor = if (skipped > 0 || failed > 0) scheme.secondary else scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                        indicatorColor = if (skipped > 0 || failed > 0) scheme.secondary else scheme.onSurfaceVariant,
                         valueColor = if (skipped > 0 || failed > 0) scheme.secondary else scheme.onSurfaceVariant,
                         delayMs = 250
                     )
@@ -550,7 +535,7 @@ fun StatItem(
         Column {
             Text(
                 text = title,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp
@@ -572,83 +557,4 @@ fun StatItem(
     }
 }
 
-@Composable
-fun SystemDiagnosticsCard(
-    onSetupClick: () -> Unit
-) {
-    var hasRoot by remember { mutableStateOf<Boolean?>(null) }
-    var hasShizuku by remember { mutableStateOf<Boolean?>(null) }
 
-    LaunchedEffect(Unit) {
-        while (true) {
-            hasRoot = RootFreezeBackend().isReady()
-            hasShizuku = ShizukuFreezeBackend().isReady()
-            delay(3000)
-        }
-    }
-
-    GlassCard(onClick = onSetupClick) {
-        Text(
-            text = "ACCESS DIAGNOSTICS",
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-            fontSize = 10.sp,
-            fontFamily = PlusJakartaSans,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.5.sp
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-
-        DiagnosticRow(
-            label = "Root Access Presence",
-            status = hasRoot,
-            description = "Checks if direct 'su' command is available"
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        DiagnosticRow(
-            label = "Shizuku Service Connection",
-            status = hasShizuku,
-            description = "Checks if Shizuku binder is running & authorized"
-        )
-    }
-}
-
-@Composable
-fun DiagnosticRow(
-    label: String,
-    status: Boolean?,
-    description: String
-) {
-    val (statusColor, statusText) = when (status) {
-        true -> MaterialTheme.colorScheme.primary to "ACTIVE"
-        false -> ZenColors.statusInactive to "INACTIVE"
-        null -> MaterialTheme.colorScheme.outline to "CHECKING…"
-    }
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        StatusPebble(active = status, size = 10.dp)
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = label,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = description,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 11.sp
-            )
-        }
-        Text(
-            text = statusText,
-            color = statusColor,
-            fontSize = 10.sp,
-            fontFamily = PlusJakartaSans,
-            fontWeight = FontWeight.Bold
-        )
-    }
-}

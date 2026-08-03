@@ -22,8 +22,9 @@ fun GlassCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val shape = RoundedCornerShape(ZenDimens.roundedLg)
-    val fill = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.92f)
-    val borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+    // Near-opaque glass so body text stays legible over atmosphere orbs / scrolling content
+    val fill = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.97f)
+    val borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
 
     Column(
         modifier = modifier

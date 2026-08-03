@@ -92,7 +92,7 @@ fun WhitelistPickerDialog(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Pinned apps are never frozen · ${pinned.size} pinned",
-                    color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    color = scheme.onSurfaceVariant,
                     fontSize = 11.sp,
                     fontFamily = PlusJakartaSans
                 )
@@ -119,7 +119,7 @@ fun WhitelistPickerDialog(
                     } else if (filteredApps.isEmpty()) {
                         Text(
                             text = "NO APPS FOUND",
-                            color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                            color = scheme.onSurfaceVariant,
                             fontFamily = PlusJakartaSans,
                             fontSize = 12.sp,
                             letterSpacing = 1.sp
@@ -183,7 +183,7 @@ fun WhitelistPickerDialog(
                                         )
                                         Text(
                                             text = app.pkg,
-                                            color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                                            color = scheme.onSurfaceVariant,
                                             fontSize = 10.sp,
                                             fontFamily = PlusJakartaSans,
                                             maxLines = 1
@@ -198,7 +198,7 @@ fun WhitelistPickerDialog(
                                         },
                                         colors = CheckboxDefaults.colors(
                                             checkedColor = scheme.primary,
-                                            uncheckedColor = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                                            uncheckedColor = scheme.onSurfaceVariant,
                                             checkmarkColor = scheme.onPrimary
                                         )
                                     )

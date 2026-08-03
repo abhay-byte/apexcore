@@ -51,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ivarna.apexcore.ui.theme.LocalZenSemantics
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenColors
 import kotlinx.coroutines.delay
@@ -96,6 +97,13 @@ fun MemoryLeaf(
     size: Dp,
     shape: LeafShape = LeafShape.Teardrop,
     isPulsing: Boolean = false,
+    /** When false, only the leaf graphic is drawn (pair places metrics outside the overlap art). */
+    showMetrics: Boolean = true,
+    /**
+     * Frosted glass shell: light white even in dark mode when true (settings toggle).
+     * Matches light-mode tank readability on dark backgrounds.
+     */
+    lightTankBg: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val usedMb = usedKb / 1024f
@@ -131,6 +139,13 @@ fun MemoryLeaf(
         LeafShape.Diamond -> DiamondLeafShape
     }
 
+    // Empty glass shell — light white like light mode when [lightTankBg] is on
+    val tankShell = if (lightTankBg) {
+        ZenColors.surfaceContainerLowest.copy(alpha = 0.88f)
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.55f)
+    }
+
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
@@ -140,7 +155,7 @@ fun MemoryLeaf(
                 .size(size)
                 .graphicsLayer { alpha = if (isPulsing) pulseAlpha else 1f }
                 .clip(genericShape)
-                .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.55f))
+                .background(tankShell)
                 .border(
                     width = 1.dp,
                     color = fillColor.copy(alpha = 0.35f),
@@ -203,7 +218,28 @@ fun MemoryLeaf(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        if (showMetrics) {
+            Spacer(modifier = Modifier.height(8.dp))
+            LeafMetricLabels(
+                label = label,
+                usedMb = usedMb,
+                fillColor = fillColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun LeafMetricLabels(
+    label: String,
+    usedMb: Float,
+    fillColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Text(
             text = label,
             color = fillColor,
@@ -259,6 +295,8 @@ fun MemoryLeafPair(
     actualFreedMb: Float,
     freedRamText: String,
     onPurgeAnimComplete: () -> Unit,
+    /** Light frosted glass shell for tanks (settings); default on. */
+    lightTankBg: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     // Completion contract: hold freed result 1.2s then notify parent
@@ -271,6 +309,14 @@ fun MemoryLeafPair(
 
     val isPulsing = isPurgeAnimActive && actualFreedMb < 0f
     val scheme = MaterialTheme.colorScheme
+    val zen = LocalZenSemantics.current
+    val ramUsedMb = ramUsedKb / 1024f
+    val swapUsedMb = swapUsedKb / 1024f
+    // With light tank glass, use light-mode liquid tints so fills match light mode
+    val ramFill = if (lightTankBg) ZenColors.leafRamFill else zen.leafRamFill
+    val swapFill = if (lightTankBg) ZenColors.leafSwapFill else zen.leafSwapFill
+    val ramWave = if (lightTankBg) ZenColors.primary else scheme.primary
+    val swapWave = if (lightTankBg) ZenColors.tertiary else scheme.tertiary
 
     Column(
         modifier = modifier
@@ -278,36 +324,65 @@ fun MemoryLeafPair(
             .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Centered asymmetric pair: RAM 168dp teardrop, SWAP 112dp diamond offset
+        // Centered asymmetric pair: RAM 168dp teardrop, SWAP 112dp diamond offset.
+        // Metrics live OUTSIDE this box so overlapping art never collides text (F1 QA).
         Box(
             modifier = Modifier
                 .width(220.dp)
-                .height(220.dp),
+                .height(200.dp),
             contentAlignment = Alignment.Center
         ) {
             MemoryLeaf(
                 label = "RAM",
                 usedKb = ramUsedKb,
                 totalKb = ramTotalKb,
-                fillColor = ZenColors.leafRamFill,
-                waveColor = scheme.primary,
+                fillColor = ramFill,
+                waveColor = ramWave,
                 size = 168.dp,
                 shape = LeafShape.Teardrop,
                 isPulsing = isPulsing,
+                showMetrics = false,
+                lightTankBg = lightTankBg,
                 modifier = Modifier.align(Alignment.Center)
             )
             MemoryLeaf(
                 label = "SWAP",
                 usedKb = swapUsedKb,
                 totalKb = swapTotalKb,
-                fillColor = ZenColors.leafSwapFill,
-                waveColor = scheme.tertiary,
+                fillColor = swapFill,
+                waveColor = swapWave,
                 size = 112.dp,
                 shape = LeafShape.Diamond,
                 isPulsing = isPulsing,
+                showMetrics = false,
+                lightTankBg = lightTankBg,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .offset(x = 28.dp, y = 36.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Distinct columns under the pair — readable even when shapes overlap.
+        Row(
+            modifier = Modifier
+                .width(240.dp)
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+        ) {
+            LeafMetricLabels(
+                label = "RAM",
+                usedMb = ramUsedMb,
+                fillColor = ramFill,
+                modifier = Modifier.weight(1f)
+            )
+            LeafMetricLabels(
+                label = "SWAP",
+                usedMb = swapUsedMb,
+                fillColor = swapFill,
+                modifier = Modifier.weight(1f)
             )
         }
 

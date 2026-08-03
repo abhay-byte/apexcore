@@ -98,13 +98,15 @@ fun PebbleButton(
     val displayTitle = if (state == State.BOOSTING) "Purging system…" else title
     val displaySubtitle = if (state == State.BOOSTING) "Freezing background services" else subtitle
 
+    // Solid primary end-cap keeps onPrimary text legible in light and dark
+    // (primaryContainer is too dark in dark theme for a vertical wash).
     val fillBrush = Brush.verticalGradient(
-        colors = listOf(scheme.primary, scheme.primaryContainer)
+        colors = listOf(scheme.primary, scheme.primary.copy(alpha = 0.88f))
     )
     val borderColor = if (state == State.BOOSTING) {
         scheme.onPrimary.copy(alpha = shimmer * 0.7f)
     } else {
-        scheme.onPrimary.copy(alpha = 0.22f)
+        scheme.onPrimary.copy(alpha = 0.28f)
     }
 
     Box(

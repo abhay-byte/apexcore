@@ -15,6 +15,8 @@ object ZenIcons {
         @Composable get() = ImageVector.vectorResource(R.drawable.ic_nav_games_vintage)
     val OverlayLayers: ImageVector
         @Composable get() = ImageVector.vectorResource(R.drawable.ic_nav_overlay_layers)
+    val Settings: ImageVector
+        @Composable get() = ImageVector.vectorResource(R.drawable.ic_nav_settings)
     val WaterDrop: ImageVector
         @Composable get() = ImageVector.vectorResource(R.drawable.ic_water_drop)
     val Spa: ImageVector
