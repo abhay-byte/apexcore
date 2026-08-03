@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -122,7 +123,7 @@ fun RamFreeScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(BgDark)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // --- Top Bar with back arrow ---
         Row(
@@ -136,24 +137,24 @@ fun RamFreeScreen(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(SurfaceCard)
-                    .border(1.dp, BorderGlass, RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
                     .clickable {
                         manager.cancel()
                         onBack()
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Text("←", color = TextTitle, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("←", color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.width(16.dp))
 
             Text(
                 text = "RAM FREE",
-                color = TextTitle,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 18.sp,
-                fontFamily = SpaceGrotesk,
+                fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 2.sp
             )
@@ -163,14 +164,14 @@ fun RamFreeScreen(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(AccentSuccess.copy(alpha = 0.15f))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = mode.displayName.uppercase(),
-                        color = AccentSuccess,
+                        color = MaterialTheme.colorScheme.primary,
                         fontSize = 8.sp,
-                        fontFamily = JetBrainsMono,
+                        fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -211,7 +212,7 @@ fun RamFreeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     label = "MEM AVAILABLE",
                     value = "%.0f MB".format(memAvailKb / 1024f),
-                    accent = AccentPrimary
+                    accent = MaterialTheme.colorScheme.primary
                 )
             }
 
@@ -220,9 +221,9 @@ fun RamFreeScreen(
             // Mode — Standard only (Shizuku/Root future extras)
             Text(
                 "Mode: fill is always Standard. Extras coming for Shizuku/Root.",
-                color = TextMuted,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                 fontSize = 9.sp,
-                fontFamily = JetBrainsMono,
+                fontFamily = PlusJakartaSans,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
             )
 
@@ -238,8 +239,8 @@ fun RamFreeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(14.dp))
-                            .background(SurfaceCard)
-                            .border(1.dp, BorderGlass, RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
                             .clickable(enabled = !isRunning) { showModeDropdown = true }
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
@@ -249,18 +250,18 @@ fun RamFreeScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text("MODE", color = TextMuted, fontSize = 9.sp, fontFamily = JetBrainsMono, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                                Text("MODE", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f), fontSize = 9.sp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                                 Spacer(modifier = Modifier.height(2.dp))
-                                Text(mode.displayName, color = TextTitle, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(mode.displayName, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                             }
-                            Text("▼", color = TextMuted, fontSize = 10.sp)
+                            Text("▼", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f), fontSize = 10.sp)
                         }
                     }
 
                     DropdownMenu(
                         expanded = showModeDropdown,
                         onDismissRequest = { showModeDropdown = false },
-                        modifier = Modifier.background(SurfaceCard)
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerLowest)
                     ) {
                         RamFillMode.entries.forEach { m ->
                             val ready = modeReadiness[m]
@@ -274,7 +275,7 @@ fun RamFreeScreen(
                                     ) {
                                         Text(
                                             m.displayName,
-                                            color = if (m == mode) AccentPrimary else if (available) TextTitle else TextMuted,
+                                            color = if (m == mode) MaterialTheme.colorScheme.primary else if (available) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                                             fontSize = 13.sp,
                                             fontWeight = if (m == mode) FontWeight.Bold else FontWeight.Normal
                                         )
@@ -287,12 +288,12 @@ fun RamFreeScreen(
                                                 else -> "Not available"
                                             },
                                             color = when {
-                                                m == RamFillMode.STANDARD || ready == true -> AccentSuccess
-                                                ready == null -> TextMuted
-                                                else -> AccentWarning
+                                                m == RamFillMode.STANDARD || ready == true -> MaterialTheme.colorScheme.primary
+                                                ready == null -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+                                                else -> MaterialTheme.colorScheme.secondary
                                             },
                                             fontSize = 10.sp,
-                                            fontFamily = JetBrainsMono
+                                            fontFamily = PlusJakartaSans
                                         )
                                     }
                                 },
@@ -310,17 +311,17 @@ fun RamFreeScreen(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(14.dp))
-                        .background(if (preFreeze) AccentPrimary.copy(alpha = 0.12f) else SurfaceCard)
-                        .border(1.dp, if (preFreeze) AccentPrimary.copy(alpha = 0.3f) else BorderGlass, RoundedCornerShape(14.dp))
+                        .background(if (preFreeze) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surfaceContainerLowest)
+                        .border(1.dp, if (preFreeze) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
                         .clickable(enabled = !isRunning) { preFreeze = !preFreeze }
                         .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("PRE-PURGE", color = TextMuted, fontSize = 9.sp, fontFamily = JetBrainsMono, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        Text("PRE-PURGE", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f), fontSize = 9.sp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             if (preFreeze) "ON" else "OFF",
-                            color = if (preFreeze) AccentPrimary else TextMuted,
+                            color = if (preFreeze) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -354,9 +355,9 @@ fun RamFreeScreen(
             // Footer
             Text(
                 text = "Force system reclaim · 90% safe cap · no system kills",
-                color = TextMuted,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                 fontSize = 10.sp,
-                fontFamily = JetBrainsMono,
+                fontFamily = PlusJakartaSans,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -387,9 +388,9 @@ private fun RamPressureGauge(
     )
 
     val barColor = when {
-        isReleasing -> AccentPrimary // cryo blue on release
-        isRunning -> AccentWarning // heat orange while filling
-        else -> AccentPrimary
+        isReleasing -> MaterialTheme.colorScheme.primary // cryo blue on release
+        isRunning -> MaterialTheme.colorScheme.secondary // heat orange while filling
+        else -> MaterialTheme.colorScheme.primary
     }
 
     val currentRamFraction = if (isFilling) {
@@ -415,6 +416,8 @@ private fun RamPressureGauge(
             modifier = Modifier.size(180.dp),
             contentAlignment = Alignment.Center
         ) {
+            val trackColor = MaterialTheme.colorScheme.surfaceContainerLowest
+            val ceilingMarkColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f)
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val strokeW = 16.dp.toPx()
                 val topLeft = Offset(strokeW / 2, strokeW / 2)
@@ -427,7 +430,7 @@ private fun RamPressureGauge(
 
                 // Background track
                 drawArc(
-                    color = SurfaceCard,
+                    color = trackColor,
                     startAngle = 135f, sweepAngle = 270f, useCenter = false,
                     topLeft = arcOffset, size = arcSize,
                     style = Stroke(width = strokeW, cap = StrokeCap.Round)
@@ -451,7 +454,7 @@ private fun RamPressureGauge(
                 val markInnerY = size.height / 2 + strokeW / 2 + (arcSize.height / 2 - strokeW) * Math.sin(markRad)
 
                 drawLine(
-                    color = AccentWarning.copy(alpha = 0.8f),
+                    color = ceilingMarkColor,
                     start = Offset(markInnerX.toFloat(), markInnerY.toFloat()),
                     end = Offset(markOuterX.toFloat(), markOuterY.toFloat()),
                     strokeWidth = 3.dp.toPx(),
@@ -463,9 +466,9 @@ private fun RamPressureGauge(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "%.0f%%".format(currentRamFraction * 100),
-                    color = if (currentRamFraction >= 0.85f) AccentWarning else TextTitle,
+                    color = if (currentRamFraction >= 0.85f) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface,
                     fontSize = 28.sp,
-                    fontFamily = SpaceGrotesk,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.ExtraBold
                 )
                 Text(
@@ -477,9 +480,9 @@ private fun RamPressureGauge(
                         fillProgress is RamFillProgress.Done -> "READY"
                         else -> "READY"
                     },
-                    color = if (isRunning) AccentWarning.copy(alpha = pulseAlpha) else TextMuted,
+                    color = if (isRunning) MaterialTheme.colorScheme.secondary.copy(alpha = pulseAlpha) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                     fontSize = 10.sp,
-                    fontFamily = JetBrainsMono,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
@@ -501,13 +504,13 @@ private fun ReadoutRow(
             modifier = Modifier.weight(1f),
             label = "RAM USED",
             value = "%.0f / %.0f MB".format(ramUsedKb / 1024f, ramTotalKb / 1024f),
-            accent = AccentPrimary
+            accent = MaterialTheme.colorScheme.primary
         )
         ReadoutChip(
             modifier = Modifier.weight(1f),
             label = "SWAP USED",
             value = if (swapTotalKb > 0) "%.0f / %.0f MB".format(swapUsedKb / 1024f, swapTotalKb / 1024f) else "0 / 0 MB",
-            accent = AccentWarning
+            accent = MaterialTheme.colorScheme.secondary
         )
     }
 }
@@ -522,14 +525,14 @@ private fun ReadoutChip(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(SurfaceCard)
-            .border(1.dp, BorderGlass, RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
             .padding(12.dp)
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(label, color = TextMuted, fontSize = 9.sp, fontFamily = JetBrainsMono, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f), fontSize = 9.sp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(value, color = accent, fontSize = 12.sp, fontFamily = JetBrainsMono, fontWeight = FontWeight.Bold)
+            Text(value, color = accent, fontSize = 12.sp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -550,15 +553,15 @@ private fun RamFillProgressSection(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(SurfaceCard)
-                        .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
                         .padding(20.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("● PRE-FREEZING", color = AccentWarning, fontSize = 13.sp, fontFamily = JetBrainsMono, fontWeight = FontWeight.Bold)
+                        Text("● PRE-FREEZING", color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text("Purging background apps…", color = TextBody, fontSize = 12.sp)
+                        Text("Purging background apps…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     }
                 }
             }
@@ -568,32 +571,32 @@ private fun RamFillProgressSection(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(SurfaceCard)
-                        .border(1.dp, AccentWarning.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                        .border(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
                         .padding(20.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             "ALLOCATING MEMORY",
-                            color = AccentWarning,
+                            color = MaterialTheme.colorScheme.secondary,
                             fontSize = 13.sp,
-                            fontFamily = JetBrainsMono,
+                            fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
                             "${progress.allocatedMb} MB · RAM ${"%.0f".format(progress.ramUsagePercent * 100)}%",
-                            color = TextBody,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontSize = 12.sp,
-                            fontFamily = JetBrainsMono
+                            fontFamily = PlusJakartaSans
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             "Chunks: ${progress.chunkCount}",
-                            color = TextMuted,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                             fontSize = 10.sp,
-                            fontFamily = JetBrainsMono
+                            fontFamily = PlusJakartaSans
                         )
                     }
                 }
@@ -604,15 +607,15 @@ private fun RamFillProgressSection(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(SurfaceCard)
-                        .border(1.dp, AccentWarning.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                        .border(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
                         .padding(20.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("HOLDING PEAK", color = AccentWarning, fontSize = 13.sp, fontFamily = JetBrainsMono, fontWeight = FontWeight.Bold)
+                        Text("HOLDING PEAK", color = MaterialTheme.colorScheme.secondary, fontSize = 13.sp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text("${progress.remainingMs}ms", color = TextBody, fontSize = 12.sp, fontFamily = JetBrainsMono)
+                        Text("${progress.remainingMs}ms", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = PlusJakartaSans)
                     }
                 }
             }
@@ -622,15 +625,15 @@ private fun RamFillProgressSection(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(SurfaceCard)
-                        .border(1.dp, AccentPrimary.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
                         .padding(20.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("RELEASING BUFFERS", color = AccentPrimary, fontSize = 13.sp, fontFamily = JetBrainsMono, fontWeight = FontWeight.Bold)
+                        Text("RELEASING BUFFERS", color = MaterialTheme.colorScheme.primary, fontSize = 13.sp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(6.dp))
-                        Text("Returning memory to system…", color = TextBody, fontSize = 12.sp)
+                        Text("Returning memory to system…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     }
                 }
             }
@@ -644,12 +647,12 @@ private fun RamFillProgressSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
-                            .background(SurfaceGlass)
-                            .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.85f))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
                             .padding(20.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("Cancelled", color = TextMuted, fontSize = 14.sp, fontFamily = JetBrainsMono)
+                        Text("Cancelled", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f), fontSize = 14.sp, fontFamily = PlusJakartaSans)
                     }
                 } else if (result.stopReason == StopReason.RAM_CAP && result.chunkCount == 0) {
                     // Already at safe cap before any alloc
@@ -657,24 +660,24 @@ private fun RamFillProgressSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
-                            .background(SurfaceGlass)
-                            .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.85f))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
                             .padding(20.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 "Already at 90% safe cap",
-                                color = TextMuted,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                                 fontSize = 14.sp,
-                                fontFamily = JetBrainsMono
+                                fontFamily = PlusJakartaSans
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 "System memory already near ceiling",
-                                color = TextMuted,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                                 fontSize = 10.sp,
-                                fontFamily = JetBrainsMono
+                                fontFamily = PlusJakartaSans
                             )
                         }
                     }
@@ -684,39 +687,39 @@ private fun RamFillProgressSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
-                            .background(AccentWarning.copy(alpha = 0.08f))
-                            .border(1.dp, AccentWarning.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.08f))
+                            .border(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
                             .padding(20.dp)
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 "PRESSURE LIMITED",
-                                color = AccentWarning,
+                                color = MaterialTheme.colorScheme.secondary,
                                 fontSize = 14.sp,
-                                fontFamily = JetBrainsMono,
+                                fontFamily = PlusJakartaSans,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 "Process budget · peak ${result.peakAllocatedMb}MB alloc",
-                                color = TextBody,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 12.sp,
-                                fontFamily = JetBrainsMono
+                                fontFamily = PlusJakartaSans
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 "heapMax: ${result.heapMaxMb}MB · ${result.chunkCount} chunks",
-                                color = TextMuted,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                                 fontSize = 10.sp,
-                                fontFamily = JetBrainsMono
+                                fontFamily = PlusJakartaSans
                             )
                             if (totalFreedMb > 0) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
                                     "+%d MB freed".format(totalFreedMb),
-                                    color = AccentPrimary,
+                                    color = MaterialTheme.colorScheme.primary,
                                     fontSize = 14.sp,
-                                    fontFamily = JetBrainsMono,
+                                    fontFamily = PlusJakartaSans,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -728,24 +731,24 @@ private fun RamFillProgressSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
-                            .background(SurfaceGlass)
-                            .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.85f))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
                             .padding(20.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 "No reclaim detected",
-                                color = TextMuted,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                                 fontSize = 14.sp,
-                                fontFamily = JetBrainsMono
+                                fontFamily = PlusJakartaSans
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 "${result.stopReason} · %d MB · %ds".format(result.peakAllocatedMb, result.totalDurationMs / 1000),
-                                color = TextMuted,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                                 fontSize = 10.sp,
-                                fontFamily = JetBrainsMono
+                                fontFamily = PlusJakartaSans
                             )
                         }
                     }
@@ -764,25 +767,25 @@ private fun RamFillProgressSection(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
-                            .background(AccentPrimary.copy(alpha = 0.08f))
-                            .border(1.dp, AccentPrimary.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.08f))
+                            .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
                             .padding(20.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 "+%d MB".format(totalFreedMb),
-                                color = AccentPrimary,
+                                color = MaterialTheme.colorScheme.primary,
                                 fontSize = 32.sp,
-                                fontFamily = SpaceGrotesk,
+                                fontFamily = PlusJakartaSans,
                                 fontWeight = FontWeight.ExtraBold
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 noteText,
-                                color = TextBody,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 12.sp,
-                                fontFamily = JetBrainsMono
+                                fontFamily = PlusJakartaSans
                             )
                         }
                     }
@@ -810,12 +813,12 @@ private fun RamFillActionButton(
             .height(56.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(
-                if (isRunning) AccentWarning.copy(alpha = 0.15f)
-                else AccentPrimary
+                if (isRunning) MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
+                else MaterialTheme.colorScheme.primary
             )
             .border(
                 1.dp,
-                if (isRunning) AccentWarning.copy(alpha = 0.4f) else AccentPrimary,
+                if (isRunning) MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.primary,
                 RoundedCornerShape(16.dp)
             )
             .clickable { if (isRunning) onCancel() else onClick() },
@@ -823,9 +826,9 @@ private fun RamFillActionButton(
     ) {
         Text(
             text = if (isRunning) "CANCEL" else "FREE RAM",
-            color = if (isRunning) AccentWarning.copy(alpha = pulseAlpha) else BgDark,
+            color = if (isRunning) MaterialTheme.colorScheme.secondary.copy(alpha = pulseAlpha) else MaterialTheme.colorScheme.onPrimary,
             fontSize = 16.sp,
-            fontFamily = SpaceGrotesk,
+            fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.ExtraBold,
             letterSpacing = 2.sp
         )

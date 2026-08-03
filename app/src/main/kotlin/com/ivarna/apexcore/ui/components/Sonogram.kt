@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,17 +89,17 @@ fun SimpleMemoryDisplay(
             ) {
                 Text(
                     text = "RAM",
-                    color = AccentPrimary,
+                    color = MaterialTheme.colorScheme.primary,
                     fontSize = 14.sp,
-                    fontFamily = SpaceGrotesk,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
                 Text(
                     text = "%.0f MB / %.0f MB".format(ramUsedMb, ramTotalMb),
-                    color = TextTitle,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 14.sp,
-                    fontFamily = JetBrainsMono,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -109,13 +110,13 @@ fun SimpleMemoryDisplay(
                     .fillMaxWidth()
                     .height(18.dp)
                     .clip(RoundedCornerShape(9.dp))
-                    .background(SurfaceCard)
-                    .border(1.dp, BorderGlass, RoundedCornerShape(9.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(9.dp))
             ) {
                 val barColor = if (isPurgeAnimActive && actualFreedMb < 0f) {
-                    AccentPrimary.copy(alpha = pulseAlpha)
+                    MaterialTheme.colorScheme.primary.copy(alpha = pulseAlpha)
                 } else {
-                    AccentPrimary
+                    MaterialTheme.colorScheme.primary
                 }
                 Box(
                     modifier = Modifier
@@ -138,17 +139,17 @@ fun SimpleMemoryDisplay(
             ) {
                 Text(
                     text = "SWAP",
-                    color = AccentWarning,
+                    color = MaterialTheme.colorScheme.secondary,
                     fontSize = 14.sp,
-                    fontFamily = SpaceGrotesk,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
                 Text(
                     text = if (swapTotalKb > 0) "%.0f MB / %.0f MB".format(swapUsedMb, swapTotalMb) else "0 MB / 0 MB",
-                    color = TextTitle,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 14.sp,
-                    fontFamily = JetBrainsMono,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -159,13 +160,13 @@ fun SimpleMemoryDisplay(
                     .fillMaxWidth()
                     .height(18.dp)
                     .clip(RoundedCornerShape(9.dp))
-                    .background(SurfaceCard)
-                    .border(1.dp, BorderGlass, RoundedCornerShape(9.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(9.dp))
             ) {
                 val barColor = if (isPurgeAnimActive && actualFreedMb < 0f) {
-                    AccentWarning.copy(alpha = pulseAlpha)
+                    MaterialTheme.colorScheme.secondary.copy(alpha = pulseAlpha)
                 } else {
-                    AccentWarning
+                    MaterialTheme.colorScheme.secondary
                 }
                 Box(
                     modifier = Modifier
@@ -191,9 +192,9 @@ fun SimpleMemoryDisplay(
                 if (actualFreedMb < 0f) {
                     Text(
                         text = "● OPTIMIZING MEMORY…",
-                        color = AccentPrimary.copy(alpha = pulseAlpha),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = pulseAlpha),
                         fontSize = 13.sp,
-                        fontFamily = JetBrainsMono,
+                        fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
@@ -201,16 +202,16 @@ fun SimpleMemoryDisplay(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(AccentPrimary.copy(alpha = 0.15f))
-                            .border(1.dp, AccentPrimary, RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
                             .padding(horizontal = 16.dp, vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "✓ FREED $freedRamText",
-                            color = AccentPrimary,
+                            color = MaterialTheme.colorScheme.primary,
                             fontSize = 14.sp,
-                            fontFamily = JetBrainsMono,
+                            fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold
                         )
                     }

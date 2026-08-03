@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Alignment
@@ -158,7 +159,7 @@ fun MainScreen(gameManager: GameManager) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgDark)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // Main Layout Container
         Column(
@@ -187,9 +188,9 @@ fun MainScreen(gameManager: GameManager) {
                                 .clip(RoundedCornerShape(8.dp))
                         )
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("APEX", color = TextTitle, fontSize = 16.sp, fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        Text("APEX", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("CORE", color = AccentPrimary, fontSize = 16.sp, fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        Text("CORE", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                     }
                     
                     // Global backend dropdown
@@ -298,14 +299,14 @@ fun MainScreen(gameManager: GameManager) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(SurfaceCard.copy(alpha = 0.95f))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.95f))
                         .navigationBarsPadding()
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(1.dp)
-                            .background(BorderGlass)
+                            .background(MaterialTheme.colorScheme.outlineVariant)
                     )
                     Row(
                         modifier = Modifier
@@ -407,7 +408,7 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(28.dp))
         
         // Status updates description
-        val statusColor = if (state == State.BOOSTING) AccentWarning else TextMuted
+        val statusColor = if (state == State.BOOSTING) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
         val isElevatedBackend = backendName == "Shizuku" || backendName == "Root"
         val statusText = when (state) {
             State.IDLE -> if (isElevatedBackend) "● Ready to purge bloat"
@@ -428,7 +429,7 @@ fun HomeScreen(
             text = statusText.uppercase(),
             color = statusColor,
             fontSize = 10.sp,
-            fontFamily = JetBrainsMono,
+            fontFamily = PlusJakartaSans,
             letterSpacing = 1.sp
         )
         
@@ -464,8 +465,8 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(SurfaceCard)
-                .border(1.dp, BorderGlass, RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp))
                 .clickable(enabled = state != State.BOOSTING) { onRamFreeClick() }
                 .alpha(if (state == State.BOOSTING) 0.4f else 1f)
                 .padding(16.dp)
@@ -478,21 +479,21 @@ fun HomeScreen(
                 Column {
                     Text(
                         "RAM FREE",
-                        color = if (state == State.BOOSTING) TextMuted else AccentWarning,
+                        color = if (state == State.BOOSTING) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f) else MaterialTheme.colorScheme.secondary,
                         fontSize = 14.sp,
-                        fontFamily = SpaceGrotesk,
+                        fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         "Force system reclaim",
-                        color = TextBody,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
-                        fontFamily = Inter
+                        fontFamily = PlusJakartaSans
                     )
                 }
-                Text("→", color = AccentWarning, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("→", color = MaterialTheme.colorScheme.secondary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -503,8 +504,8 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(SurfaceCard)
-                .border(1.dp, AccentPrimary.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
                 .clickable(enabled = state != State.BOOSTING) { onPinClick() }
                 .alpha(if (state == State.BOOSTING) 0.4f else 1f)
                 .padding(16.dp)
@@ -517,21 +518,21 @@ fun HomeScreen(
                 Column {
                     Text(
                         "PIN APPS",
-                        color = if (state == State.BOOSTING) TextMuted else AccentPrimary,
+                        color = if (state == State.BOOSTING) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f) else MaterialTheme.colorScheme.primary,
                         fontSize = 14.sp,
-                        fontFamily = SpaceGrotesk,
+                        fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         "Protect apps from being frozen",
-                        color = TextBody,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
-                        fontFamily = Inter
+                        fontFamily = PlusJakartaSans
                     )
                 }
-                Text("→", color = AccentPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("→", color = MaterialTheme.colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -544,9 +545,9 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(20.dp))
         Text(
             text = "PRIVACY POLICY",
-            color = TextMuted,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
             fontSize = 10.sp,
-            fontFamily = JetBrainsMono,
+            fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp,
             textDecoration = TextDecoration.Underline,
@@ -571,45 +572,45 @@ fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
             .background(
                 Brush.horizontalGradient(
                     listOf(
-                        AccentWarning.copy(alpha = 0.18f),
-                        AccentPrimary.copy(alpha = 0.10f)
+                        MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f),
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
                     )
                 )
             )
-            .border(1.dp, AccentWarning.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
+            .border(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
             .clickable(onClick = onConnectClick)
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Text(
             text = "ELEVATION REQUIRED",
-            color = AccentWarning,
+            color = MaterialTheme.colorScheme.secondary,
             fontSize = 10.sp,
-            fontFamily = JetBrainsMono,
+            fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
         )
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "Connect Shizuku or Root for deep freeze",
-            color = TextTitle,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 14.sp,
-            fontFamily = SpaceGrotesk,
+            fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = "BOOST freeze is gated until Shizuku or Root is ready. No elevation means apps cannot be force-stopped on modern Android.",
-            color = TextMuted,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
             fontSize = 11.sp,
-            fontFamily = Inter,
+            fontFamily = PlusJakartaSans,
             lineHeight = 15.sp
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "CONNECT SHIZUKU / ROOT  →",
-            color = AccentPrimary,
+            color = MaterialTheme.colorScheme.primary,
             fontSize = 12.sp,
-            fontFamily = JetBrainsMono,
+            fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
         )
@@ -681,9 +682,9 @@ fun FreedTextAnimationOverlay(
     ) {
         Text(
             text = text,
-            color = AccentPrimary,
+            color = MaterialTheme.colorScheme.primary,
             fontSize = 32.sp,
-            fontFamily = JetBrainsMono,
+            fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.ExtraBold,
             modifier = Modifier
                 .offset(y = offsetAnim.value.dp)
@@ -808,6 +809,7 @@ fun MainActionCard(state: State, onClick: () -> Unit) {
                     onClick = onClick
                 )
         ) {
+            val pulseStrokeColor = MaterialTheme.colorScheme.primary.copy(alpha = sweepPulse.value)
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val strokeWidth = 3.dp.toPx()
                 // Top glass highlights
@@ -821,7 +823,7 @@ fun MainActionCard(state: State, onClick: () -> Unit) {
 
                 if (state == State.BOOSTING) {
                     drawRoundRect(
-                        color = AccentPrimary.copy(alpha = sweepPulse.value),
+                        color = pulseStrokeColor,
                         style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round),
                         cornerRadius = androidx.compose.ui.geometry.CornerRadius(32.dp.toPx(), 32.dp.toPx())
                     )
@@ -841,18 +843,18 @@ fun MainActionCard(state: State, onClick: () -> Unit) {
                     
                     Text(
                         text = title,
-                        color = TextTitle,
+                        color = Color.White,
                         fontSize = 20.sp,
-                        fontFamily = SpaceGrotesk,
+                        fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.ExtraBold,
                         letterSpacing = 1.5.sp
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = subtitle,
-                        color = TextBody,
+                        color = Color.White.copy(alpha = 0.7f),
                         fontSize = 11.sp,
-                        fontFamily = Inter,
+                        fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Normal,
                         letterSpacing = 0.5.sp
                     )
@@ -877,6 +879,7 @@ fun MainActionCard(state: State, onClick: () -> Unit) {
                         ),
                     contentAlignment = Alignment.Center
                 ) {
+                    val boltColor = MaterialTheme.colorScheme.primary
                     Canvas(modifier = Modifier.size(28.dp)) {
                         val path = Path().apply {
                             moveTo(size.width * 0.58f, 0f)
@@ -888,7 +891,7 @@ fun MainActionCard(state: State, onClick: () -> Unit) {
                             close()
                         }
                         drawPath(path = path, color = Color.Black.copy(alpha = 0.25f))
-                        drawPath(path = path, color = AccentPrimary)
+                        drawPath(path = path, color = boltColor)
                     }
                 }
             }
@@ -924,21 +927,21 @@ fun UnifiedResultCard(
         else -> "Bloat successfully cleared"
     }
     // Blocked / incomplete freeze: warning tone — not a green success checkmark
-    val statusAccent = if (isBlockedResult) AccentWarning else AccentSuccess
+    val statusAccent = if (isBlockedResult) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
             .clip(RoundedCornerShape(32.dp))
-            .background(SurfaceCard)
+            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
             .border(
                 width = 1.5.dp,
                 brush = Brush.linearGradient(
                     colors = if (isBlockedResult) {
-                        listOf(AccentWarning.copy(alpha = 0.55f), AccentPrimary.copy(alpha = 0.35f))
+                        listOf(MaterialTheme.colorScheme.secondary.copy(alpha = 0.55f), MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
                     } else {
-                        listOf(AccentPrimary.copy(alpha = 0.6f), AccentSecondary.copy(alpha = 0.6f))
+                        listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
                     }
                 ),
                 shape = RoundedCornerShape(32.dp)
@@ -995,17 +998,17 @@ fun UnifiedResultCard(
                     Column {
                         Text(
                             text = resultTitle,
-                            color = TextTitle,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 14.sp,
-                            fontFamily = SpaceGrotesk,
+                            fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = resultSubtitle,
-                            color = TextBody,
-                            fontFamily = Inter,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontFamily = PlusJakartaSans,
                             fontSize = 12.sp
                         )
                     }
@@ -1014,15 +1017,15 @@ fun UnifiedResultCard(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(AccentPrimary.copy(alpha = 0.12f))
-                        .border(1.dp, AccentPrimary.copy(alpha = 0.3f), RoundedCornerShape(50))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f), RoundedCornerShape(50))
                         .padding(horizontal = 10.dp, vertical = 5.dp)
                 ) {
                     Text(
                         text = "PURGE AGAIN",
-                        color = AccentPrimary,
+                        color = MaterialTheme.colorScheme.primary,
                         fontSize = 9.sp,
-                        fontFamily = JetBrainsMono,
+                        fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -1033,7 +1036,7 @@ fun UnifiedResultCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(BorderGlass)
+                    .background(MaterialTheme.colorScheme.outlineVariant)
             )
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -1050,8 +1053,8 @@ fun UnifiedResultCard(
                         title = "FREED SIZE",
                         value = "%d MB".format(totalFreedMb),
                         subtitle = "RAM: %d MB | Swap: %d MB · incl. cache reclaim".format(freedMb, swapFreedMb),
-                        indicatorColor = AccentPrimary,
-                        valueColor = AccentPrimary,
+                        indicatorColor = MaterialTheme.colorScheme.primary,
+                        valueColor = MaterialTheme.colorScheme.primary,
                         delayMs = 100
                     )
                     StatItem(
@@ -1059,8 +1062,8 @@ fun UnifiedResultCard(
                         title = "PURGED APPS",
                         value = (lastResult?.killed ?: 0).toString(),
                         subtitle = "Force-stop success",
-                        indicatorColor = AccentWarning,
-                        valueColor = TextTitle,
+                        indicatorColor = MaterialTheme.colorScheme.secondary,
+                        valueColor = MaterialTheme.colorScheme.onSurface,
                         delayMs = 150
                     )
                 }
@@ -1074,8 +1077,8 @@ fun UnifiedResultCard(
                         title = "DURATION",
                         value = if (lastResult != null) "${lastResult.durationMs / 1000f}s" else "—",
                         subtitle = "Purge execution",
-                        indicatorColor = TextMuted,
-                        valueColor = TextTitle,
+                        indicatorColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                        valueColor = MaterialTheme.colorScheme.onSurface,
                         delayMs = 200
                     )
                     // Skipped = excluded targets on elevated runs; blocked path keeps zeros
@@ -1088,8 +1091,8 @@ fun UnifiedResultCard(
                             isElevatedResult -> if (skipped > 0) "Excluded targets" else "None skipped"
                             else -> "No deep freeze"
                         },
-                        indicatorColor = if (skipped > 0 || failed > 0) AccentWarning else TextMuted,
-                        valueColor = if (skipped > 0 || failed > 0) AccentWarning else TextBody,
+                        indicatorColor = if (skipped > 0 || failed > 0) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                        valueColor = if (skipped > 0 || failed > 0) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
                         delayMs = 250
                     )
                 }
@@ -1146,7 +1149,7 @@ fun StatItem(
         Column {
             Text(
                 text = title,
-                color = TextMuted,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp
@@ -1161,7 +1164,7 @@ fun StatItem(
             Spacer(modifier = Modifier.height(1.dp))
             Text(
                 text = subtitle,
-                color = TextBody,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp
             )
         }
@@ -1173,16 +1176,16 @@ fun StatTile(modifier: Modifier, title: String, value: String, subtitle: String,
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(24.dp))
-            .background(SurfaceGlass)
-            .border(1.dp, BorderGlass, RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.85f))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(24.dp))
             .padding(20.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        Text(title, color = TextMuted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        Text(title, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
         Spacer(modifier = Modifier.height(8.dp))
         Text(value, color = valueColor, fontSize = 36.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(4.dp))
-        Text(subtitle, color = TextBody, fontSize = 12.sp)
+        Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
     }
 }
 
@@ -1207,14 +1210,14 @@ fun OverlayScreen(context: Context = LocalContext.current) {
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "HUD OVERLAY",
-            color = TextTitle,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.5.sp
         )
         Text(
             text = "Configure floating gameplay monitor",
-            color = TextMuted,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
             fontSize = 12.sp
         )
         
@@ -1225,14 +1228,14 @@ fun OverlayScreen(context: Context = LocalContext.current) {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(24.dp))
-                .background(if (hasPermission) AccentSuccess.copy(alpha = 0.1f) else AccentWarning.copy(alpha = 0.1f))
-                .border(1.dp, if (hasPermission) AccentSuccess.copy(alpha = 0.4f) else AccentWarning.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
+                .background(if (hasPermission) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f))
+                .border(1.dp, if (hasPermission) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
                 .padding(24.dp)
         ) {
             Column {
                 Text(
                     text = if (hasPermission) "PERMISSION GRANTED" else "ACTION REQUIRED",
-                    color = if (hasPermission) AccentSuccess else AccentWarning,
+                    color = if (hasPermission) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
                     fontSize = 10.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
@@ -1242,7 +1245,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                 Text(
                     text = if (hasPermission) "ApexCore has permission to render the performance HUD on top of other games."
                            else "To display the real-time FPS & memory monitor during gaming, please grant the Draw Over Apps permission.",
-                    color = TextBody,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                     lineHeight = 18.sp
                 )
@@ -1251,7 +1254,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(AccentWarning)
+                            .background(MaterialTheme.colorScheme.secondary)
                             .clickable {
                                 try {
                                     val intent = Intent(
@@ -1268,7 +1271,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                             }
                             .padding(horizontal = 16.dp, vertical = 10.dp)
                     ) {
-                        Text("GRANT PERMISSION", color = BgDark, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("GRANT PERMISSION", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1279,7 +1282,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
         // Test HUD Controls
         Text(
             text = "TEST HUD OVERLAY",
-            color = TextTitle,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
@@ -1290,14 +1293,14 @@ fun OverlayScreen(context: Context = LocalContext.current) {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(SurfaceCard)
-                .border(1.dp, BorderGlass, RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp))
                 .padding(20.dp)
         ) {
             Column {
                 Text(
                     text = "Launch a dummy monitor to test placement, transparency, and drag gestures directly on this screen.",
-                    color = TextBody,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp,
                     lineHeight = 16.sp
                 )
@@ -1310,7 +1313,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (testOverlayActive) BorderGlass else AccentPrimary)
+                            .background(if (testOverlayActive) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.primary)
                             .clickable(enabled = hasPermission && !testOverlayActive) {
                                 GameOverlayService.start(context, context.packageName)
                                 testOverlayActive = true
@@ -1320,7 +1323,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                     ) {
                         Text(
                             text = "START TEST HUD",
-                            color = if (testOverlayActive) TextMuted else TextTitle,
+                            color = if (testOverlayActive) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f) else MaterialTheme.colorScheme.onPrimary,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -1329,7 +1332,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (testOverlayActive) AccentWarning.copy(alpha=0.2f) else BorderGlass)
+                            .background(if (testOverlayActive) MaterialTheme.colorScheme.secondary.copy(alpha=0.2f) else MaterialTheme.colorScheme.outlineVariant)
                             .clickable(enabled = testOverlayActive) {
                                 GameOverlayService.stop(context)
                                 testOverlayActive = false
@@ -1339,7 +1342,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                     ) {
                         Text(
                             text = "STOP TEST HUD",
-                            color = if (testOverlayActive) AccentWarning else TextMuted,
+                            color = if (testOverlayActive) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -1359,11 +1362,11 @@ fun NavBarItem(
     onClick: () -> Unit
 ) {
     val contentColor by animateColorAsState(
-        targetValue = if (isActive) AccentPrimary else TextMuted,
+        targetValue = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
         animationSpec = tween(300, easing = FastOutSlowInEasing)
     )
     val indicatorBackground by animateColorAsState(
-        targetValue = if (isActive) AccentPrimary.copy(alpha = 0.15f) else Color.Transparent,
+        targetValue = if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
         animationSpec = tween(300, easing = FastOutSlowInEasing)
     )
 
@@ -1433,15 +1436,15 @@ fun SystemDiagnosticsCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .background(SurfaceGlass)
-            .border(1.dp, BorderGlass, RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.85f))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(24.dp))
             .clickable { onSetupClick() }
             .padding(20.dp)
     ) {
         Column {
             Text(
                 text = "ACCESS DIAGNOSTICS",
-                color = TextMuted,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
@@ -1475,9 +1478,9 @@ fun DiagnosticRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         val (iconColor, statusText) = when (status) {
-            true -> AccentSuccess to "ACTIVE"
-            false -> AccentWarning to "INACTIVE"
-            null -> TextMuted to "CHECKING…"
+            true -> MaterialTheme.colorScheme.primary to "ACTIVE"
+            false -> MaterialTheme.colorScheme.secondary to "INACTIVE"
+            null -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f) to "CHECKING…"
         }
         
         Box(
@@ -1490,13 +1493,13 @@ fun DiagnosticRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = label,
-                color = TextTitle,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold
             )
             Text(
                 text = description,
-                color = TextBody,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp
             )
         }
@@ -1542,15 +1545,15 @@ fun GlobalBackendDropdown(
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(50))
-                .background(if (isElevated) AccentSuccess.copy(alpha = 0.15f) else AccentWarning.copy(alpha = 0.15f))
+                .background(if (isElevated) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f))
                 .clickable { onToggleDropdown() }
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Text(
                 text = displayName,
-                color = if (isElevated) AccentSuccess else AccentWarning,
+                color = if (isElevated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
                 fontSize = 9.sp,
-                fontFamily = JetBrainsMono,
+                fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -1558,7 +1561,7 @@ fun GlobalBackendDropdown(
         DropdownMenu(
             expanded = showDropdown,
             onDismissRequest = { onToggleDropdown() },
-            modifier = Modifier.background(SurfaceCard)
+            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerLowest)
         ) {
             DropdownMenuItem(
                 text = {
@@ -1567,7 +1570,7 @@ fun GlobalBackendDropdown(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Shizuku", color = if (currentPref == "shizuku") AccentPrimary else TextTitle, fontSize = 13.sp, fontWeight = if (currentPref == "shizuku") FontWeight.Bold else FontWeight.Normal)
+                        Text("Shizuku", color = if (currentPref == "shizuku") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = if (currentPref == "shizuku") FontWeight.Bold else FontWeight.Normal)
                         Text(
                             when (dropdownReadiness["shizuku"]) {
                                 true -> "Ready"
@@ -1575,12 +1578,12 @@ fun GlobalBackendDropdown(
                                 else -> "Checking…"
                             },
                             color = when (dropdownReadiness["shizuku"]) {
-                                true -> AccentSuccess
-                                false -> AccentWarning
-                                else -> TextMuted
+                                true -> MaterialTheme.colorScheme.primary
+                                false -> MaterialTheme.colorScheme.secondary
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
                             },
                             fontSize = 10.sp,
-                            fontFamily = JetBrainsMono
+                            fontFamily = PlusJakartaSans
                         )
                     }
                 },
@@ -1597,7 +1600,7 @@ fun GlobalBackendDropdown(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Root", color = if (currentPref == "root") AccentPrimary else TextTitle, fontSize = 13.sp, fontWeight = if (currentPref == "root") FontWeight.Bold else FontWeight.Normal)
+                        Text("Root", color = if (currentPref == "root") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = if (currentPref == "root") FontWeight.Bold else FontWeight.Normal)
                         Text(
                             when (dropdownReadiness["root"]) {
                                 true -> "Ready"
@@ -1605,12 +1608,12 @@ fun GlobalBackendDropdown(
                                 else -> "Checking…"
                             },
                             color = when (dropdownReadiness["root"]) {
-                                true -> AccentSuccess
-                                false -> AccentWarning
-                                else -> TextMuted
+                                true -> MaterialTheme.colorScheme.primary
+                                false -> MaterialTheme.colorScheme.secondary
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
                             },
                             fontSize = 10.sp,
-                            fontFamily = JetBrainsMono
+                            fontFamily = PlusJakartaSans
                         )
                     }
                 },

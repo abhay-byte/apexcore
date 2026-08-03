@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -141,18 +142,18 @@ fun GamesScreen(
                     BasicTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        textStyle = TextStyle(color = TextTitle, fontSize = 13.sp, fontFamily = JetBrainsMono),
+                        textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontFamily = PlusJakartaSans),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                        cursorBrush = SolidColor(AccentPrimary),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(SurfaceCard)
-                            .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         decorationBox = { innerTextField ->
                             if (searchQuery.isEmpty()) {
-                                Text("SEARCH PACKAGES...", color = TextMuted, fontSize = 13.sp, fontFamily = JetBrainsMono)
+                                Text("SEARCH PACKAGES...", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f), fontSize = 13.sp, fontFamily = PlusJakartaSans)
                             }
                             innerTextField()
                         }
@@ -165,12 +166,12 @@ fun GamesScreen(
                             modifier = Modifier
                                 .size(48.dp)
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(SurfaceCard)
-                                .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
+                                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
                                 .clickable { showAddPicker = true },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("+", color = AccentPrimary, fontSize = 24.sp, fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold)
+                            Text("+", color = MaterialTheme.colorScheme.primary, fontSize = 24.sp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -180,8 +181,8 @@ fun GamesScreen(
                         modifier = Modifier
                             .size(48.dp)
                             .clip(RoundedCornerShape(16.dp))
-                            .background(SurfaceCard)
-                            .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
                             .clickable { showPinPicker = true },
                         contentAlignment = Alignment.Center
                     ) {
@@ -189,14 +190,14 @@ fun GamesScreen(
                             Icon(
                                 imageVector = Icons.Default.Lock,
                                 contentDescription = "Pin apps",
-                                tint = AccentPrimary,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
                                 text = "PIN",
-                                color = AccentPrimary,
+                                color = MaterialTheme.colorScheme.primary,
                                 fontSize = 7.sp,
-                                fontFamily = SpaceGrotesk,
+                                fontFamily = PlusJakartaSans,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 0.5.sp
                             )
@@ -211,17 +212,17 @@ fun GamesScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(50))
-                        .background(SurfaceCard)
+                        .background(MaterialTheme.colorScheme.surfaceContainerLowest)
                         .padding(3.dp)
                 ) {
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(50))
-                            .background(if (!showAllApps) AccentPrimary.copy(alpha = 0.15f) else Color.Transparent)
+                            .background(if (!showAllApps) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent)
                             .border(
                                 width = if (!showAllApps) 1.dp else 0.dp,
-                                color = if (!showAllApps) AccentPrimary.copy(alpha = 0.3f) else Color.Transparent,
+                                color = if (!showAllApps) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.Transparent,
                                 shape = RoundedCornerShape(50)
                             )
                             .clickable { showAllApps = false }
@@ -230,9 +231,9 @@ fun GamesScreen(
                     ) {
                         Text(
                             text = "GAMES",
-                            color = if (!showAllApps) AccentPrimary else TextMuted,
+                            color = if (!showAllApps) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                             fontSize = 11.sp,
-                            fontFamily = SpaceGrotesk,
+                            fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -240,10 +241,10 @@ fun GamesScreen(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(50))
-                            .background(if (showAllApps) AccentPrimary.copy(alpha = 0.15f) else Color.Transparent)
+                            .background(if (showAllApps) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent)
                             .border(
                                 width = if (showAllApps) 1.dp else 0.dp,
-                                color = if (showAllApps) AccentPrimary.copy(alpha = 0.3f) else Color.Transparent,
+                                color = if (showAllApps) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.Transparent,
                                 shape = RoundedCornerShape(50)
                             )
                             .clickable { showAllApps = true }
@@ -252,9 +253,9 @@ fun GamesScreen(
                     ) {
                         Text(
                             text = "ALL APPS",
-                            color = if (showAllApps) AccentPrimary else TextMuted,
+                            color = if (showAllApps) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                             fontSize = 11.sp,
-                            fontFamily = SpaceGrotesk,
+                            fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -271,7 +272,7 @@ fun GamesScreen(
                 contentAlignment = Alignment.Center
             ) {
                 if (isLoadingApps) {
-                    CircularProgressIndicator(color = AccentPrimary)
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 } else if (currentList.isEmpty()) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -280,8 +281,8 @@ fun GamesScreen(
                     ) {
                         Text(
                             text = "NO ITEMS FOUND",
-                            color = TextMuted,
-                            fontFamily = JetBrainsMono,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                            fontFamily = PlusJakartaSans,
                             fontSize = 12.sp,
                             letterSpacing = 1.sp
                         )
@@ -291,13 +292,13 @@ fun GamesScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(AccentPrimary)
+                                    .background(MaterialTheme.colorScheme.primary)
                                     .clickable { showAddPicker = true }
                                     .padding(horizontal = 24.dp, vertical = 12.dp)
                             ) {
                                 Text(
                                     text = "ADD GAMES",
-                                    color = BgDark,
+                                    color = MaterialTheme.colorScheme.onPrimary,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = FontFamily.Monospace
@@ -308,8 +309,8 @@ fun GamesScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(14.dp))
-                                    .background(BgDark)
-                                    .border(1.dp, BorderGlass, RoundedCornerShape(14.dp))
+                                    .background(MaterialTheme.colorScheme.background)
+                                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
                                     .clickable {
                                         coroutineScope.launch {
                                             val oldSize = customGames.size
@@ -327,7 +328,7 @@ fun GamesScreen(
                             ) {
                                 Text(
                                     text = "SCAN FOR GAMES",
-                                    color = AccentPrimary,
+                                    color = MaterialTheme.colorScheme.primary,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = FontFamily.Monospace
@@ -372,13 +373,13 @@ fun GamesScreen(
                                 }
                                 .zIndex(zIndex)
                                 .clip(RoundedCornerShape(32.dp))
-                                .background(SurfaceCard)
+                                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
                                 .border(
                                     width = if (absOffset < 0.2f) 1.5.dp else 1.dp,
                                     brush = if (absOffset < 0.2f) {
-                                        Brush.verticalGradient(listOf(AccentPrimary, AccentSecondary))
+                                        Brush.verticalGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primary))
                                     } else {
-                                        SolidColor(BorderGlass)
+                                        SolidColor(MaterialTheme.colorScheme.outlineVariant)
                                     },
                                     shape = RoundedCornerShape(32.dp)
                                 )
@@ -426,8 +427,8 @@ fun GamesScreen(
                                         modifier = Modifier
                                             .size(72.dp)
                                             .clip(RoundedCornerShape(22.dp))
-                                            .background(SurfaceCard)
-                                            .border(1.dp, BorderGlass, RoundedCornerShape(22.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(22.dp))
                                             .padding(10.dp)
                                     ) {
                                         AppIcon(
@@ -441,9 +442,9 @@ fun GamesScreen(
                                     // App Name
                                     Text(
                                         text = game.name,
-                                        color = TextTitle,
+                                        color = MaterialTheme.colorScheme.onSurface,
                                         fontSize = 18.sp,
-                                        fontFamily = SpaceGrotesk,
+                                        fontFamily = PlusJakartaSans,
                                         fontWeight = FontWeight.Bold,
                                         textAlign = TextAlign.Center,
                                         maxLines = 1
@@ -454,9 +455,9 @@ fun GamesScreen(
                                     // Package Name
                                     Text(
                                         text = game.pkg,
-                                        color = TextMuted,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                                         fontSize = 11.sp,
-                                        fontFamily = JetBrainsMono,
+                                        fontFamily = PlusJakartaSans,
                                         textAlign = TextAlign.Center,
                                         maxLines = 1
                                     )
@@ -466,17 +467,17 @@ fun GamesScreen(
                                     // Resource Demand Meter
                                     val demand = remember(game.pkg) { getResourceDemand(game.pkg) }
                                     val demandColor = when (demand) {
-                                        "HIGH" -> AccentWarning
-                                        "MEDIUM" -> AccentPrimary
-                                        else -> AccentSuccess
+                                        "HIGH" -> MaterialTheme.colorScheme.secondary
+                                        "MEDIUM" -> MaterialTheme.colorScheme.primary
+                                        else -> MaterialTheme.colorScheme.primary
                                     }
                                     
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Text(
                                             text = "RESOURCE DEMAND",
-                                            color = TextMuted,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                                             fontSize = 8.sp,
-                                            fontFamily = SpaceGrotesk,
+                                            fontFamily = PlusJakartaSans,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Spacer(modifier = Modifier.height(4.dp))
@@ -491,7 +492,7 @@ fun GamesScreen(
                                                 text = demand,
                                                 color = demandColor,
                                                 fontSize = 9.sp,
-                                                fontFamily = JetBrainsMono,
+                                                fontFamily = PlusJakartaSans,
                                                 fontWeight = FontWeight.Bold
                                             )
                                         }
@@ -508,9 +509,9 @@ fun GamesScreen(
             // bottom Launch Trigger Button
             val activeApp = currentList.getOrNull(pagerState.currentPage)
             val buttonBgModifier = if (activeApp == null) {
-                Modifier.background(BorderGlass)
+                Modifier.background(MaterialTheme.colorScheme.outlineVariant)
             } else {
-                Modifier.background(Brush.horizontalGradient(listOf(AccentPrimary, AccentSecondary)))
+                Modifier.background(Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primary)))
             }
             Box(
                 modifier = Modifier
@@ -529,9 +530,9 @@ fun GamesScreen(
             ) {
                 Text(
                     text = "ALLOCATE & LAUNCH",
-                    color = if (activeApp == null) TextMuted else TextTitle,
+                    color = if (activeApp == null) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f) else MaterialTheme.colorScheme.onPrimary,
                     fontSize = 13.sp,
-                    fontFamily = SpaceGrotesk,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
@@ -607,6 +608,7 @@ fun TopographicGridSweep(
         }
     }
     
+    val primaryColor = MaterialTheme.colorScheme.primary
     Box(modifier = Modifier.fillMaxSize()) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val width = size.width
@@ -626,7 +628,7 @@ fun TopographicGridSweep(
             for (i in 0..lineCountX) {
                 val x = i * gridSpacing
                 drawLine(
-                    color = AccentPrimary.copy(alpha = 0.18f * (1f - sweepProgress.value)),
+                    color = primaryColor.copy(alpha = 0.18f * (1f - sweepProgress.value)),
                     start = Offset(x, 0f),
                     end = Offset(x, height),
                     strokeWidth = 1.dp.toPx()
@@ -635,16 +637,16 @@ fun TopographicGridSweep(
             for (i in 0..lineCountY) {
                 val y = i * gridSpacing
                 drawLine(
-                    color = AccentPrimary.copy(alpha = 0.18f * (1f - sweepProgress.value)),
+                    color = primaryColor.copy(alpha = 0.18f * (1f - sweepProgress.value)),
                     start = Offset(0f, y),
                     end = Offset(width, y),
                     strokeWidth = 1.dp.toPx()
                 )
             }
             
-            // Horizontal scan line glowing Cryo-Blue
+            // Horizontal scan line
             drawLine(
-                color = AccentPrimary.copy(alpha = 0.85f * (1f - sweepProgress.value)),
+                color = primaryColor.copy(alpha = 0.85f * (1f - sweepProgress.value)),
                 start = Offset(0f, scanY),
                 end = Offset(width, scanY),
                 strokeWidth = 3.dp.toPx()
@@ -662,8 +664,8 @@ fun TopographicGridSweep(
                     .scale(iconScale.value)
                     .alpha(iconAlpha.value)
                     .clip(RoundedCornerShape(24.dp))
-                    .background(SurfaceCard)
-                    .border(1.5.dp, AccentPrimary, RoundedCornerShape(24.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                    .border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(24.dp))
                     .padding(14.dp)
             ) {
                 AppIcon(
@@ -776,7 +778,7 @@ fun getIconThemeColor(context: Context, pkg: String): Color {
         iconThemeColorCache[pkg] = color
         return color
     } catch (_: Throwable) {
-        val color = AccentPrimary.copy(alpha = 0.12f)
+        val color = ZenColors.primary.copy(alpha = 0.12f)
         iconThemeColorCache[pkg] = color
         return color
     }

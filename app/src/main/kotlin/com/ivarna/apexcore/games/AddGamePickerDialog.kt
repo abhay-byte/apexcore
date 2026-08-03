@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,7 +66,7 @@ fun AddGamePickerDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(SurfaceGlass)
+                .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.85f))
                 .clickable(onClick = onDismiss),
             contentAlignment = Alignment.Center
         ) {
@@ -75,8 +76,8 @@ fun AddGamePickerDialog(
                     .fillMaxWidth()
                     .fillMaxHeight(0.85f)
                     .clip(RoundedCornerShape(28.dp))
-                    .background(SurfaceCard)
-                    .border(1.dp, BorderGlass, RoundedCornerShape(28.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(28.dp))
                     .clickable(enabled = false) {} // block click propagation
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -84,18 +85,18 @@ fun AddGamePickerDialog(
                 // Header
                 Text(
                     text = "ADD TO LIBRARY",
-                    color = TextTitle,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 14.sp,
-                    fontFamily = SpaceGrotesk,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 2.sp
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Select apps to register in library",
-                    color = TextMuted,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                     fontSize = 11.sp,
-                    fontFamily = SpaceGrotesk
+                    fontFamily = PlusJakartaSans
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -103,18 +104,18 @@ fun AddGamePickerDialog(
                 BasicTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    textStyle = TextStyle(color = TextTitle, fontSize = 13.sp, fontFamily = JetBrainsMono),
+                    textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontFamily = PlusJakartaSans),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                    cursorBrush = SolidColor(AccentPrimary),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(BgDark)
-                        .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.background)
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     decorationBox = { innerTextField ->
                         if (searchQuery.isEmpty()) {
-                            Text("SEARCH APPS...", color = TextMuted, fontSize = 13.sp, fontFamily = JetBrainsMono)
+                            Text("SEARCH APPS...", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f), fontSize = 13.sp, fontFamily = PlusJakartaSans)
                         }
                         innerTextField()
                     }
@@ -130,12 +131,12 @@ fun AddGamePickerDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(color = AccentPrimary)
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     } else if (filteredApps.isEmpty()) {
                         Text(
                             text = "NO APPS FOUND",
-                            color = TextMuted,
-                            fontFamily = JetBrainsMono,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                            fontFamily = PlusJakartaSans,
                             fontSize = 12.sp,
                             letterSpacing = 1.sp
                         )
@@ -150,10 +151,10 @@ fun AddGamePickerDialog(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(16.dp))
-                                        .background(if (isSelected) AccentPrimary.copy(alpha = 0.08f) else Color.Transparent)
+                                        .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent)
                                         .border(
                                             1.dp,
-                                            if (isSelected) AccentPrimary.copy(alpha = 0.3f) else BorderGlass,
+                                            if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant,
                                             RoundedCornerShape(16.dp)
                                         )
                                         .clickable {
@@ -167,8 +168,8 @@ fun AddGamePickerDialog(
                                         modifier = Modifier
                                             .size(40.dp)
                                             .clip(RoundedCornerShape(12.dp))
-                                            .background(BgDark)
-                                            .border(1.dp, BorderGlass, RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.background)
+                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
                                             .padding(6.dp)
                                     ) {
                                         AppIcon(
@@ -183,17 +184,17 @@ fun AddGamePickerDialog(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = app.name,
-                                            color = TextTitle,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                             fontSize = 14.sp,
-                                            fontFamily = SpaceGrotesk,
+                                            fontFamily = PlusJakartaSans,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1
                                         )
                                         Text(
                                             text = app.pkg,
-                                            color = TextMuted,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                                             fontSize = 10.sp,
-                                            fontFamily = JetBrainsMono,
+                                            fontFamily = PlusJakartaSans,
                                             maxLines = 1
                                         )
                                     }
@@ -203,9 +204,9 @@ fun AddGamePickerDialog(
                                         checked = isSelected,
                                         onCheckedChange = { selectedPackages[app.pkg] = it },
                                         colors = CheckboxDefaults.colors(
-                                            checkedColor = AccentPrimary,
-                                            uncheckedColor = TextMuted,
-                                            checkmarkColor = BgDark
+                                            checkedColor = MaterialTheme.colorScheme.primary,
+                                            uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                                            checkmarkColor = MaterialTheme.colorScheme.background
                                         )
                                     )
                                 }
@@ -226,15 +227,15 @@ fun AddGamePickerDialog(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(BgDark)
-                            .border(1.dp, BorderGlass, RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.background)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
                             .clickable(onClick = onDismiss)
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "CANCEL",
-                            color = TextTitle,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace
@@ -249,7 +250,7 @@ fun AddGamePickerDialog(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(if (isAddEnabled) AccentPrimary else BorderGlass)
+                            .background(if (isAddEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
                             .clickable(enabled = isAddEnabled) {
                                 val toAdd = filteredApps.filter { selectedPackages[it.pkg] == true }
                                 gameManager.addAll(toAdd)
@@ -261,7 +262,7 @@ fun AddGamePickerDialog(
                     ) {
                         Text(
                             text = "ADD${if (selectedCount > 0) " $selectedCount" else ""}",
-                            color = if (isAddEnabled) BgDark else TextMuted,
+                            color = if (isAddEnabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace
