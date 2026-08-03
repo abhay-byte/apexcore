@@ -11,14 +11,16 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -28,7 +30,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.ivarna.apexcore.freeze.FreezeBackendResolver
 import com.ivarna.apexcore.freeze.FreezeFramework
-import com.ivarna.apexcore.ui.theme.*
+import com.ivarna.apexcore.ui.components.zenGlassBackground
+import com.ivarna.apexcore.ui.theme.PlusJakartaSans
+import com.ivarna.apexcore.ui.theme.ZenDimens
 import kotlinx.coroutines.launch
 
 object SetupDialogHelper {
@@ -45,7 +49,9 @@ fun SetupDialog(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    
+    val scheme = MaterialTheme.colorScheme
+    val dialogShape = RoundedCornerShape(28.dp)
+
     DisposableEffect(Unit) {
         onDispose {
             val prefs = context.getSharedPreferences(SetupDialogHelper.PREFS, Context.MODE_PRIVATE)
@@ -60,40 +66,42 @@ fun SetupDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.40f))
+                .background(scheme.inverseSurface.copy(alpha = 0.40f))
                 .clickable(onClick = onDismiss),
             contentAlignment = Alignment.Center
         ) {
             Column(
                 modifier = Modifier
-                    .padding(horizontal = 24.dp)
+                    .padding(horizontal = ZenDimens.containerPadding)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(28.dp))
+                    .zenGlassBackground(
+                        shape = dialogShape,
+                        fill = scheme.surfaceContainerLowest.copy(alpha = 0.96f),
+                        borderColor = scheme.outlineVariant.copy(alpha = 0.6f)
+                    )
                     .clickable(enabled = false) {} // block click propagation
-                    .padding(24.dp)
+                    .padding(ZenDimens.containerPadding)
                     .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // Header
                 Text(
                     text = "SYSTEM ACCESS CONFIG",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
                     fontSize = 10.sp,
                     fontFamily = PlusJakartaSans,
                     letterSpacing = 2.sp
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(ZenDimens.base))
+                // C14 — exact honesty string (non-negotiable)
                 Text(
                     text = "Deep freeze (BOOST) requires Shizuku or Root access.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = scheme.onSurfaceVariant,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(28.dp))
 
-                // Bento Layout
                 // 1. Shizuku (Full Width, Recommended)
                 OptionCard(
                     title = "Shizuku Service",
@@ -107,7 +115,7 @@ fun SetupDialog(
                     onDismiss()
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(ZenDimens.elementGap))
 
                 // 2. Root access (full width)
                 OptionCard(
@@ -130,18 +138,18 @@ fun SetupDialog(
 
                 Spacer(modifier = Modifier.height(28.dp))
 
-                // Privacy policy link (Play User Data policy requires an in-app link)
+                // C2 — PRIVACY POLICY chip (opens C3 URL via C4 API)
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(MaterialTheme.colorScheme.background)
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(50))
+                        .background(scheme.surfaceContainerLow.copy(alpha = 0.9f))
+                        .border(1.dp, scheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(50))
                         .clickable { openPrivacyPolicy(context) }
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Text(
                         text = "PRIVACY POLICY",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                        color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
                         fontSize = 10.sp,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Bold,
@@ -156,15 +164,15 @@ fun SetupDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.background)
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+                        .background(scheme.surfaceContainerLow.copy(alpha = 0.9f))
+                        .border(1.dp, scheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
                         .clickable(onClick = onDismiss)
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "NOT NOW",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = scheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = PlusJakartaSans,
@@ -186,23 +194,45 @@ fun OptionCard(
     badge: String? = null,
     onClick: () -> Unit
 ) {
+    val scheme = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(20.dp)
     val bgBrush = if (isRecommended) {
-        Brush.verticalGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)))
+        Brush.verticalGradient(
+            listOf(
+                scheme.primary.copy(alpha = 0.15f),
+                scheme.primary.copy(alpha = 0.05f)
+            )
+        )
     } else {
-        Brush.verticalGradient(listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.background))
+        Brush.verticalGradient(
+            listOf(
+                scheme.surfaceContainerLow.copy(alpha = 0.9f),
+                scheme.surfaceContainerLow.copy(alpha = 0.9f)
+            )
+        )
     }
-    
+
     val borderBrush = if (isRecommended) {
-        Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)))
+        Brush.horizontalGradient(
+            listOf(
+                scheme.primary.copy(alpha = 0.6f),
+                scheme.primary.copy(alpha = 0.4f)
+            )
+        )
     } else {
-        Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.outlineVariant, MaterialTheme.colorScheme.outlineVariant))
+        Brush.horizontalGradient(
+            listOf(
+                scheme.outlineVariant.copy(alpha = 0.6f),
+                scheme.outlineVariant.copy(alpha = 0.6f)
+            )
+        )
     }
 
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(shape)
             .background(bgBrush)
-            .border(1.dp, borderBrush, RoundedCornerShape(20.dp))
+            .border(1.dp, borderBrush, shape)
             .clickable(onClick = onClick)
             .padding(18.dp)
     ) {
@@ -213,7 +243,7 @@ fun OptionCard(
         ) {
             Text(
                 text = title,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = scheme.onSurface,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -221,12 +251,12 @@ fun OptionCard(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                        .background(scheme.primary.copy(alpha = 0.2f))
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = badge,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = scheme.primary,
                         fontSize = 8.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = PlusJakartaSans
@@ -237,18 +267,30 @@ fun OptionCard(
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = sub,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+            color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
             fontSize = 11.sp,
             lineHeight = 15.sp
         )
         Spacer(modifier = Modifier.height(18.dp))
-        Text(
-            text = cta + "  →",
-            color = if (isRecommended) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = PlusJakartaSans
-        )
+        // CTA + Material ArrowForward (never ASCII →)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = cta,
+                color = if (isRecommended) scheme.primary else scheme.onSurface,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = PlusJakartaSans
+            )
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = if (isRecommended) scheme.primary else scheme.onSurface,
+                modifier = Modifier.size(16.dp)
+            )
+        }
     }
 }
 
