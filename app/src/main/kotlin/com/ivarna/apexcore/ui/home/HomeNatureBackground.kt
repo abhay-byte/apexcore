@@ -34,38 +34,41 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Soft organic vines + flower blooms for the Home background only.
- *
- * Design goals:
- * - Match Zen sage/teal + warm gold secondary accents
- * - Grow-in once, then gentle idle sway (calm, not busy)
- * - Stay decorative: low alpha, edges only, never steals focus from leaves/Boost
- * - Zero third-party assets so light/dark and brand stay coherent
+ * Home organic accent — balanced density: three edge vines, readable leaves &
+ * blooms, light tendrils. Mid scale (between sparse/tiny and heavy/dense).
  */
 @Composable
 fun HomeNatureBackground(
     modifier: Modifier = Modifier,
-    /** When true (e.g. BOOSTING), nature layer fades so purge UI stays primary. */
     dimmed: Boolean = false
 ) {
     val scheme = MaterialTheme.colorScheme
+    val dim = if (dimmed) 0.42f else 1f
 
-    val vineColor = scheme.primary.copy(alpha = if (dimmed) 0.10f else 0.28f)
-    val vineDeep = scheme.primaryContainer.copy(alpha = if (dimmed) 0.08f else 0.22f)
-    val leafColor = scheme.primary.copy(alpha = if (dimmed) 0.12f else 0.32f)
-    val leafTip = scheme.primaryContainer.copy(alpha = if (dimmed) 0.10f else 0.26f)
-    val petalOuter = scheme.secondary.copy(alpha = if (dimmed) 0.14f else 0.38f)
-    val petalInner = scheme.secondaryContainer.copy(alpha = if (dimmed) 0.18f else 0.55f)
-    val bloomCenter = scheme.tertiary.copy(alpha = if (dimmed) 0.16f else 0.48f)
-    val budColor = scheme.primary.copy(alpha = if (dimmed) 0.10f else 0.26f)
+    val stemMain = scheme.primary.copy(alpha = 0.40f * dim)
+    val stemGlow = scheme.primaryContainer.copy(alpha = 0.24f * dim)
+    val stemDeep = scheme.primary.copy(alpha = 0.32f * dim)
 
-    // One-shot grow: vines unfurl, then blooms open (driven by growth curve)
+    val leafA = scheme.primary.copy(alpha = 0.46f * dim)
+    val leafATip = scheme.primaryContainer.copy(alpha = 0.38f * dim)
+    val leafB = scheme.primaryContainer.copy(alpha = 0.48f * dim)
+    val leafBTip = scheme.primary.copy(alpha = 0.36f * dim)
+    val leafC = scheme.tertiary.copy(alpha = 0.20f * dim)
+    val leafCTip = scheme.tertiaryContainer.copy(alpha = 0.26f * dim)
+
+    val goldOuter = scheme.secondary.copy(alpha = 0.50f * dim)
+    val goldInner = scheme.secondaryContainer.copy(alpha = 0.65f * dim)
+    val goldCore = scheme.tertiary.copy(alpha = 0.55f * dim)
+    val creamOuter = scheme.secondaryContainer.copy(alpha = 0.52f * dim)
+    val creamInner = Color(1f, 0.96f, 0.88f, 0.58f * dim)
+    val creamCore = scheme.secondary.copy(alpha = 0.45f * dim)
+    val coralOuter = scheme.tertiary.copy(alpha = 0.40f * dim)
+    val coralInner = scheme.tertiaryContainer.copy(alpha = 0.52f * dim)
+    val coralCore = scheme.secondary.copy(alpha = 0.40f * dim)
+
     val growth = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        growth.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = 2800, easing = EaseOutCubic)
-        )
+        growth.animateTo(1f, tween(2800, easing = EaseOutCubic))
     }
 
     val infinite = rememberInfiniteTransition(label = "nature_idle")
@@ -73,24 +76,42 @@ fun HomeNatureBackground(
         initialValue = 0f,
         targetValue = (2f * PI).toFloat(),
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 6200, easing = LinearEasing),
+            animation = tween(7800, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "sway_phase"
+        label = "sway"
     )
     val breathe by infinite.animateFloat(
         initialValue = 0f,
         targetValue = (2f * PI).toFloat(),
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 3800, easing = LinearEasing),
+            animation = tween(4800, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
-        label = "breathe_phase"
+        label = "breathe"
     )
 
-    // Pre-built path measure re-used across frames (paths rebuilt when size changes)
     val pathMeasure = remember { PathMeasure() }
     val segmentPath = remember { Path() }
+
+    val leafPalette = remember(leafA, leafATip, leafB, leafBTip, leafC, leafCTip) {
+        listOf(
+            LeafColors(leafA, leafATip),
+            LeafColors(leafB, leafBTip),
+            LeafColors(leafC, leafCTip)
+        )
+    }
+    val flowerPalette = remember(
+        goldOuter, goldInner, goldCore,
+        creamOuter, creamInner, creamCore,
+        coralOuter, coralInner, coralCore
+    ) {
+        listOf(
+            FlowerColors(goldOuter, goldInner, goldCore, petals = 7),
+            FlowerColors(creamOuter, creamInner, creamCore, petals = 5),
+            FlowerColors(coralOuter, coralInner, coralCore, petals = 6)
+        )
+    }
 
     Canvas(modifier = modifier.fillMaxSize()) {
         val w = size.width
@@ -98,105 +119,172 @@ fun HomeNatureBackground(
         val g = growth.value
         val s = sway
         val b = breathe
+        val amp = 7f
 
-        // ── Bottom-left climbing vine (main) ──────────────────────────
-        drawVineSystem(
-            start = Offset(-w * 0.02f, h * 1.02f),
-            mid1 = Offset(w * 0.06f + sin(s) * 6f, h * 0.72f),
-            mid2 = Offset(w * 0.14f + cos(s * 0.9f) * 8f, h * 0.42f),
-            end = Offset(w * 0.08f + sin(s * 1.1f) * 5f, h * 0.12f),
+        // Left main vine
+        drawVine(
+            start = Offset(-w * 0.03f, h * 1.03f),
+            mid1 = Offset(w * 0.06f + sin(s) * amp, h * 0.70f),
+            mid2 = Offset(w * 0.14f + cos(s * 0.9f) * amp, h * 0.40f),
+            end = Offset(w * 0.09f + sin(s * 1.05f) * 5f, h * 0.08f),
             growth = g,
             sway = s,
             breathe = b,
-            vineColor = vineColor,
-            vineDeep = vineDeep,
-            leafColor = leafColor,
-            leafTip = leafTip,
-            petalOuter = petalOuter,
-            petalInner = petalInner,
-            bloomCenter = bloomCenter,
-            budColor = budColor,
-            strokeBase = w * 0.011f,
-            leafScale = w * 0.028f,
-            bloomScale = w * 0.022f,
-            leafSlots = floatArrayOf(0.18f, 0.32f, 0.46f, 0.58f, 0.70f, 0.82f),
-            bloomSlots = floatArrayOf(0.40f, 0.68f, 0.92f),
-            tendrilSide = 1f,
+            stemMain = stemMain,
+            stemGlow = stemGlow,
+            stemDeep = stemDeep,
+            leafPalette = leafPalette,
+            flowerPalette = flowerPalette,
+            strokeBase = w * 0.012f,
+            leafBase = w * 0.040f,
+            bloomBase = w * 0.028f,
+            leaves = leftLeaves,
+            blooms = leftBlooms,
+            tendrils = leftTendrils,
+            side = 1f,
             pathMeasure = pathMeasure,
             segmentPath = segmentPath
         )
 
-        // ── Bottom-right climbing vine (mirror, thinner) ──────────────
-        drawVineSystem(
-            start = Offset(w * 1.02f, h * 1.02f),
-            mid1 = Offset(w * 0.94f + sin(s + 1.2f) * 5f, h * 0.78f),
-            mid2 = Offset(w * 0.88f + cos(s * 0.85f + 0.5f) * 7f, h * 0.50f),
-            end = Offset(w * 0.92f + sin(s * 0.95f + 0.8f) * 4f, h * 0.22f),
-            growth = (g - 0.08f).coerceIn(0f, 1f),
-            sway = s + 0.9f,
+        // Right main vine
+        drawVine(
+            start = Offset(w * 1.03f, h * 1.03f),
+            mid1 = Offset(w * 0.94f + sin(s + 1.1f) * amp, h * 0.74f),
+            mid2 = Offset(w * 0.87f + cos(s * 0.85f) * amp, h * 0.44f),
+            end = Offset(w * 0.91f + sin(s * 0.95f) * 5f, h * 0.11f),
+            growth = (g - 0.06f).coerceIn(0f, 1f),
+            sway = s + 1.0f,
             breathe = b + 0.7f,
-            vineColor = vineColor,
-            vineDeep = vineDeep,
-            leafColor = leafColor,
-            leafTip = leafTip,
-            petalOuter = petalOuter,
-            petalInner = petalInner,
-            bloomCenter = bloomCenter,
-            budColor = budColor,
-            strokeBase = w * 0.009f,
-            leafScale = w * 0.024f,
-            bloomScale = w * 0.018f,
-            leafSlots = floatArrayOf(0.22f, 0.40f, 0.55f, 0.72f, 0.88f),
-            bloomSlots = floatArrayOf(0.48f, 0.85f),
-            tendrilSide = -1f,
+            stemMain = stemMain,
+            stemGlow = stemGlow,
+            stemDeep = stemDeep,
+            leafPalette = leafPalette,
+            flowerPalette = flowerPalette,
+            strokeBase = w * 0.011f,
+            leafBase = w * 0.038f,
+            bloomBase = w * 0.026f,
+            leaves = rightLeaves,
+            blooms = rightBlooms,
+            tendrils = rightTendrils,
+            side = -1f,
             pathMeasure = pathMeasure,
             segmentPath = segmentPath
         )
 
-        // ── Top-right hanging vine (drape) ────────────────────────────
-        drawVineSystem(
+        // Soft hanging accent (top-right) — shorter, lighter
+        drawVine(
             start = Offset(w * 1.02f, -h * 0.02f),
-            mid1 = Offset(w * 0.90f + sin(s * 0.8f + 2f) * 6f, h * 0.10f),
-            mid2 = Offset(w * 0.78f + cos(s * 0.7f + 1.4f) * 9f, h * 0.22f),
-            end = Offset(w * 0.72f + sin(s * 0.75f + 1.1f) * 5f, h * 0.36f),
-            growth = (g - 0.15f).coerceIn(0f, 1f),
-            sway = s + 1.7f,
-            breathe = b + 1.3f,
-            vineColor = vineDeep,
-            vineDeep = vineColor,
-            leafColor = leafColor,
-            leafTip = leafTip,
-            petalOuter = petalOuter,
-            petalInner = petalInner,
-            bloomCenter = bloomCenter,
-            budColor = budColor,
-            strokeBase = w * 0.008f,
-            leafScale = w * 0.022f,
-            bloomScale = w * 0.016f,
-            leafSlots = floatArrayOf(0.25f, 0.45f, 0.65f, 0.82f),
-            bloomSlots = floatArrayOf(0.55f, 0.95f),
-            tendrilSide = -1f,
+            mid1 = Offset(w * 0.90f + sin(s * 0.8f + 2f) * amp, h * 0.10f),
+            mid2 = Offset(w * 0.78f + cos(s * 0.7f) * 9f, h * 0.22f),
+            end = Offset(w * 0.72f + sin(s * 0.75f) * 5f, h * 0.34f),
+            growth = (g - 0.14f).coerceIn(0f, 1f),
+            sway = s + 1.8f,
+            breathe = b + 1.2f,
+            stemMain = stemMain.copy(alpha = stemMain.alpha * 0.85f),
+            stemGlow = stemGlow,
+            stemDeep = stemDeep,
+            leafPalette = leafPalette,
+            flowerPalette = flowerPalette,
+            strokeBase = w * 0.009f,
+            leafBase = w * 0.034f,
+            bloomBase = w * 0.024f,
+            leaves = hangLeaves,
+            blooms = hangBlooms,
+            tendrils = hangTendrils,
+            side = -1f,
             pathMeasure = pathMeasure,
             segmentPath = segmentPath
         )
-
-        // ── Soft floating petal motes (depth, very subtle) ────────────
-        if (g > 0.55f) {
-            val moteAlpha = ((g - 0.55f) / 0.45f).coerceIn(0f, 1f) * (if (dimmed) 0.08f else 0.18f)
-            drawFloatingMotes(
-                w = w,
-                h = h,
-                phase = s,
-                color = petalOuter.copy(alpha = moteAlpha),
-                count = 7
-            )
-        }
     }
 }
 
-// ── Vine system ──────────────────────────────────────────────────────────────
+private data class LeafSpec(
+    val frac: Float,
+    val sizeMul: Float,
+    val colorIdx: Int,
+    val flip: Float,
+    val wide: Boolean = false
+)
 
-private fun DrawScope.drawVineSystem(
+private data class BloomSpec(
+    val frac: Float,
+    val sizeMul: Float,
+    val paletteIdx: Int,
+    val flip: Float
+)
+
+private data class TendrilSpec(
+    val frac: Float,
+    val lengthMul: Float,
+    val flip: Float,
+    val leafSize: Float,
+    val bloom: Boolean = false,
+    val bloomPalette: Int = 0
+)
+
+private data class LeafColors(val fill: Color, val tip: Color)
+private data class FlowerColors(
+    val outer: Color,
+    val inner: Color,
+    val core: Color,
+    val petals: Int
+)
+
+private val leftLeaves = arrayOf(
+    LeafSpec(0.12f, 1.05f, 0, 1f),
+    LeafSpec(0.22f, 0.85f, 1, -1f, wide = true),
+    LeafSpec(0.34f, 1.15f, 0, 1f),
+    LeafSpec(0.46f, 0.90f, 2, -1f),
+    LeafSpec(0.58f, 1.10f, 1, 1f, wide = true),
+    LeafSpec(0.70f, 0.95f, 0, -1f),
+    LeafSpec(0.82f, 1.05f, 1, 1f),
+    LeafSpec(0.92f, 0.80f, 0, -1f)
+)
+private val leftBlooms = arrayOf(
+    BloomSpec(0.28f, 1.05f, 0, 1f),
+    BloomSpec(0.55f, 0.90f, 1, -1f),
+    BloomSpec(0.80f, 1.10f, 2, 1f)
+)
+private val leftTendrils = arrayOf(
+    TendrilSpec(0.40f, 1.35f, 1f, 0.85f, bloom = true, bloomPalette = 1),
+    TendrilSpec(0.68f, 1.45f, -1f, 0.95f)
+)
+
+private val rightLeaves = arrayOf(
+    LeafSpec(0.14f, 1.00f, 1, 1f, wide = true),
+    LeafSpec(0.26f, 0.90f, 0, -1f),
+    LeafSpec(0.38f, 1.15f, 1, 1f),
+    LeafSpec(0.50f, 0.85f, 2, -1f),
+    LeafSpec(0.62f, 1.08f, 0, 1f, wide = true),
+    LeafSpec(0.74f, 0.92f, 1, -1f),
+    LeafSpec(0.86f, 1.00f, 0, 1f),
+    LeafSpec(0.94f, 0.78f, 1, -1f)
+)
+private val rightBlooms = arrayOf(
+    BloomSpec(0.32f, 1.00f, 1, -1f),
+    BloomSpec(0.58f, 1.12f, 0, 1f),
+    BloomSpec(0.84f, 0.95f, 2, -1f)
+)
+private val rightTendrils = arrayOf(
+    TendrilSpec(0.44f, 1.4f, -1f, 0.9f, bloom = true, bloomPalette = 0),
+    TendrilSpec(0.72f, 1.3f, 1f, 0.85f)
+)
+
+private val hangLeaves = arrayOf(
+    LeafSpec(0.22f, 0.95f, 0, 1f),
+    LeafSpec(0.42f, 1.05f, 1, -1f, wide = true),
+    LeafSpec(0.62f, 0.90f, 0, 1f),
+    LeafSpec(0.80f, 0.85f, 2, -1f)
+)
+private val hangBlooms = arrayOf(
+    BloomSpec(0.50f, 0.95f, 1, 1f),
+    BloomSpec(0.88f, 1.05f, 0, -1f)
+)
+private val hangTendrils = arrayOf(
+    TendrilSpec(0.55f, 1.25f, 1f, 0.8f, bloom = true, bloomPalette = 2)
+)
+
+private fun DrawScope.drawVine(
     start: Offset,
     mid1: Offset,
     mid2: Offset,
@@ -204,20 +292,18 @@ private fun DrawScope.drawVineSystem(
     growth: Float,
     sway: Float,
     breathe: Float,
-    vineColor: Color,
-    vineDeep: Color,
-    leafColor: Color,
-    leafTip: Color,
-    petalOuter: Color,
-    petalInner: Color,
-    bloomCenter: Color,
-    budColor: Color,
+    stemMain: Color,
+    stemGlow: Color,
+    stemDeep: Color,
+    leafPalette: List<LeafColors>,
+    flowerPalette: List<FlowerColors>,
     strokeBase: Float,
-    leafScale: Float,
-    bloomScale: Float,
-    leafSlots: FloatArray,
-    bloomSlots: FloatArray,
-    tendrilSide: Float,
+    leafBase: Float,
+    bloomBase: Float,
+    leaves: Array<LeafSpec>,
+    blooms: Array<BloomSpec>,
+    tendrils: Array<TendrilSpec>,
+    side: Float,
     pathMeasure: PathMeasure,
     segmentPath: Path
 ) {
@@ -231,161 +317,180 @@ private fun DrawScope.drawVineSystem(
     val totalLen = pathMeasure.length
     if (totalLen <= 1f) return
 
-    // Progressive unfurl
-    val visibleLen = totalLen * growth
     segmentPath.reset()
-    pathMeasure.getSegment(0f, visibleLen, segmentPath, true)
+    pathMeasure.getSegment(0f, totalLen * growth, segmentPath, true)
 
-    // Soft under-glow stroke then crisp vine
     drawPath(
         path = segmentPath,
-        color = vineDeep,
-        style = Stroke(
-            width = strokeBase * 2.4f,
-            cap = StrokeCap.Round,
-            join = StrokeJoin.Round
-        )
+        color = stemGlow,
+        style = Stroke(width = strokeBase * 2.4f, cap = StrokeCap.Round, join = StrokeJoin.Round)
     )
     drawPath(
         path = segmentPath,
         brush = Brush.linearGradient(
-            colors = listOf(vineColor, vineDeep, vineColor),
+            colors = listOf(stemDeep, stemMain, stemDeep),
             start = start,
             end = end
         ),
-        style = Stroke(
-            width = strokeBase,
-            cap = StrokeCap.Round,
-            join = StrokeJoin.Round
-        )
+        style = Stroke(width = strokeBase * 1.05f, cap = StrokeCap.Round, join = StrokeJoin.Round)
     )
 
-    // Side tendrils (short branches that grow later)
-    val tendrilGrowth = ((growth - 0.25f) / 0.75f).coerceIn(0f, 1f)
+    // Short tendrils
+    val tendrilGrowth = ((growth - 0.2f) / 0.8f).coerceIn(0f, 1f)
     if (tendrilGrowth > 0f) {
-        val tendrilFracs = floatArrayOf(0.30f, 0.52f, 0.74f)
-        for ((i, frac) in tendrilFracs.withIndex()) {
-            if (frac > growth) continue
-            val pos = pathPos(pathMeasure, totalLen * frac)
-            val tan = pathTan(pathMeasure, totalLen * frac)
-            val nx = -tan.y * tendrilSide
-            val ny = tan.x * tendrilSide
-            val len = strokeBase * (18f + i * 4f) * tendrilGrowth
-            val curl = sin(sway + i * 1.3f) * 0.35f
-            val c1 = Offset(
-                pos.x + nx * len * 0.4f + tan.x * len * 0.15f,
-                pos.y + ny * len * 0.4f + tan.y * len * 0.15f
-            )
-            val c2 = Offset(
-                pos.x + nx * len * 0.85f + tan.x * len * curl,
-                pos.y + ny * len * 0.85f + tan.y * len * curl
-            )
+        for ((i, t) in tendrils.withIndex()) {
+            if (t.frac > growth) continue
+            val pos = pathPos(pathMeasure, totalLen * t.frac)
+            val tan = pathTan(pathMeasure, totalLen * t.frac)
+            val nx = -tan.y * side * t.flip
+            val ny = tan.x * side * t.flip
+            val len = strokeBase * 18f * t.lengthMul * tendrilGrowth
+            val curl = sin(sway + i * 1.2f) * 0.35f
             val tip = Offset(
-                pos.x + nx * len + tan.x * len * curl * 0.5f,
-                pos.y + ny * len + tan.y * len * curl * 0.5f
+                pos.x + nx * len + tan.x * len * curl * 0.4f,
+                pos.y + ny * len + tan.y * len * curl * 0.4f
             )
-            val tendril = Path().apply {
+            val c1 = Offset(pos.x + nx * len * 0.4f, pos.y + ny * len * 0.4f)
+            val path = Path().apply {
                 moveTo(pos.x, pos.y)
-                cubicTo(c1.x, c1.y, c2.x, c2.y, tip.x, tip.y)
+                quadraticTo(c1.x + tan.x * len * curl, c1.y + tan.y * len * curl, tip.x, tip.y)
             }
             drawPath(
-                path = tendril,
-                color = vineColor.copy(alpha = vineColor.alpha * 0.85f),
-                style = Stroke(
-                    width = strokeBase * 0.55f,
-                    cap = StrokeCap.Round
-                )
+                path = path,
+                color = stemMain.copy(alpha = stemMain.alpha * 0.9f),
+                style = Stroke(width = strokeBase * 0.5f, cap = StrokeCap.Round)
             )
-            // Small bud at tendril tip
-            if (tendrilGrowth > 0.6f) {
-                val budOpen = ((tendrilGrowth - 0.6f) / 0.4f).coerceIn(0f, 1f)
-                drawCircle(
-                    color = budColor,
-                    radius = leafScale * 0.22f * budOpen * (1f + 0.08f * sin(breathe + i)),
-                    center = tip
+            if (tendrilGrowth > 0.4f) {
+                val appear = ((tendrilGrowth - 0.4f) / 0.6f).coerceIn(0f, 1f)
+                val colors = leafPalette[i % leafPalette.size]
+                drawLeaf(
+                    attach = tip,
+                    outward = Offset(nx, ny),
+                    scale = leafBase * t.leafSize * appear,
+                    fill = colors.fill,
+                    tipColor = colors.tip,
+                    stemColor = stemMain,
+                    swayDeg = sin(sway + i).toFloat() * 6f,
+                    wide = false
                 )
+                if (t.bloom && tendrilGrowth > 0.6f) {
+                    val open = ((tendrilGrowth - 0.6f) / 0.4f).coerceIn(0f, 1f)
+                    val fp = flowerPalette[t.bloomPalette % flowerPalette.size]
+                    drawFlower(
+                        center = tip + Offset(nx, ny) * (bloomBase * 0.2f),
+                        scale = bloomBase * 0.75f * easeOut(open) *
+                            (1f + 0.05f * sin(breathe + i).toFloat()),
+                        rotationDeg = sin(sway * 0.5f + i).toFloat() * 10f,
+                        colors = fp
+                    )
+                }
             }
         }
     }
 
-    // Leaves along main vine
-    for ((i, frac) in leafSlots.withIndex()) {
-        if (frac > growth) continue
-        val appear = ((growth - frac) / 0.18f).coerceIn(0f, 1f)
+    for ((i, spec) in leaves.withIndex()) {
+        if (spec.frac > growth) continue
+        val appear = ((growth - spec.frac) / 0.15f).coerceIn(0f, 1f)
         if (appear <= 0f) continue
-        val pos = pathPos(pathMeasure, totalLen * frac)
-        val tan = pathTan(pathMeasure, totalLen * frac)
-        val side = if (i % 2 == 0) tendrilSide else -tendrilSide
-        val angleDeg = Math.toDegrees(atan2(tan.y.toDouble(), tan.x.toDouble())).toFloat() +
-            side * 55f + sin(sway + i * 0.9f).toFloat() * 6f
-        val scale = leafScale * appear * (0.85f + 0.15f * sin(breathe + i * 0.7f).toFloat())
+        val pos = pathPos(pathMeasure, totalLen * spec.frac)
+        val tan = pathTan(pathMeasure, totalLen * spec.frac)
+        val outward = Offset(-tan.y * side * spec.flip, tan.x * side * spec.flip)
+        val colors = leafPalette[spec.colorIdx % leafPalette.size]
+        val scale = leafBase * spec.sizeMul * appear *
+            (0.9f + 0.1f * sin(breathe + i * 0.65f).toFloat())
         drawLeaf(
-            center = pos + Offset(-tan.y * side * leafScale * 0.35f, tan.x * side * leafScale * 0.35f),
+            attach = pos,
+            outward = outward,
             scale = scale,
-            rotationDeg = angleDeg,
-            fill = leafColor,
-            tip = leafTip
+            fill = colors.fill,
+            tipColor = colors.tip,
+            stemColor = stemMain,
+            swayDeg = sin(sway + i * 0.85f).toFloat() * 6f,
+            wide = spec.wide
         )
     }
 
-    // Flower blooms along vine (open after local growth)
-    for ((i, frac) in bloomSlots.withIndex()) {
-        val openStart = frac * 0.85f + 0.12f
-        val open = ((growth - openStart) / 0.22f).coerceIn(0f, 1f)
+    for ((i, spec) in blooms.withIndex()) {
+        val openStart = spec.frac * 0.82f + 0.1f
+        val open = ((growth - openStart) / 0.2f).coerceIn(0f, 1f)
         if (open <= 0f) continue
-        val pos = pathPos(pathMeasure, totalLen * frac.coerceAtMost(growth))
-        val tan = pathTan(pathMeasure, totalLen * frac.coerceAtMost(growth))
-        val side = if (i % 2 == 0) -tendrilSide else tendrilSide
-        val offset = Offset(-tan.y * side * bloomScale * 1.2f, tan.x * side * bloomScale * 1.2f)
-        val pulse = 1f + 0.06f * sin(breathe + i * 1.1f).toFloat()
+        val frac = spec.frac.coerceAtMost(growth)
+        val pos = pathPos(pathMeasure, totalLen * frac)
+        val tan = pathTan(pathMeasure, totalLen * frac)
+        val outward = Offset(-tan.y * side * spec.flip, tan.x * side * spec.flip)
+        val spur = bloomBase * 0.5f
+        val center = pos + outward * spur
+        drawLine(
+            color = stemMain,
+            start = pos,
+            end = center,
+            strokeWidth = strokeBase * 0.4f,
+            cap = StrokeCap.Round
+        )
+        val fp = flowerPalette[spec.paletteIdx % flowerPalette.size]
         drawFlower(
-            center = pos + offset,
-            scale = bloomScale * easeOutBack(open) * pulse,
+            center = center,
+            scale = bloomBase * spec.sizeMul * easeOut(open) *
+                (1f + 0.055f * sin(breathe + i * 1.1f).toFloat()),
             rotationDeg = Math.toDegrees(atan2(tan.y.toDouble(), tan.x.toDouble())).toFloat() +
-                sin(sway * 0.5f + i).toFloat() * 8f,
-            petalOuter = petalOuter,
-            petalInner = petalInner,
-            centerColor = bloomCenter,
-            petalCount = if (i == 0) 5 else 6
+                sin(sway * 0.4f + i).toFloat() * 8f,
+            colors = fp
         )
     }
 }
 
-// ── Primitives ───────────────────────────────────────────────────────────────
-
 private fun DrawScope.drawLeaf(
-    center: Offset,
+    attach: Offset,
+    outward: Offset,
     scale: Float,
-    rotationDeg: Float,
     fill: Color,
-    tip: Color
+    tipColor: Color,
+    stemColor: Color,
+    swayDeg: Float,
+    wide: Boolean
 ) {
-    if (scale <= 0.5f) return
+    if (scale <= 0.7f) return
+    val oLen = sqrt(outward.x * outward.x + outward.y * outward.y).coerceAtLeast(0.001f)
+    val ox = outward.x / oLen
+    val oy = outward.y / oLen
+    val petiole = scale * 0.24f
+    val base = Offset(attach.x + ox * petiole, attach.y + oy * petiole)
+
+    drawLine(
+        color = stemColor.copy(alpha = stemColor.alpha * 0.92f),
+        start = attach,
+        end = base,
+        strokeWidth = scale * 0.075f,
+        cap = StrokeCap.Round
+    )
+    drawCircle(stemColor, scale * 0.05f, attach)
+
+    val angleDeg = Math.toDegrees(atan2(oy.toDouble(), ox.toDouble())).toFloat() + 90f + swayDeg
+    val halfW = if (wide) 0.58f else 0.42f
+    val tipY = if (wide) 1.35f else 1.5f
     withTransform({
-        translate(center.x, center.y)
-        rotate(rotationDeg, pivot = Offset.Zero)
+        translate(base.x, base.y)
+        rotate(angleDeg, pivot = Offset.Zero)
     }) {
         val path = Path().apply {
-            // Teardrop leaf (matches MemoryLeaf language)
-            moveTo(0f, -scale)
-            cubicTo(scale * 0.55f, -scale * 0.55f, scale * 0.75f, scale * 0.15f, 0f, scale * 0.95f)
-            cubicTo(-scale * 0.75f, scale * 0.15f, -scale * 0.55f, -scale * 0.55f, 0f, -scale)
+            moveTo(0f, 0f)
+            cubicTo(scale * halfW, -scale * 0.15f, scale * halfW * 1.05f, -scale * (tipY * 0.55f), 0f, -scale * tipY)
+            cubicTo(-scale * halfW * 1.05f, -scale * (tipY * 0.55f), -scale * halfW, -scale * 0.15f, 0f, 0f)
             close()
         }
         drawPath(
             path = path,
             brush = Brush.linearGradient(
-                colors = listOf(tip, fill, fill.copy(alpha = fill.alpha * 0.7f)),
-                start = Offset(0f, -scale),
-                end = Offset(0f, scale)
+                colors = listOf(fill.copy(alpha = fill.alpha * 0.78f), fill, tipColor),
+                start = Offset(0f, 0f),
+                end = Offset(0f, -scale * tipY)
             )
         )
-        // Midrib
         drawLine(
-            color = fill.copy(alpha = fill.alpha * 0.55f),
-            start = Offset(0f, -scale * 0.75f),
-            end = Offset(0f, scale * 0.7f),
-            strokeWidth = scale * 0.06f,
+            color = fill.copy(alpha = fill.alpha * 0.42f),
+            start = Offset(0f, -scale * 0.04f),
+            end = Offset(0f, -scale * tipY * 0.88f),
+            strokeWidth = scale * 0.048f,
             cap = StrokeCap.Round
         )
     }
@@ -395,99 +500,45 @@ private fun DrawScope.drawFlower(
     center: Offset,
     scale: Float,
     rotationDeg: Float,
-    petalOuter: Color,
-    petalInner: Color,
-    centerColor: Color,
-    petalCount: Int
+    colors: FlowerColors
 ) {
-    if (scale <= 0.5f) return
+    if (scale <= 0.55f) return
     withTransform({
         translate(center.x, center.y)
         rotate(rotationDeg, pivot = Offset.Zero)
     }) {
-        val petalLen = scale * 1.35f
-        val petalW = scale * 0.55f
-        for (i in 0 until petalCount) {
-            val angle = i * (360f / petalCount)
-            rotate(angle, pivot = Offset.Zero) {
+        val n = colors.petals
+        val petalLen = scale * 1.4f
+        val petalW = scale * 0.4f
+        for (i in 0 until n) {
+            rotate(i * (360f / n), pivot = Offset.Zero) {
                 val petal = Path().apply {
                     moveTo(0f, 0f)
-                    cubicTo(
-                        petalW, -petalLen * 0.25f,
-                        petalW * 0.85f, -petalLen * 0.75f,
-                        0f, -petalLen
-                    )
-                    cubicTo(
-                        -petalW * 0.85f, -petalLen * 0.75f,
-                        -petalW, -petalLen * 0.25f,
-                        0f, 0f
-                    )
+                    cubicTo(petalW, -petalLen * 0.22f, petalW * 0.85f, -petalLen * 0.7f, 0f, -petalLen)
+                    cubicTo(-petalW * 0.85f, -petalLen * 0.7f, -petalW, -petalLen * 0.22f, 0f, 0f)
                     close()
                 }
                 drawPath(
                     path = petal,
                     brush = Brush.radialGradient(
-                        colors = listOf(petalInner, petalOuter, petalOuter.copy(alpha = 0f)),
-                        center = Offset(0f, -petalLen * 0.35f),
+                        listOf(colors.inner, colors.outer, colors.outer.copy(alpha = 0f)),
+                        center = Offset(0f, -petalLen * 0.3f),
                         radius = petalLen
                     )
                 )
             }
         }
-        // Soft halo
         drawCircle(
             brush = Brush.radialGradient(
-                colors = listOf(centerColor.copy(alpha = centerColor.alpha * 0.5f), Color.Transparent),
-                center = Offset.Zero,
-                radius = scale * 1.1f
+                listOf(colors.core.copy(alpha = colors.core.alpha * 0.5f), Color.Transparent),
+                radius = scale * 1.05f
             ),
-            radius = scale * 1.1f,
-            center = Offset.Zero
+            radius = scale * 1.05f
         )
-        // Stamen core
-        drawCircle(
-            color = centerColor,
-            radius = scale * 0.28f,
-            center = Offset.Zero
-        )
-        drawCircle(
-            color = petalInner.copy(alpha = petalInner.alpha * 0.9f),
-            radius = scale * 0.14f,
-            center = Offset.Zero
-        )
+        drawCircle(colors.core, scale * 0.34f)
+        drawCircle(colors.inner.copy(alpha = colors.inner.alpha * 0.9f), scale * 0.15f)
     }
 }
-
-private fun DrawScope.drawFloatingMotes(
-    w: Float,
-    h: Float,
-    phase: Float,
-    color: Color,
-    count: Int
-) {
-    // Deterministic pseudo-random anchors so motes don't jump frames
-    val seeds = floatArrayOf(
-        0.12f, 0.28f, 0.41f, 0.55f, 0.63f, 0.77f, 0.88f, 0.33f, 0.70f
-    )
-    for (i in 0 until count) {
-        val sx = seeds[i % seeds.size]
-        val sy = seeds[(i * 3 + 1) % seeds.size]
-        val x = w * (0.15f + sx * 0.7f) + sin(phase + i * 1.7f) * (w * 0.03f)
-        val y = h * (0.18f + sy * 0.55f) + cos(phase * 0.8f + i * 1.1f) * (h * 0.02f)
-        val r = w * (0.004f + (i % 3) * 0.002f)
-        // Tiny petal diamond
-        val p = Path().apply {
-            moveTo(x, y - r * 1.6f)
-            lineTo(x + r, y)
-            lineTo(x, y + r * 1.6f)
-            lineTo(x - r, y)
-            close()
-        }
-        drawPath(path = p, color = color)
-    }
-}
-
-// ── Path helpers ─────────────────────────────────────────────────────────────
 
 private fun pathPos(measure: PathMeasure, distance: Float): Offset =
     measure.getPosition(distance.coerceIn(0f, measure.length))
@@ -498,10 +549,7 @@ private fun pathTan(measure: PathMeasure, distance: Float): Offset {
     return Offset(tan.x / len, tan.y / len)
 }
 
-/** Soft overshoot for bloom open (no spring dependency in DrawScope). */
-private fun easeOutBack(t: Float): Float {
-    val c1 = 1.70158f
-    val c3 = c1 + 1f
-    val p = t - 1f
-    return 1f + c3 * p * p * p + c1 * p * p
+private fun easeOut(t: Float): Float {
+    val p = 1f - t
+    return 1f - p * p
 }

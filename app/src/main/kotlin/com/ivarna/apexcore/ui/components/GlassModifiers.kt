@@ -26,12 +26,18 @@ import dev.chrisbanes.haze.hazeChild
 object ZenFrost {
     /** Strong soften under chrome — in the ballpark of dialog FLAG_BLUR_BEHIND. */
     val blurRadius = 48.dp
+    /** Content cards: still soft, slightly less than chrome so vines read through. */
+    val cardBlurRadius = 40.dp
     val noiseFactor = 0.15f
     /**
      * Glass veil alpha on [HazeTint]. High enough that scrolled text under bars
      * is soft/illegible; low enough to keep material as glass not solid.
      */
     const val tintAlpha = 0.78f
+    /**
+     * Card veil — a bit denser than chrome so stats/labels stay crisp over nature BG.
+     */
+    const val cardTintAlpha = 0.86f
     /** When RenderEffect blur is unavailable, stay nearly solid so chrome still reads. */
     const val fallbackTintAlpha = 0.94f
 
@@ -67,6 +73,25 @@ fun Modifier.zenFrostChild(
     blurRadius = ZenFrost.blurRadius
     noiseFactor = ZenFrost.noiseFactor
 }
+
+/**
+ * Frosted glass for content cards (purge result, etc.).
+ * Slightly stronger veil than chrome so dense body text stays legible over vines,
+ * while still showing true Haze backdrop blur.
+ */
+fun Modifier.zenFrostCard(
+    hazeState: HazeState,
+    surface: Color,
+    shape: Shape = RoundedCornerShape(32.dp)
+): Modifier = this
+    .clip(shape)
+    .hazeChild(state = hazeState) {
+        backgroundColor = surface
+        tints = listOf(HazeTint(surface.copy(alpha = ZenFrost.cardTintAlpha)))
+        fallbackTint = HazeTint(surface.copy(alpha = ZenFrost.fallbackTintAlpha))
+        blurRadius = ZenFrost.cardBlurRadius
+        noiseFactor = ZenFrost.noiseFactor
+    }
 
 /**
  * Soft primary-tinted bloom shadow for floating island chrome.

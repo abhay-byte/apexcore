@@ -126,6 +126,9 @@ fun GamesScreen(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
+        // Launch / energy ambient — distinct from Home vines
+        GamesEnergyBackground()
+
         Column(
             modifier = Modifier
                 .fillMaxSize()

@@ -42,12 +42,16 @@ fun OverlayScreen(context: Context = LocalContext.current) {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = ZenDimens.containerPadding)
-            .verticalScroll(rememberScrollState())
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Tactical HUD ambient — grid, scan, radar (not vines)
+        OverlayHudBackground()
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = ZenDimens.containerPadding)
+                .verticalScroll(rememberScrollState())
+        ) {
         // Clearance: status bar + floating frosted top bar
         Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
         Spacer(modifier = Modifier.height(ZenDimens.topBarClearance))
@@ -215,5 +219,6 @@ fun OverlayScreen(context: Context = LocalContext.current) {
         }
         // Clearance for floating bottom-nav island
         Spacer(modifier = Modifier.height(ZenDimens.bottomNavClearance))
+        }
     }
 }

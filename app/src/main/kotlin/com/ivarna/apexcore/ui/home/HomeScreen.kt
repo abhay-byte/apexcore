@@ -62,10 +62,13 @@ import com.ivarna.apexcore.getSystemMemStats
 import com.ivarna.apexcore.ui.components.MemoryLeafPair
 import com.ivarna.apexcore.ui.components.StatusPebble
 import com.ivarna.apexcore.ui.components.ZenEntryRow
+import com.ivarna.apexcore.ui.components.zenFrostCard
 import com.ivarna.apexcore.ui.shell.State
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenDimens
 import com.ivarna.apexcore.ui.theme.ZenIcons
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.delay
 
 @Composable
@@ -85,6 +88,11 @@ fun HomeScreen(
     val context = LocalContext.current
     var memStats by remember { mutableStateOf(getSystemMemStats(context)) }
     val actualFreedMb = if (lastResult != null && freedRamText.isNotEmpty()) (lastResult.freedKb / 1024f) else -1f
+
+    // Local Haze for purge-card frost only.
+    // MUST be sibling source/child (not hazeChild nested inside MainScreen's haze tree
+    // sampling that same state) — nested same-state caused RenderThread SIGSEGV.
+    val cardHazeState = remember { HazeState() }
 
     LaunchedEffect(state) {
         memStats = getSystemMemStats(context)
@@ -129,33 +137,41 @@ fun HomeScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Atmosphere orbs — theme-aware (works light + dark)
-        val primaryOrbColor = scheme.primaryContainer.copy(alpha = 0.14f)
-        val secondaryOrbColor = scheme.secondaryContainer.copy(alpha = 0.12f)
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(primaryOrbColor, Color.Transparent),
-                    center = Offset(size.width * 0.18f, size.height * 0.08f),
-                    radius = size.minDimension * 0.55f
-                ),
-                radius = size.minDimension * 0.55f,
-                center = Offset(size.width * 0.18f, size.height * 0.08f)
-            )
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(secondaryOrbColor, Color.Transparent),
-                    center = Offset(size.width * 0.88f, size.height * 0.72f),
-                    radius = size.minDimension * 0.5f
-                ),
-                radius = size.minDimension * 0.5f,
-                center = Offset(size.width * 0.88f, size.height * 0.72f)
-            )
+        // Blur SOURCE for the result card — decorative layers only (sibling of content).
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .haze(state = cardHazeState)
+        ) {
+            // Atmosphere orbs — theme-aware (works light + dark)
+            val primaryOrbColor = scheme.primaryContainer.copy(alpha = 0.14f)
+            val secondaryOrbColor = scheme.secondaryContainer.copy(alpha = 0.12f)
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(primaryOrbColor, Color.Transparent),
+                        center = Offset(size.width * 0.18f, size.height * 0.08f),
+                        radius = size.minDimension * 0.55f
+                    ),
+                    radius = size.minDimension * 0.55f,
+                    center = Offset(size.width * 0.18f, size.height * 0.08f)
+                )
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(secondaryOrbColor, Color.Transparent),
+                        center = Offset(size.width * 0.88f, size.height * 0.72f),
+                        radius = size.minDimension * 0.5f
+                    ),
+                    radius = size.minDimension * 0.5f,
+                    center = Offset(size.width * 0.88f, size.height * 0.72f)
+                )
+            }
+
+            // Organic vines + blooms — Home only, behind content, decorative
+            HomeNatureBackground(dimmed = state == State.BOOSTING)
         }
 
-        // Organic vines + blooms — Home only, behind content, decorative
-        HomeNatureBackground(dimmed = state == State.BOOSTING)
-
+        // Foreground UI — not inside cardHaze source; card uses hazeChild as sibling
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -217,6 +233,7 @@ fun HomeScreen(
                 if (targetState == State.RESULT) {
                     UnifiedResultCard(
                         lastResult = lastResult,
+                        cardHazeState = cardHazeState,
                         onClick = onBoostClick
                     )
                 } else {
@@ -324,6 +341,7 @@ fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
 @Composable
 fun UnifiedResultCard(
     lastResult: FreezeResult?,
+    cardHazeState: HazeState,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -351,24 +369,33 @@ fun UnifiedResultCard(
         else -> "Bloat successfully cleared"
     }
     val statusAccent = if (isBlockedResult) scheme.secondary else scheme.primary
+    val cardShape = RoundedCornerShape(32.dp)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .scale(scale)
-            .clip(RoundedCornerShape(32.dp))
-            .background(scheme.surfaceContainerLowest)
+            // Frost first (sibling of local haze source). Avoid wrapping hazeChild
+            // in scale()/graphicsLayer — that can recurse on RenderThread.
+            .zenFrostCard(
+                hazeState = cardHazeState,
+                surface = scheme.surfaceContainerLowest,
+                shape = cardShape
+            )
             .border(
                 width = 1.5.dp,
                 brush = Brush.linearGradient(
                     colors = if (isBlockedResult) {
                         listOf(scheme.secondary.copy(alpha = 0.55f), scheme.primary.copy(alpha = 0.35f))
                     } else {
-                        listOf(scheme.primary.copy(alpha = 0.6f), scheme.primary.copy(alpha = 0.6f))
+                        listOf(scheme.primary.copy(alpha = 0.55f), scheme.primary.copy(alpha = 0.35f))
                     }
                 ),
-                shape = RoundedCornerShape(32.dp)
+                shape = cardShape
             )
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(24.dp)
     ) {

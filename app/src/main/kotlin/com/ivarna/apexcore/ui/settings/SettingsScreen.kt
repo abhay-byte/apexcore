@@ -90,12 +90,16 @@ fun SettingsScreen(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = ZenDimens.containerPadding)
-            .verticalScroll(rememberScrollState())
-    ) {
+    Box(modifier = modifier.fillMaxSize()) {
+        // Calm zen ambient — aurora, pebbles, constellation (not vines / HUD)
+        SettingsZenBackground()
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = ZenDimens.containerPadding)
+                .verticalScroll(rememberScrollState())
+        ) {
         Spacer(modifier = Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
         Spacer(modifier = Modifier.height(ZenDimens.topBarClearance))
         Spacer(modifier = Modifier.height(ZenDimens.elementGap))
@@ -276,6 +280,7 @@ fun SettingsScreen(
         }
 
         Spacer(modifier = Modifier.height(ZenDimens.bottomNavClearance))
+        }
     }
 }
 

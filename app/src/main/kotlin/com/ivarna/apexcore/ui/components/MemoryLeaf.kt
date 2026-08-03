@@ -324,12 +324,12 @@ fun MemoryLeafPair(
             .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Centered asymmetric pair: RAM 168dp teardrop, SWAP 112dp diamond offset.
+        // Centered asymmetric pair: RAM 210dp teardrop, SWAP 140dp diamond offset.
         // Metrics live OUTSIDE this box so overlapping art never collides text (F1 QA).
         Box(
             modifier = Modifier
-                .width(220.dp)
-                .height(200.dp),
+                .width(280.dp)
+                .height(255.dp),
             contentAlignment = Alignment.Center
         ) {
             MemoryLeaf(
@@ -338,7 +338,7 @@ fun MemoryLeafPair(
                 totalKb = ramTotalKb,
                 fillColor = ramFill,
                 waveColor = ramWave,
-                size = 168.dp,
+                size = 210.dp,
                 shape = LeafShape.Teardrop,
                 isPulsing = isPulsing,
                 showMetrics = false,
@@ -351,23 +351,23 @@ fun MemoryLeafPair(
                 totalKb = swapTotalKb,
                 fillColor = swapFill,
                 waveColor = swapWave,
-                size = 112.dp,
+                size = 140.dp,
                 shape = LeafShape.Diamond,
                 isPulsing = isPulsing,
                 showMetrics = false,
                 lightTankBg = lightTankBg,
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .offset(x = 28.dp, y = 36.dp)
+                    .offset(x = 36.dp, y = 46.dp)
             )
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         // Distinct columns under the pair — readable even when shapes overlap.
         Row(
             modifier = Modifier
-                .width(240.dp)
+                .width(280.dp)
                 .padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top
