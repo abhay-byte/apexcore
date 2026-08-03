@@ -44,6 +44,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.foundation.Image
 import android.util.LruCache
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Lock
 import com.ivarna.apexcore.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -64,6 +66,7 @@ fun GamesScreen(
     var showAllApps by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var showAddPicker by remember { mutableStateOf(false) }
+    var showPinPicker by remember { mutableStateOf(false) }
     
     // App loading states
     var customGames by remember { mutableStateOf(gameManager.load()) }
@@ -168,6 +171,35 @@ fun GamesScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text("+", color = AccentPrimary, fontSize = 24.sp, fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Pin apps (never freeze) button
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(SurfaceCard)
+                            .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
+                            .clickable { showPinPicker = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Pin apps",
+                                tint = AccentPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "PIN",
+                                color = AccentPrimary,
+                                fontSize = 7.sp,
+                                fontFamily = SpaceGrotesk,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
                         }
                     }
                 }
@@ -532,6 +564,15 @@ fun GamesScreen(
                 },
                 onDismiss = {
                     showAddPicker = false
+                }
+            )
+        }
+
+        if (showPinPicker) {
+            WhitelistPickerDialog(
+                gameManager = gameManager,
+                onDismiss = {
+                    showPinPicker = false
                 }
             )
         }

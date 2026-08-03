@@ -49,11 +49,10 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.*
 import androidx.savedstate.*
+import com.ivarna.apexcore.freeze.FreezeFilter
 import com.ivarna.apexcore.freeze.FreezeFramework
 import com.ivarna.apexcore.ui.theme.*
 import kotlinx.coroutines.*
-import kotlin.math.cos
-import kotlin.math.sin
 
 class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwner, ViewModelStoreOwner, SavedStateRegistryOwner {
 
@@ -84,6 +83,7 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
     private val fpsState = mutableStateOf(60)
     private val ramHistory = mutableStateListOf<Float>()
     private val cpuLoadState = mutableStateOf(0.15f)
+    private val isBoosting = mutableStateOf(false)
 
     private val density: Float get() = resources.displayMetrics.density
 
@@ -91,6 +91,8 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
         super.onCreate()
         savedStateRegistryController.performRestore(null)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+
+        FreezeFramework.init(applicationContext)
 
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
@@ -280,9 +282,33 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
                         fps = fpsState.value,
                         ramHistory = ramHistory,
                         cpuLoad = cpuLoadState.value,
-                        onUnfreezeClick = {
-                            Toast.makeText(this@GameOverlayService, "SYSTEM DEFROSTED — ACCELERATION RESET", Toast.LENGTH_SHORT).show()
-                            // Simulate unfreezing action
+                        isBoosting = isBoosting.value,
+                        onBoostClick = {
+                            if (isBoosting.value) return@OverlayContent
+                            isBoosting.value = true
+                            scope.launch {
+                                try {
+                                    val result = withContext(Dispatchers.IO) {
+                                        FreezeFramework.freezeAll(applicationContext) { info ->
+                                            info.packageName != gamePkg &&
+                                                FreezeFilter.default(applicationContext, info)
+                                        }
+                                    }
+                                    val msg = when {
+                                        result.backend == "blocked" ->
+                                            "BOOST needs Shizuku or Root — open setup"
+                                        result.killed == 0 && result.freedKb == 0L ->
+                                            "Already optimized"
+                                        else ->
+                                            "BOOST · ${result.killed} apps · +${result.freedKb / 1024} MB"
+                                    }
+                                    Toast.makeText(this@GameOverlayService, msg, Toast.LENGTH_SHORT).show()
+                                } catch (t: Throwable) {
+                                    Toast.makeText(this@GameOverlayService, "BOOST failed: ${t.message}", Toast.LENGTH_SHORT).show()
+                                } finally {
+                                    isBoosting.value = false
+                                }
+                            }
                         },
                         onToggleExpand = { toggleExpand() }
                     )
@@ -399,7 +425,8 @@ fun OverlayContent(
     fps: Int,
     ramHistory: List<Float>,
     cpuLoad: Float,
-    onUnfreezeClick: () -> Unit,
+    isBoosting: Boolean,
+    onBoostClick: () -> Unit,
     onToggleExpand: () -> Unit
 ) {
     if (!isExpanded) {
@@ -553,44 +580,43 @@ fun OverlayContent(
                 }
             }
 
-            // Bottom: Unfreeze snowflake button
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(BorderGlass)
-                    .clickable { onUnfreezeClick() },
-                contentAlignment = Alignment.Center
-            ) {
-                // Snowflake dynamic drawing / icon
-                Canvas(modifier = Modifier.size(16.dp)) {
-                    val strokeW = 1.5.dp.toPx()
-                    val cX = size.width / 2
-                    val cY = size.height / 2
-                    
-                    // Draw snowflake branches
-                    for (angle in 0 until 360 step 60) {
-                        val rad = Math.toRadians(angle.toDouble())
-                        val endX = cX + (size.width / 2) * cos(rad).toFloat()
-                        val endY = cY + (size.height / 2) * sin(rad).toFloat()
-                        drawLine(
-                            color = AccentPrimary,
-                            start = Offset(cX, cY),
-                            end = Offset(endX, endY),
-                            strokeWidth = strokeW
+            // Bottom: BOOST freeze button
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "BOOST",
+                    color = if (isBoosting) AccentWarning else TextMuted,
+                    fontSize = 7.sp,
+                    fontFamily = SpaceGrotesk,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(BorderGlass)
+                        .clickable(enabled = !isBoosting) { onBoostClick() }
+                        .alpha(if (isBoosting) 0.4f else 1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Lightning bolt
+                    Canvas(modifier = Modifier.size(16.dp)) {
+                        val w = size.width
+                        val h = size.height
+                        val bolt = Path().apply {
+                            moveTo(0.55f * w, 0f)
+                            lineTo(0.2f * w, 0.55f * h)
+                            lineTo(0.45f * w, 0.55f * h)
+                            lineTo(0.45f * w, h)
+                            lineTo(0.8f * w, 0.4f * h)
+                            lineTo(0.55f * w, 0.4f * h)
+                            close()
+                        }
+                        drawPath(
+                            path = bolt,
+                            color = if (isBoosting) AccentWarning else AccentPrimary
                         )
-                        
-                        // Mini branch tips
-                        val tipRad1 = Math.toRadians((angle - 25).toDouble())
-                        val tipRad2 = Math.toRadians((angle + 25).toDouble())
-                        val tipLength = size.width / 4
-                        val tipEndX1 = endX - tipLength * cos(tipRad1).toFloat()
-                        val tipEndY1 = endY - tipLength * sin(tipRad1).toFloat()
-                        val tipEndX2 = endX - tipLength * cos(tipRad2).toFloat()
-                        val tipEndY2 = endY - tipLength * sin(tipRad2).toFloat()
-                        
-                        drawLine(color = AccentPrimary, start = Offset(endX, endY), end = Offset(tipEndX1, tipEndY1), strokeWidth = strokeW)
-                        drawLine(color = AccentPrimary, start = Offset(endX, endY), end = Offset(tipEndX2, tipEndY2), strokeWidth = strokeW)
                     }
                 }
             }

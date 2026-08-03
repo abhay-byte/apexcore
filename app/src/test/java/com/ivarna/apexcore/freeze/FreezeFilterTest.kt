@@ -1,12 +1,15 @@
 package com.ivarna.apexcore.freeze
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
+import org.mockito.kotlin.any
 
 class FreezeFilterTest {
 
@@ -18,8 +21,18 @@ class FreezeFilterTest {
         this.flags = flags
     }
 
-    private val selfContext: Context = mock(Context::class.java).apply {
-        `when`(packageName).thenReturn("com.ivarna.apexcore")
+    private val selfContext: Context = mock(Context::class.java)
+    private val prefs: SharedPreferences = mock(SharedPreferences::class.java)
+
+    @Before
+    fun setUp() {
+        `when`(selfContext.packageName).thenReturn("com.ivarna.apexcore")
+        `when`(selfContext.applicationContext).thenReturn(selfContext)
+        `when`(selfContext.getSharedPreferences("apexcore_whitelist", Context.MODE_PRIVATE)).thenReturn(prefs)
+        `when`(prefs.getStringSet("pinned_packages", emptySet())).thenReturn(null)
+        val editor: SharedPreferences.Editor = mock(SharedPreferences.Editor::class.java)
+        `when`(prefs.edit()).thenReturn(editor)
+        `when`(editor.putStringSet(any(), any())).thenReturn(editor)
     }
 
     @Test
@@ -77,5 +90,19 @@ class FreezeFilterTest {
             flags = ApplicationInfo.FLAG_SYSTEM
         )
         assertFalse(FreezeFilter.default(selfContext, selfSys))
+    }
+
+    @Test
+    fun `excludes pinned user app`() {
+        val pinned = appInfo("com.example.pinned")
+        `when`(prefs.getStringSet("pinned_packages", emptySet())).thenReturn(setOf("com.example.pinned"))
+        assertFalse(FreezeFilter.default(selfContext, pinned))
+    }
+
+    @Test
+    fun `includes unpinned user app`() {
+        val user = appInfo("com.example.unpinned")
+        `when`(prefs.getStringSet("pinned_packages", emptySet())).thenReturn(setOf("com.example.other"))
+        assertTrue(FreezeFilter.default(selfContext, user))
     }
 }
