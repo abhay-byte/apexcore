@@ -2,32 +2,22 @@ package com.ivarna.apexcore.ui.shell
 
 import android.content.Context
 import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
-import com.ivarna.apexcore.R
 import com.ivarna.apexcore.SetupDialog
 import com.ivarna.apexcore.SetupDialogHelper
 import com.ivarna.apexcore.freeze.FreezeFramework
@@ -120,53 +110,34 @@ fun MainScreen(gameManager: GameManager) {
                 // RamFreeScreen has its own chrome — just add a spacer for status bars
                 Spacer(modifier = Modifier.height(0.dp))
             } else {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_app_logo),
-                            contentDescription = "App Icon",
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                ZenTopBar(
+                    backendChip = {
+                        GlobalBackendDropdown(
+                            currentPref = globalBackendPref,
+                            backendName = backendName,
+                            showDropdown = showGlobalDropdown,
+                            onToggleDropdown = { showGlobalDropdown = !showGlobalDropdown },
+                            onSelectPref = { pref ->
+                                globalBackendPref = pref
+                                context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
+                                    .edit().putString("preferred_backend", pref).apply()
+                                showGlobalDropdown = false
+                                val preferredName = when (pref) {
+                                    "shizuku" -> "Shizuku"
+                                    "root" -> "Root"
+                                    else -> null
+                                }
+                                FreezeFramework.setPreferredBackend(preferredName)
+                                coroutineScope.launch {
+                                    try {
+                                        FreezeFramework.detect()
+                                    } catch (_: Throwable) {}
+                                }
+                            },
+                            onOpenSetup = { showSetupDialog = true }
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text("APEX", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("CORE", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                     }
-                    
-                    // Global backend dropdown
-                    GlobalBackendDropdown(
-                        currentPref = globalBackendPref,
-                        backendName = backendName,
-                        showDropdown = showGlobalDropdown,
-                        onToggleDropdown = { showGlobalDropdown = !showGlobalDropdown },
-                        onSelectPref = { pref ->
-                            globalBackendPref = pref
-                            context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
-                                .edit().putString("preferred_backend", pref).apply()
-                            showGlobalDropdown = false
-                            val preferredName = when (pref) {
-                                "shizuku" -> "Shizuku"
-                                "root" -> "Root"
-                                else -> null
-                            }
-                            FreezeFramework.setPreferredBackend(preferredName)
-                            coroutineScope.launch {
-                                try {
-                                    FreezeFramework.detect()
-                                } catch (_: Throwable) {}
-                            }
-                        },
-                        onOpenSetup = { showSetupDialog = true }
-                    )
-                }
+                )
             }
 
             // Page Content
@@ -242,47 +213,12 @@ fun MainScreen(gameManager: GameManager) {
                 }
             }
 
-            // Fixed Bottom Navigation Bar
+            // Floating glass island bottom nav
             AnimatedVisibility(visible = !showRamFree) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.95f))
-                        .navigationBarsPadding()
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(MaterialTheme.colorScheme.outlineVariant)
-                    )
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        NavBarItem(
-                            label = "BOOST",
-                            icon = Icons.Default.Home,
-                            isActive = currentTab == Tab.HOME,
-                            onClick = { currentTab = Tab.HOME }
-                        )
-                        NavBarItem(
-                            label = "GAMES",
-                            icon = Icons.Default.PlayArrow,
-                            isActive = currentTab == Tab.GAMES,
-                            onClick = { currentTab = Tab.GAMES }
-                        )
-                        NavBarItem(
-                            label = "OVERLAY",
-                            icon = Icons.Default.Settings,
-                            isActive = currentTab == Tab.OVERLAY,
-                            onClick = { currentTab = Tab.OVERLAY }
-                        )
-                    }
-                }
+                ZenBottomNav(
+                    currentTab = currentTab,
+                    onTabSelected = { currentTab = it }
+                )
             }
         }
 
@@ -295,69 +231,6 @@ fun MainScreen(gameManager: GameManager) {
                 gameManager = gameManager,
                 onDismiss = { showPinPicker = false }
             )
-        }
-    }
-}
-
-@Composable
-fun NavBarItem(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    isActive: Boolean,
-    onClick: () -> Unit
-) {
-    val contentColor by animateColorAsState(
-        targetValue = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-        animationSpec = tween(300, easing = FastOutSlowInEasing)
-    )
-    val indicatorBackground by animateColorAsState(
-        targetValue = if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
-        animationSpec = tween(300, easing = FastOutSlowInEasing)
-    )
-
-    Column(
-        modifier = Modifier
-            .width(80.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top
-    ) {
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(indicatorBackground)
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = contentColor,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(2.dp))
-        Column(
-            modifier = Modifier.height(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            AnimatedVisibility(
-                visible = isActive,
-                enter = fadeIn(animationSpec = tween(150)),
-                exit = fadeOut(animationSpec = tween(150))
-            ) {
-                Text(
-                    text = label,
-                    color = contentColor,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = PlusJakartaSans,
-                    letterSpacing = 0.5.sp
-                )
-            }
         }
     }
 }
