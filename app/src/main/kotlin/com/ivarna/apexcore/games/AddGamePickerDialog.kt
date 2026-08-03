@@ -7,25 +7,25 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ivarna.apexcore.ui.theme.*
+import com.ivarna.apexcore.ui.components.ZenTextField
+import com.ivarna.apexcore.ui.components.zenGlassBackground
+import com.ivarna.apexcore.ui.theme.PlusJakartaSans
+import com.ivarna.apexcore.ui.theme.ZenDimens
 
 @Composable
 fun AddGamePickerDialog(
@@ -58,6 +58,10 @@ fun AddGamePickerDialog(
         }
     }
 
+    val scheme = MaterialTheme.colorScheme
+    val dialogShape = RoundedCornerShape(28.dp)
+    val rowShape = RoundedCornerShape(ZenDimens.roundedLg)
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
@@ -65,7 +69,7 @@ fun AddGamePickerDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.40f))
+                .background(scheme.inverseSurface.copy(alpha = 0.40f))
                 .clickable(onClick = onDismiss),
             contentAlignment = Alignment.Center
         ) {
@@ -74,9 +78,11 @@ fun AddGamePickerDialog(
                     .padding(horizontal = 24.dp, vertical = 40.dp)
                     .fillMaxWidth()
                     .fillMaxHeight(0.85f)
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(28.dp))
+                    .zenGlassBackground(
+                        shape = dialogShape,
+                        fill = scheme.surfaceContainerLowest.copy(alpha = 0.96f),
+                        borderColor = scheme.outlineVariant.copy(alpha = 0.6f)
+                    )
                     .clickable(enabled = false) {} // block click propagation
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -84,7 +90,7 @@ fun AddGamePickerDialog(
                 // Header
                 Text(
                     text = "ADD TO LIBRARY",
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = scheme.onSurface,
                     fontSize = 14.sp,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
@@ -93,31 +99,17 @@ fun AddGamePickerDialog(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Select apps to register in library",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                    color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
                     fontSize = 11.sp,
                     fontFamily = PlusJakartaSans
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Search Input Field
-                BasicTextField(
+                ZenTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontFamily = PlusJakartaSans),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.background)
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    decorationBox = { innerTextField ->
-                        if (searchQuery.isEmpty()) {
-                            Text("SEARCH APPS...", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f), fontSize = 13.sp, fontFamily = PlusJakartaSans)
-                        }
-                        innerTextField()
-                    }
+                    placeholder = "Search apps…",
+                    modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -130,11 +122,11 @@ fun AddGamePickerDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                        CircularProgressIndicator(color = scheme.primary)
                     } else if (filteredApps.isEmpty()) {
                         Text(
                             text = "NO APPS FOUND",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                            color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
                             fontFamily = PlusJakartaSans,
                             fontSize = 12.sp,
                             letterSpacing = 1.sp
@@ -149,12 +141,18 @@ fun AddGamePickerDialog(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clip(RoundedCornerShape(16.dp))
-                                        .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent)
-                                        .border(
-                                            1.dp,
-                                            if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant,
-                                            RoundedCornerShape(16.dp)
+                                        .zenGlassBackground(
+                                            shape = rowShape,
+                                            fill = if (isSelected) {
+                                                scheme.primary.copy(alpha = 0.08f)
+                                            } else {
+                                                scheme.surfaceContainerLow.copy(alpha = 0.85f)
+                                            },
+                                            borderColor = if (isSelected) {
+                                                scheme.primary.copy(alpha = 0.3f)
+                                            } else {
+                                                scheme.outlineVariant.copy(alpha = 0.6f)
+                                            }
                                         )
                                         .clickable {
                                             selectedPackages[app.pkg] = !isSelected
@@ -166,9 +164,11 @@ fun AddGamePickerDialog(
                                     Box(
                                         modifier = Modifier
                                             .size(40.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .background(MaterialTheme.colorScheme.background)
-                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                                            .zenGlassBackground(
+                                                shape = RoundedCornerShape(ZenDimens.roundedMd),
+                                                fill = scheme.surfaceContainerLowest.copy(alpha = 0.92f),
+                                                borderColor = scheme.outlineVariant.copy(alpha = 0.6f)
+                                            )
                                             .padding(6.dp)
                                     ) {
                                         AppIcon(
@@ -183,7 +183,7 @@ fun AddGamePickerDialog(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = app.name,
-                                            color = MaterialTheme.colorScheme.onSurface,
+                                            color = scheme.onSurface,
                                             fontSize = 14.sp,
                                             fontFamily = PlusJakartaSans,
                                             fontWeight = FontWeight.Bold,
@@ -191,7 +191,7 @@ fun AddGamePickerDialog(
                                         )
                                         Text(
                                             text = app.pkg,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                                            color = scheme.onSurfaceVariant.copy(alpha = 0.72f),
                                             fontSize = 10.sp,
                                             fontFamily = PlusJakartaSans,
                                             maxLines = 1
@@ -203,9 +203,9 @@ fun AddGamePickerDialog(
                                         checked = isSelected,
                                         onCheckedChange = { selectedPackages[app.pkg] = it },
                                         colors = CheckboxDefaults.colors(
-                                            checkedColor = MaterialTheme.colorScheme.primary,
-                                            uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-                                            checkmarkColor = MaterialTheme.colorScheme.onPrimary
+                                            checkedColor = scheme.primary,
+                                            uncheckedColor = scheme.onSurfaceVariant.copy(alpha = 0.72f),
+                                            checkmarkColor = scheme.onPrimary
                                         )
                                     )
                                 }
@@ -221,20 +221,23 @@ fun AddGamePickerDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    val footerShape = RoundedCornerShape(ZenDimens.roundedLg)
                     // Cancel
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.background)
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+                            .zenGlassBackground(
+                                shape = footerShape,
+                                fill = scheme.surfaceContainerLow.copy(alpha = 0.9f),
+                                borderColor = scheme.outlineVariant.copy(alpha = 0.6f)
+                            )
                             .clickable(onClick = onDismiss)
                             .padding(vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "CANCEL",
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = scheme.onSurface,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = PlusJakartaSans
@@ -248,8 +251,8 @@ fun AddGamePickerDialog(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (isAddEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
+                            .clip(footerShape)
+                            .background(if (isAddEnabled) scheme.primary else scheme.outlineVariant)
                             .clickable(enabled = isAddEnabled) {
                                 val toAdd = filteredApps.filter { selectedPackages[it.pkg] == true }
                                 gameManager.addAll(toAdd)
@@ -261,7 +264,7 @@ fun AddGamePickerDialog(
                     ) {
                         Text(
                             text = "ADD${if (selectedCount > 0) " $selectedCount" else ""}",
-                            color = if (isAddEnabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                            color = if (isAddEnabled) scheme.onPrimary else scheme.onSurfaceVariant.copy(alpha = 0.72f),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = PlusJakartaSans
