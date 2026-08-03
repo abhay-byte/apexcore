@@ -1,9 +1,15 @@
 package com.ivarna.apexcore.ui.home
 
+import android.content.Context
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -34,10 +40,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -53,6 +62,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -61,7 +71,6 @@ import com.ivarna.apexcore.freeze.FreezeResult
 import com.ivarna.apexcore.getSystemMemStats
 import com.ivarna.apexcore.ui.components.MemoryLeafPair
 import com.ivarna.apexcore.ui.components.StatusPebble
-import com.ivarna.apexcore.ui.components.ZenEntryRow
 import com.ivarna.apexcore.ui.components.zenFrostCard
 import com.ivarna.apexcore.ui.shell.State
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
@@ -246,27 +255,323 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(ZenDimens.elementGap))
 
-            ZenEntryRow(
+            HomeAnimatedEntryRow(
                 title = "RAM Free",
                 subtitle = "Force system reclaim",
                 icon = ZenIcons.WaterDrop,
                 enabled = state != State.BOOSTING,
+                flowerStyle = 0,
                 onClick = onRamFreeClick
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            ZenEntryRow(
+            HomeAnimatedEntryRow(
                 title = "Pin Apps",
                 subtitle = "Protect apps from being frozen",
                 icon = ZenIcons.PushPin,
                 enabled = state != State.BOOSTING,
+                flowerStyle = 1,
                 onClick = onPinClick
+            )
+
+            Spacer(modifier = Modifier.height(ZenDimens.elementGap))
+
+            // Dummy game-tuning toggles — UI only; gated on Shizuku / Root
+            GameOptimisationToggles(
+                enabled = isElevatedBackend && state != State.BOOSTING,
+                elevated = isElevatedBackend
             )
 
             // Clearance for floating bottom-nav island (true overlay)
             Spacer(modifier = Modifier.height(ZenDimens.bottomNavClearance))
         }
+    }
+}
+
+private const val GAME_OPT_PREFS = "apexcore"
+private const val KEY_GPU_RENDER = "dummy_opt_gpu_render"
+private const val KEY_CPU_THREAD = "dummy_opt_cpu_thread"
+private const val KEY_OPENGL = "dummy_opt_opengl"
+private const val KEY_KERNEL = "dummy_opt_kernel"
+
+/**
+ * Home-only dummy game optimisation toggles.
+ * Interactive only when Shizuku or Root is the active elevated backend.
+ * Values persist in prefs for UI continuity; no system side effects yet.
+ */
+@Composable
+private fun GameOptimisationToggles(
+    enabled: Boolean,
+    elevated: Boolean
+) {
+    val context = LocalContext.current
+    val scheme = MaterialTheme.colorScheme
+    val prefs = remember {
+        context.getSharedPreferences(GAME_OPT_PREFS, Context.MODE_PRIVATE)
+    }
+
+    var gpuRender by remember {
+        mutableStateOf(prefs.getBoolean(KEY_GPU_RENDER, false))
+    }
+    var cpuThread by remember {
+        mutableStateOf(prefs.getBoolean(KEY_CPU_THREAD, false))
+    }
+    var openGl by remember {
+        mutableStateOf(prefs.getBoolean(KEY_OPENGL, false))
+    }
+    var kernel by remember {
+        mutableStateOf(prefs.getBoolean(KEY_KERNEL, false))
+    }
+
+    fun persist(key: String, value: Boolean) {
+        prefs.edit().putBoolean(key, value).apply()
+    }
+
+    val contentAlpha = if (enabled) 1f else 0.5f
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = "GAME OPTIMISATION",
+            color = scheme.onSurfaceVariant.copy(alpha = contentAlpha),
+            fontSize = 11.sp,
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 4.dp, bottom = 10.dp)
+        )
+
+        HomeFlowerCard(
+            style = 3,
+            sizeScale = 1.35f,
+            flowerAlpha = 0.8f
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                if (!elevated) {
+                    Text(
+                        text = "Connect Shizuku or Root to unlock",
+                        color = scheme.secondary,
+                        fontSize = 11.sp,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+
+                DummyOptToggleRow(
+                    title = "GPU render optimisation",
+                    subtitle = "Prioritise frame composition for games",
+                    checked = gpuRender,
+                    enabled = enabled,
+                    onCheckedChange = {
+                        gpuRender = it
+                        persist(KEY_GPU_RENDER, it)
+                    }
+                )
+                DummyOptToggleRow(
+                    title = "CPU game threading priority",
+                    subtitle = "Boost game-thread scheduling",
+                    checked = cpuThread,
+                    enabled = enabled,
+                    onCheckedChange = {
+                        cpuThread = it
+                        persist(KEY_CPU_THREAD, it)
+                    }
+                )
+                DummyOptToggleRow(
+                    title = "OpenGL GPU optimisation",
+                    subtitle = "Tune GL driver hints for games",
+                    checked = openGl,
+                    enabled = enabled,
+                    onCheckedChange = {
+                        openGl = it
+                        persist(KEY_OPENGL, it)
+                    }
+                )
+                DummyOptToggleRow(
+                    title = "Kernel game optimisation",
+                    subtitle = "Kernel-level game performance hints",
+                    checked = kernel,
+                    enabled = enabled,
+                    onCheckedChange = {
+                        kernel = it
+                        persist(KEY_KERNEL, it)
+                    }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Home entry row with looping flower décor + press / idle motion.
+ * Keeps ZenEntryRow unchanged for other screens.
+ */
+@Composable
+private fun HomeAnimatedEntryRow(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    enabled: Boolean,
+    flowerStyle: Int,
+    onClick: () -> Unit
+) {
+    val scheme = MaterialTheme.colorScheme
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val contentAlpha = if (enabled) 1f else 0.45f
+
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = 500f),
+        label = "entry_press"
+    )
+    val infinite = rememberInfiniteTransition(label = "entry_$title")
+    val idleBreath by infinite.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.012f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2400 + flowerStyle * 300, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "entry_breath"
+    )
+    val iconFloat by infinite.animateFloat(
+        initialValue = -1.5f,
+        targetValue = 1.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1800 + flowerStyle * 200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "icon_float"
+    )
+    val chevronNudge by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = 4f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1400, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "chevron"
+    )
+
+    val scale = if (enabled) pressScale * idleBreath else 1f
+
+    HomeFlowerCard(
+        style = flowerStyle,
+        sizeScale = 1.3f,
+        flowerAlpha = if (enabled) 0.85f else 0.5f,
+        modifier = Modifier
+            .scale(scale)
+            .clickable(
+                enabled = enabled,
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .graphicsLayer { translationY = if (enabled) iconFloat else 0f }
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(scheme.primary.copy(alpha = 0.12f * contentAlpha)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = scheme.primary.copy(alpha = contentAlpha),
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = scheme.onSurface.copy(alpha = contentAlpha),
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurfaceVariant.copy(alpha = contentAlpha)
+                )
+            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = null,
+                tint = scheme.onSurfaceVariant.copy(alpha = contentAlpha),
+                modifier = Modifier
+                    .size(22.dp)
+                    .graphicsLayer {
+                        translationX = if (enabled) chevronNudge else 0f
+                    }
+            )
+        }
+    }
+}
+
+@Composable
+private fun DummyOptToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val scheme = MaterialTheme.colorScheme
+    val contentAlpha = if (enabled) 1f else 0.55f
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(
+                text = title,
+                color = scheme.onSurface.copy(alpha = contentAlpha),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                color = scheme.onSurfaceVariant.copy(alpha = contentAlpha),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = scheme.onPrimary,
+                checkedTrackColor = scheme.primary,
+                uncheckedThumbColor = scheme.outline,
+                uncheckedTrackColor = scheme.surfaceContainerHighest,
+                disabledCheckedThumbColor = scheme.onPrimary.copy(alpha = 0.7f),
+                disabledCheckedTrackColor = scheme.primary.copy(alpha = 0.35f),
+                disabledUncheckedThumbColor = scheme.outline.copy(alpha = 0.5f),
+                disabledUncheckedTrackColor = scheme.surfaceContainerHighest.copy(alpha = 0.5f)
+            )
+        )
     }
 }
 
@@ -277,63 +582,100 @@ fun HomeScreen(
 @Composable
 fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    Column(
+    val shape = RoundedCornerShape(ZenDimens.roundedLg)
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.98f else 1f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = 450f),
+        label = "banner_press"
+    )
+    val infinite = rememberInfiniteTransition(label = "banner_cta")
+    val ctaNudge by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = 5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "cta_nudge"
+    )
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(ZenDimens.roundedLg))
+            .scale(pressScale)
+            .clip(shape)
             .background(
                 Brush.horizontalGradient(
                     listOf(
-                        scheme.secondary.copy(alpha = 0.18f),
-                        scheme.primary.copy(alpha = 0.10f)
+                        scheme.secondary.copy(alpha = 0.20f),
+                        scheme.primary.copy(alpha = 0.12f)
                     )
                 )
             )
-            .border(1.dp, scheme.secondary.copy(alpha = 0.45f), RoundedCornerShape(ZenDimens.roundedLg))
-            .clickable(onClick = onConnectClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp)
+            .border(1.dp, scheme.secondary.copy(alpha = 0.45f), shape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onConnectClick
+            )
     ) {
-        Text(
-            text = "ELEVATION REQUIRED",
-            color = scheme.secondary,
-            fontSize = 10.sp,
-            fontFamily = PlusJakartaSans,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp
+        HomeCardFlowerDecor(
+            modifier = Modifier.matchParentSize(),
+            style = 1,
+            sizeScale = 1.35f,
+            alphaScale = 0.8f
         )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = "Connect Shizuku or Root for deep freeze",
-            color = scheme.onSurface,
-            fontSize = 14.sp,
-            fontFamily = PlusJakartaSans,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "BOOST freeze is gated until Shizuku or Root is ready. No elevation means apps cannot be force-stopped on modern Android.",
-            color = scheme.onSurfaceVariant,
-            fontSize = 11.sp,
-            fontFamily = PlusJakartaSans,
-            lineHeight = 15.sp
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp)
+        ) {
             Text(
-                text = "CONNECT SHIZUKU / ROOT",
-                color = scheme.primary,
-                fontSize = 12.sp,
+                text = "ELEVATION REQUIRED",
+                color = scheme.secondary,
+                fontSize = 10.sp,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp
             )
-            Spacer(modifier = Modifier.width(4.dp))
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = null,
-                tint = scheme.primary,
-                modifier = Modifier.size(16.dp)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Connect Shizuku or Root for deep freeze",
+                color = scheme.onSurface,
+                fontSize = 14.sp,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Bold
             )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "BOOST freeze is gated until Shizuku or Root is ready. No elevation means apps cannot be force-stopped on modern Android.",
+                color = scheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                fontFamily = PlusJakartaSans,
+                lineHeight = 15.sp
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "CONNECT SHIZUKU / ROOT",
+                    color = scheme.primary,
+                    fontSize = 12.sp,
+                    fontFamily = PlusJakartaSans,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    tint = scheme.primary,
+                    modifier = Modifier
+                        .size(16.dp)
+                        .graphicsLayer { translationX = ctaNudge }
+                )
+            }
         }
     }
 }
@@ -371,6 +713,26 @@ fun UnifiedResultCard(
     val statusAccent = if (isBlockedResult) scheme.secondary else scheme.primary
     val cardShape = RoundedCornerShape(32.dp)
 
+    val infinite = rememberInfiniteTransition(label = "result_card")
+    val idleBreath by infinite.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.01f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2600, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "result_breath"
+    )
+    val iconBob by infinite.animateFloat(
+        initialValue = -2f,
+        targetValue = 2f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1700, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "result_icon"
+    )
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -393,13 +755,21 @@ fun UnifiedResultCard(
                 shape = cardShape
             )
             .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
+                val s = scale * idleBreath
+                scaleX = s
+                scaleY = s
             }
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(24.dp)
     ) {
-        Column {
+        HomeCardFlowerDecor(
+            style = 0,
+            sizeScale = 1.35f,
+            alphaScale = 0.8f,
+            modifier = Modifier
+                .matchParentSize()
+                .clip(cardShape)
+        )
+        Column(modifier = Modifier.padding(24.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -410,7 +780,9 @@ fun UnifiedResultCard(
                         imageVector = if (isBlockedResult) Icons.Filled.Warning else Icons.Filled.CheckCircle,
                         contentDescription = null,
                         tint = statusAccent,
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier
+                            .size(28.dp)
+                            .graphicsLayer { translationY = iconBob }
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {

@@ -32,6 +32,7 @@ import com.ivarna.apexcore.freeze.FreezeBackendResolver
 import com.ivarna.apexcore.freeze.FreezeFramework
 import com.ivarna.apexcore.freeze.RootFreezeBackend
 import com.ivarna.apexcore.freeze.ShizukuFreezeBackend
+import com.ivarna.apexcore.ui.components.OrganicCardDecor
 import com.ivarna.apexcore.ui.components.StatusPebble
 import com.ivarna.apexcore.ui.components.ZenDialog
 import com.ivarna.apexcore.ui.components.zenDialogSheet
@@ -322,85 +323,103 @@ fun OptionCard(
         )
     }
 
-    Column(
+    // Distinct organic seed per option so Shizuku / Root cards feel different
+    val organicStyle = when {
+        isReady -> 4
+        isRecommended -> 0
+        else -> 5
+    }
+
+    Box(
         modifier = modifier
             .clip(shape)
             .background(bgBrush)
             .border(1.dp, borderBrush, shape)
             .clickable(enabled = ready != null, onClick = onClick)
-            .padding(18.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        OrganicCardDecor(
+            modifier = Modifier.matchParentSize(),
+            style = organicStyle,
+            sizeScale = 1.3f,
+            alphaScale = if (isReady) 0.9f else 0.75f
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp)
         ) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                StatusPebble(active = ready, size = 10.dp)
-                Text(
-                    text = title,
-                    color = scheme.onSurface,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            if (badge != null) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(
-                            if (isReady) scheme.primary.copy(alpha = 0.28f)
-                            else scheme.primary.copy(alpha = 0.2f)
-                        )
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    StatusPebble(active = ready, size = 10.dp)
                     Text(
-                        text = badge,
-                        color = scheme.primary,
-                        fontSize = 8.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = PlusJakartaSans
+                        text = title,
+                        color = scheme.onSurface,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
+                if (badge != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(
+                                if (isReady) scheme.primary.copy(alpha = 0.28f)
+                                else scheme.primary.copy(alpha = 0.2f)
+                            )
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = badge,
+                            color = scheme.primary,
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PlusJakartaSans
+                        )
+                    }
+                }
             }
-        }
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = sub,
-            color = scheme.onSurfaceVariant,
-            fontSize = 11.sp,
-            lineHeight = 15.sp
-        )
-        Spacer(modifier = Modifier.height(18.dp))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            if (isReady) {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = null,
-                    tint = scheme.primary,
-                    modifier = Modifier.size(16.dp)
-                )
-            }
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = cta,
-                color = if (isRecommended || isReady) scheme.primary else scheme.onSurface,
+                text = sub,
+                color = scheme.onSurfaceVariant,
                 fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = PlusJakartaSans
+                lineHeight = 15.sp
             )
-            if (!isReady && ready != null) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    tint = if (isRecommended) scheme.primary else scheme.onSurface,
-                    modifier = Modifier.size(16.dp)
+            Spacer(modifier = Modifier.height(18.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (isReady) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = null,
+                        tint = scheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                Text(
+                    text = cta,
+                    color = if (isRecommended || isReady) scheme.primary else scheme.onSurface,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PlusJakartaSans
                 )
+                if (!isReady && ready != null) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = if (isRecommended) scheme.primary else scheme.onSurface,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
     }
