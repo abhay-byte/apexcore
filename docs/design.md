@@ -1,5 +1,7 @@
 # ApexCore — Design & Architecture Document
 
+> **Superseded for visual design by** [Zen Organic redesign](plan/T11-zen-organic-ui-redesign.md) (rev 3).
+
 ## 1. Design Philosophy: "Precision Instrument"
 
 Standard "game booster" apps look like cheap RGB peripherals from 2012—aggressive neon greens, dragons, robotic fonts, and fake temperature gauges. ApexCore rejects this entirely. 

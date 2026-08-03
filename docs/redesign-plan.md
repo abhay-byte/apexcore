@@ -1,5 +1,7 @@
 # ApexCore Redesign Plan
 
+> **Superseded for visual design by** [Zen Organic redesign](plan/T11-zen-organic-ui-redesign.md) (rev 3).
+
 ## 1. Style Direction and Reasoning
 **Direction:** Glassmorphism + Bento Grid (Premium Technical)
 **Reasoning:** The existing "Summit/Titanium" design is functional but feels somewhat dated and heavy. We are transitioning to a modern Glassmorphism + Bento Grid aesthetic. This retains the technical "power user" feel while introducing a highly premium, modern, and fluid experience. The bento grid perfectly organizes the complex stats returned by the freeze operation, and the glassmorphic surfaces give a sense of depth and lightness. 
