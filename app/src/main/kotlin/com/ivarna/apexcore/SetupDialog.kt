@@ -3,14 +3,12 @@ package com.ivarna.apexcore
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -37,6 +35,8 @@ object SetupDialogHelper {
     const val KEY_SHOWN = "setup_shown_v1"
     const val PREFS = "apexcore"
 }
+
+const val PRIVACY_POLICY_URL = "https://github.com/abhay-byte/apexcore/blob/main/docs/privacy-policy.md"
 
 @Composable
 fun SetupDialog(
@@ -109,42 +109,47 @@ fun SetupDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 2. Root & Accessibility (Side-by-side)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                // 2. Root access (full width)
+                OptionCard(
+                    title = "Root access",
+                    sub = "Direct su shell execution.",
+                    cta = "GRANT ROOT",
+                    isRecommended = false,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    OptionCard(
-                        title = "Root access",
-                        sub = "Direct su shell execution.",
-                        cta = "GRANT ROOT",
-                        isRecommended = false,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        coroutineScope.launch {
-                            resolver.invalidate()
-                            val backend = FreezeFramework.detect()
-                            if (backend != null) {
-                                onDismiss()
-                            } else {
-                                Toast.makeText(context, "Root permission not found yet", Toast.LENGTH_SHORT).show()
-                            }
+                    coroutineScope.launch {
+                        resolver.invalidate()
+                        val backend = FreezeFramework.detect()
+                        if (backend != null) {
+                            onDismiss()
+                        } else {
+                            Toast.makeText(context, "Root permission not found yet", Toast.LENGTH_SHORT).show()
                         }
-                    }
-
-                    OptionCard(
-                        title = "Accessibility",
-                        sub = "App UI automation only — not a freeze path in this build.",
-                        cta = "OPEN SETTINGS",
-                        isRecommended = false,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        openAccessibilitySettings(context)
-                        onDismiss()
                     }
                 }
 
                 Spacer(modifier = Modifier.height(28.dp))
+
+                // Privacy policy link (Play User Data policy requires an in-app link)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(BgDark)
+                        .border(1.dp, BorderGlass, RoundedCornerShape(50))
+                        .clickable { openPrivacyPolicy(context) }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = "PRIVACY POLICY",
+                        color = TextMuted,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Dismiss — no "Standard mode" fallback exists for freeze (Decision E)
                 Box(
@@ -267,9 +272,11 @@ private fun openShizuku(context: Context) {
     try { context.startActivity(play) } catch (_: Throwable) {}
 }
 
-private fun openAccessibilitySettings(context: Context) {
+/** Opens the public privacy policy in the browser (Play User Data — must be always reachable). */
+fun openPrivacyPolicy(context: Context) {
     try {
-        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            data = android.net.Uri.parse(PRIVACY_POLICY_URL)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)

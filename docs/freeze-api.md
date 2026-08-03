@@ -4,6 +4,11 @@ Public surface of the freeze framework. Internal `freeze.*` package
 hides implementation; `FreezeFramework` is the only entry point used by
 the UI.
 
+> **T10c status (2026-08-03):** `AccessibilityFreezeBackend` is a non-ready
+> stub (`isReady` hard `false`, excluded from resolver candidates) and
+> `SKIPPED_A11Y` is unreachable in the product path. Product freeze backends
+> are Shizuku and Root only (T10a Decision E, T10c Decision 2).
+
 ## `FreezeFramework` (object)
 
 ```kotlin

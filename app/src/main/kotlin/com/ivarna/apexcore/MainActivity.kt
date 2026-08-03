@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -56,7 +57,6 @@ import com.ivarna.apexcore.freeze.FreezeFramework
 import com.ivarna.apexcore.freeze.FreezeResult
 import com.ivarna.apexcore.freeze.RootFreezeBackend
 import com.ivarna.apexcore.freeze.ShizukuFreezeBackend
-import com.ivarna.apexcore.freeze.AccessibilityFreezeBackend
 import com.ivarna.apexcore.games.GamesScreen
 import com.ivarna.apexcore.games.GameManager
 import com.ivarna.apexcore.games.GameOverlayService
@@ -538,6 +538,22 @@ fun HomeScreen(
         Spacer(modifier = Modifier.height(32.dp))
 
         SystemDiagnosticsCard(onSetupClick = onSetupClick)
+
+        // Always-reachable privacy link (Play User Data). SetupDialog alone is not enough:
+        // that dialog is first-run / SETUP-only and easy to never open again.
+        Spacer(modifier = Modifier.height(20.dp))
+        Text(
+            text = "PRIVACY POLICY",
+            color = TextMuted,
+            fontSize = 10.sp,
+            fontFamily = JetBrainsMono,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp,
+            textDecoration = TextDecoration.Underline,
+            modifier = Modifier
+                .clickable { openPrivacyPolicy(context) }
+                .padding(vertical = 8.dp, horizontal = 12.dp)
+        )
         Spacer(modifier = Modifier.height(24.dp))
     }
 }

@@ -13,7 +13,7 @@ Existing solutions are either manual (user must force-stop apps one by one), req
 
 ## The Solution
 
-ApexCore is a one-tap Android app that freezes background user apps — not system processes — before launching a game. It works across four backends (Shizuku, Root, Accessibility, fallback) to cover every device without requiring root. The core loop:
+ApexCore is a one-tap Android app that freezes background user apps — not system processes — before launching a game. It uses elevated backends (Shizuku or Root) to cover every device type. The core loop:
 
 1. User taps BOOST (or launches a game from the game list)
 2. ApexCore enumerates running user apps via `ActivityManager`
@@ -22,10 +22,9 @@ ApexCore is a one-tap Android app that freezes background user apps — not syst
 
 ## Key Differentiators
 
-- **No root required** — Shizuku and Accessibility backends cover non-rooted devices
+- **No root required** — Shizuku covers non-rooted devices
 - **Game-aware freeze** — the game being launched is excluded from the freeze
 - **Composable overlay HUD** — real-time FPS, RAM, CPU stats while gaming
-- **ADB/Tasker integration** — `FREEZE_ALL` broadcast for automation workflows
 - ~1.2 MB APK, no ads, no tracking, no permissions beyond what's needed
 
 ## Target Users
@@ -40,3 +39,5 @@ ApexCore is a one-tap Android app that freezes background user apps — not syst
 - Boot-time auto-freeze scheduling
 - Network / battery / temperature monitoring
 - Multi-user or work profile support
+- Accessibility-service freeze automation (not implemented; not ship-ready)
+- External automation (ADB/Tasker) freeze broadcasts (receiver is not exported)

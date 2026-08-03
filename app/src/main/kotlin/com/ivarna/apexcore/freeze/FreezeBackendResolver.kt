@@ -9,8 +9,8 @@ import android.util.Log
  * Decision E: there is no product "standard" freeze mode. Only elevated backends
  * (Shizuku / Root) can force-stop apps. [detect] returns null when no elevated
  * backend is ready — callers must gate freeze (UI setup) instead of running a
- * useless skip-all path. [FallbackFreezeBackend] and the Accessibility stub are
- * intentionally NOT candidates (Accessibility product path → T10c).
+ * useless skip-all path. [FallbackFreezeBackend] and [AccessibilityFreezeBackend]
+ * are intentionally NOT candidates (Accessibility is not ship-ready, T10c).
  */
 class FreezeBackendResolver(candidates: List<FreezeBackend>) {
 

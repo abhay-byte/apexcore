@@ -1,5 +1,5 @@
 ApexCore optimizes your device's memory for gaming by deep-freezing resource-heavy background processes. Using elevated privileges via Shizuku or Root, it completely stops background processes to ensure maximum hardware resources are allocated to your games.
 
 Features:
-- Advanced Freeze Framework: Pluggable backends supporting Shizuku, Root access, and accessibility fallback.
+- Advanced Freeze Framework: Pluggable backends supporting Shizuku and Root access.
 - Performance HUD: A draggable overlay service displaying real-time FPS, RAM pressure, and CPU load.

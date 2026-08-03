@@ -5,6 +5,12 @@
 > Goal: deep-freeze background apps on a single button tap. Three privilege
 > backends, picked at runtime, no UI rework.
 
+> **T10c status (2026-08-03):** this document describes the T4-era design.
+> Shipping reality: **Accessibility is a non-ready stub** (`isReady` hard `false`,
+> no manifest service, not in product candidates, not claimed in UI/privacy —
+> see T10c Decision 2) and there is **no Standard fallback freeze mode**
+> (Decision E — freeze requires Shizuku or Root).
+
 ---
 
 ## 1. Why this exists
@@ -22,11 +28,11 @@ non-system app can get that power:
 |---|---|---|---|---|
 | **Shizuku** | `adb` (one-time) | Per-app API token | Fast (direct binder) | High |
 | **Root** | Magisk/KernelSU | `su` shell | Fast | High (but rare user) |
-| **Accessibility** | User grants a11y | None | Slow (UI automation) | Medium |
+| ~~Accessibility~~ | — | — | — | **Not ship-ready (T10c)** — stub only, excluded from resolver |
 
-ApexCore supports all three. The framework picks the best available at
-runtime and degrades gracefully when none are granted — in that case the
-button still does T2's cached-process kill (better than nothing).
+ApexCore ships **Shizuku and Root** only (Decision E + T10c). The framework
+picks the best available at runtime and gates freeze when neither is
+granted — no fake "standard" mode, no a11y path.
 
 ---
 
@@ -38,15 +44,15 @@ app/src/main/kotlin/com/apexcore/app/freeze/
 ├── FreezeBackend.kt          # sealed interface
 ├── ShizukuFreezeBackend.kt   # Shizuku API
 ├── RootFreezeBackend.kt      # Runtime.exec("su -c …")
-├── AccessibilityFreezeBackend.kt  # simulated Force Stop
+├── AccessibilityFreezeBackend.kt  # STUB — isReady=false, not in resolver (T10c)
 ├── FreezeBackendResolver.kt  # detects which backends are usable
 ├── FreezeOperation.kt        # sealed class: ForceStop | Disable | Hide | Suspend
 ├── FreezeResult.kt           # data class
-├── FreezeReceiver.kt         # BroadcastReceiver for am start -a FREEZE_ALL
-└── FreezeAccessibilityService.kt
+└── FreezeReceiver.kt         # FREEZE_ALL receiver — exported=false (T10c)
 ```
 
-The existing `BoostManager` is kept as the fallback path (`FallbackFreezeBackend`).
+> Note: `FallbackFreezeBackend` exists for tests/defensive paths only — it is
+> **not** a product freeze mode (Decision E). No `FreezeAccessibilityService` exists.
 
 ---
 
@@ -60,19 +66,19 @@ backend, caches the result for the process lifetime:
    └─ Shizuku.pingBinder() + Shizuku.checkSelfPermission()
 2. RootFreezeBackend.isReady()
    └─ Runtime.exec("su -c id").waitFor() == 0
-3. AccessibilityFreezeBackend.isReady()
-   └─ Settings.Secure.getString(ENABLED_ACCESSIBILITY_SERVICES)
-       .contains(packageName/serviceClass)
-4. FallbackFreezeBackend.isReady()  // always true
+3. null — freeze gated (Setup dialog) when neither is ready
 ```
+
+(Historical note: an a11y backend and a "standard" fallback existed in
+T4-era design; both are removed from the product path — T10a Decision E,
+T10c.)
 
 The active backend is exposed on `FreezeFramework.activeBackend` and
 shown in the status footer so the user knows which mode they're in:
 
 - `● Freeze: Shizuku`
 - `● Freeze: Root`
-- `● Freeze: Accessibility`
-- `● Freeze: standard`   ← fallback
+- `● SETUP REQUIRED` (no elevation → freeze blocked)
 
 ---
 
@@ -144,6 +150,11 @@ the result. The user is shown a "Root detected" footer.
 
 ## 8. Accessibility integration
 
+> **Historical (T4-era). NOT shipped.** T10c Decision 2: no a11y service is
+> declared in the manifest, `AccessibilityFreezeBackend.isReady()` is hard
+> `false`, and the resolver excludes it. Nothing in the app, listing, or
+> privacy policy claims a11y automation. If reopened later, the design was:
+
 Last-resort. Opens `Settings > Accessibility`, asks the user to enable
 ApexCore's service, then simulates:
 
@@ -151,23 +162,19 @@ ApexCore's service, then simulates:
 2. Tap "Clear all" (3-dot menu → Clear all)
 3. For each app in the configured list: Settings → Apps → [App] → Force Stop → OK
 
-This is slow (~2-5s per app) and fragile across OEM skins. It's the path
-that "just works" on any device with no setup beyond one a11y toggle.
-
-**Note:** The T4 button uses the simpler "Clear all recents" action via
-Accessibility. Per-app Force Stop is a T5 concern.
+This is slow (~2-5s per app) and fragile across OEM skins.
 
 ---
 
 ## 9. Fallback path (T2 reuse)
 
-If no backend is granted, the framework delegates to `BoostManager.kick()`
-which still does `killBackgroundProcesses`. The user sees the same UI
-panel, just with the "● Freeze: standard" footer and a smaller
-"Freed MB" number (typically <100 MB, often 0).
+> **Historical (T4-era). NOT a product mode.** T10a Decision E removed
+> "standard" freeze — `FallbackFreezeBackend` never reports Success and is
+> excluded from resolver candidates; freeze is gated until Shizuku/Root.
+> `BoostManager` is dead code kept only for reference.
 
-This is **not a regression** — it's identical to T2 behavior. The
-architecture's value is unlocked the moment a user grants Shizuku.
+Originally: if no backend is granted, the framework delegates to
+`BoostManager.kick()` which does `killBackgroundProcesses`.
 
 ---
 
@@ -197,18 +204,21 @@ backend swap, not a redesign.
 ```xml
 <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
 <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
-<uses-permission android:name="android.permission.FORCE_STOP_PACKAGES"
-                 tools:ignore="ProtectedPermissions" />  <!-- Shizuku only -->
-<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 ```
 
-`FORCE_STOP_PACKAGES` is signature|privileged — only Shizuku/Root can use
-it, normal apps don't need it. We declare it under `tools:ignore` so the
-manifest builds but the actual grant comes from the backend.
+> Ship reality (T10c): `FORCE_STOP_PACKAGES` is **removed** — it is
+> signature|privileged, a no-op for Play installs, and unused by code
+> (Shizuku/Root execute `am force-stop` via their own privileges).
+> No `RECEIVE_BOOT_COMPLETED` in the shipped manifest (no boot features).
+> `FreezeReceiver` is `exported="false"` — no external FREEZE_ALL broadcasts.
 
 `QUERY_ALL_PACKAGES` is required on Android 11+ to enumerate other apps'
-package names. Without it, `pm list packages -3` from shell still works
-(Shizuku isn't restricted by this perm), but the app-side filter does.
+package names for the games library and freeze targets. Without it,
+`pm list packages -3` from shell still works (Shizuku isn't restricted by
+this perm), but the app-side filter does.
 
 ---
 
@@ -216,11 +226,11 @@ package names. Without it, `pm list packages -3` from shell still works
 
 | Device | Backend | Expected |
 |---|---|---|
-| Pixel 7 (no root, no shizuku) | Fallback | T2 behavior unchanged, footer says "standard" |
+| Pixel 7 (no root, no shizuku) | none | Freeze gated — Setup dialog; RAM Free / HUD still work |
 | Pixel 7 + Shizuku (adb) | Shizuku | 15-30 apps force-stopped, ~400-800 MB freed |
 | OnePlus 9 + Magisk | Root | same as Shizuku |
-| Pixel 4a + a11y grant | Accessibility | "Clear all" recents, 0-3 apps force-stopped, slow |
-| Pixel 7 + Shizuku dead | Shizuku → resolver fails | footer flips to "standard" within 1s |
+| ~~Pixel 4a + a11y grant~~ | ~~Accessibility~~ | **not a product path (T10c)** |
+| Pixel 7 + Shizuku dead | Shizuku → resolver fails | chip flips to SETUP REQUIRED |
 
 Build verification: `./gradlew :app:assembleDebug` must succeed.
 Install: `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
