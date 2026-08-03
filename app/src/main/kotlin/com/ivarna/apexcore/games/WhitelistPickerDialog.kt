@@ -19,7 +19,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.window.Dialog
@@ -60,7 +59,7 @@ fun WhitelistPickerDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.85f))
+                .background(MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.40f))
                 .clickable(onClick = onDismiss),
             contentAlignment = Alignment.Center
         ) {
@@ -201,7 +200,7 @@ fun WhitelistPickerDialog(
                                         colors = CheckboxDefaults.colors(
                                             checkedColor = MaterialTheme.colorScheme.primary,
                                             uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-                                            checkmarkColor = MaterialTheme.colorScheme.background
+                                            checkmarkColor = MaterialTheme.colorScheme.onPrimary
                                         )
                                     )
                                 }
@@ -227,7 +226,7 @@ fun WhitelistPickerDialog(
                         color = MaterialTheme.colorScheme.onPrimary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = PlusJakartaSans
                     )
                 }
             }

@@ -34,7 +34,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -301,7 +300,7 @@ fun GamesScreen(
                                     color = MaterialTheme.colorScheme.onPrimary,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace
+                                    fontFamily = PlusJakartaSans
                                 )
                             }
                             Spacer(modifier = Modifier.height(12.dp))
@@ -331,7 +330,7 @@ fun GamesScreen(
                                     color = MaterialTheme.colorScheme.primary,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    fontFamily = FontFamily.Monospace
+                                    fontFamily = PlusJakartaSans
                                 )
                             }
                         }

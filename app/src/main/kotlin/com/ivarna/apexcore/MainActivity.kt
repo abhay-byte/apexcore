@@ -45,7 +45,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -1237,7 +1236,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                     text = if (hasPermission) "PERMISSION GRANTED" else "ACTION REQUIRED",
                     color = if (hasPermission) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
                     fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
@@ -1271,7 +1270,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                             }
                             .padding(horizontal = 16.dp, vertical = 10.dp)
                     ) {
-                        Text("GRANT PERMISSION", color = MaterialTheme.colorScheme.onPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("GRANT PERMISSION", color = MaterialTheme.colorScheme.onSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1409,7 +1408,7 @@ fun NavBarItem(
                     color = contentColor,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = PlusJakartaSans,
                     letterSpacing = 0.5.sp
                 )
             }
@@ -1446,7 +1445,7 @@ fun SystemDiagnosticsCard(
                 text = "ACCESS DIAGNOSTICS",
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                 fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.5.sp
             )
@@ -1479,8 +1478,8 @@ fun DiagnosticRow(
     ) {
         val (iconColor, statusText) = when (status) {
             true -> MaterialTheme.colorScheme.primary to "ACTIVE"
-            false -> MaterialTheme.colorScheme.secondary to "INACTIVE"
-            null -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f) to "CHECKING…"
+            false -> ZenColors.statusInactive to "INACTIVE"
+            null -> MaterialTheme.colorScheme.outline to "CHECKING…"
         }
         
         Box(
@@ -1507,7 +1506,7 @@ fun DiagnosticRow(
             text = statusText,
             color = iconColor,
             fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace,
+            fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold
         )
     }

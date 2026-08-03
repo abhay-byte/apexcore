@@ -19,7 +19,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.window.Dialog
@@ -66,7 +65,7 @@ fun AddGamePickerDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.85f))
+                .background(MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.40f))
                 .clickable(onClick = onDismiss),
             contentAlignment = Alignment.Center
         ) {
@@ -206,7 +205,7 @@ fun AddGamePickerDialog(
                                         colors = CheckboxDefaults.colors(
                                             checkedColor = MaterialTheme.colorScheme.primary,
                                             uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
-                                            checkmarkColor = MaterialTheme.colorScheme.background
+                                            checkmarkColor = MaterialTheme.colorScheme.onPrimary
                                         )
                                     )
                                 }
@@ -238,7 +237,7 @@ fun AddGamePickerDialog(
                             color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
+                            fontFamily = PlusJakartaSans
                         )
                     }
 
@@ -265,7 +264,7 @@ fun AddGamePickerDialog(
                             color = if (isAddEnabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
+                            fontFamily = PlusJakartaSans
                         )
                     }
                 }

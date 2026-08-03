@@ -20,7 +20,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -61,7 +60,7 @@ fun SetupDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.85f))
+                .background(MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.40f))
                 .clickable(onClick = onDismiss),
             contentAlignment = Alignment.Center
         ) {
@@ -82,7 +81,7 @@ fun SetupDialog(
                     text = "SYSTEM ACCESS CONFIG",
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                     fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = PlusJakartaSans,
                     letterSpacing = 2.sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
@@ -144,7 +143,7 @@ fun SetupDialog(
                         text = "PRIVACY POLICY",
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                         fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
@@ -168,7 +167,7 @@ fun SetupDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = PlusJakartaSans,
                         letterSpacing = 1.sp
                     )
                 }
@@ -230,7 +229,7 @@ fun OptionCard(
                         color = MaterialTheme.colorScheme.primary,
                         fontSize = 8.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = PlusJakartaSans
                     )
                 }
             }
@@ -248,7 +247,7 @@ fun OptionCard(
             color = if (isRecommended) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace
+            fontFamily = PlusJakartaSans
         )
     }
 }
