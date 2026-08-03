@@ -309,18 +309,19 @@ private fun ActiveModeCard(
         PrivilegeMode.SHIZUKU -> "Shizuku"
         PrivilegeMode.STANDARD -> "Standard"
     }
+    // Games always use SF first (factualstats); DMA only for non-game UI under root.
     val fpsPathShort = when (privilegeMode) {
         PrivilegeMode.ROOT -> when (gpuVendor) {
-            GpuVendor.ADRENO -> "Adreno daemon → SF"
-            GpuVendor.MALI -> "Mali fence → SF"
-            GpuVendor.UNKNOWN -> "Root daemon → SF"
+            GpuVendor.ADRENO -> "Games: SF · UI: Adreno"
+            GpuVendor.MALI -> "Games: SF · UI: Mali"
+            GpuVendor.UNKNOWN -> "Games: SF · UI: daemon"
         }
         PrivilegeMode.SHIZUKU -> "SF elevated → gfxinfo"
         PrivilegeMode.STANDARD -> "SF / gfxinfo"
         PrivilegeMode.AUTO -> when (gpuVendor) {
-            GpuVendor.ADRENO -> "Auto · Adreno → SF"
-            GpuVendor.MALI -> "Auto · Mali → SF"
-            GpuVendor.UNKNOWN -> "Auto · daemon → SF"
+            GpuVendor.ADRENO -> "Auto · SF (games) / Adreno"
+            GpuVendor.MALI -> "Auto · SF (game) / Mali"
+            GpuVendor.UNKNOWN -> "Auto · SF (game) / daemon"
         }
     }
 

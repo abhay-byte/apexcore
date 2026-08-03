@@ -4,6 +4,7 @@ import android.content.Context
 import com.ivarna.apexcore.fps.privilege.PrivilegeMode
 import com.ivarna.apexcore.fps.privilege.PrivilegeModeStore
 import com.ivarna.apexcore.fps.privilege.ShellGateway
+import com.ivarna.apexcore.fps.source.CpuDataSource
 import com.ivarna.apexcore.fps.source.DmaFenceFpsDataSource
 import com.ivarna.apexcore.fps.source.FpsDaemonManager
 import com.ivarna.apexcore.fps.source.GfxinfoFpsDataSource
@@ -16,9 +17,13 @@ import com.ivarna.apexcore.fps.util.ShellExecutor
 /**
  * Manual composition root for the FPS stack (no Hilt in ApexCore).
  * Privilege mode tracks the top-bar Root / Shizuku preference.
+ *
+ * Methods + fallbacks mirror factualstats:
+ * Root/Shizuku/Standard via [ShellGateway] chains on dumpsys + /proc paths.
  */
 class FpsStack private constructor(
     val repository: FpsRepository,
+    val cpuDataSource: CpuDataSource,
     val shellExecutor: ShellExecutor,
     val privilegeModeStore: PrivilegeModeStore,
     val shellGateway: ShellGateway
@@ -55,6 +60,7 @@ class FpsStack private constructor(
             val dma = DmaFenceFpsDataSource(context)
             val sf = SurfaceFlingerFpsDataSource(shellGateway, foregroundAppResolver)
             val gfx = GfxinfoFpsDataSource(shellGateway, foregroundAppResolver)
+            val cpu = CpuDataSource(shellGateway)
             val daemon = FpsDaemonManager(context, shellGateway)
             privilegeModeStore.addOnModeChangedListener {
                 // Invalidate root daemon when leaving ROOT/AUTO with root
@@ -66,7 +72,7 @@ class FpsStack private constructor(
                 }
             }
             val repo = FpsRepositoryImpl(dma, sf, gfx, foregroundAppResolver, daemon)
-            return FpsStack(repo, shellExecutor, privilegeModeStore, shellGateway)
+            return FpsStack(repo, cpu, shellExecutor, privilegeModeStore, shellGateway)
         }
     }
 }

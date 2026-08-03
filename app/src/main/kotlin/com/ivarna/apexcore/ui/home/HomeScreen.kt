@@ -153,6 +153,9 @@ fun HomeScreen(
             )
         }
 
+        // Organic vines + blooms — Home only, behind content, decorative
+        HomeNatureBackground(dimmed = state == State.BOOSTING)
+
         Column(
             modifier = Modifier
                 .fillMaxSize()

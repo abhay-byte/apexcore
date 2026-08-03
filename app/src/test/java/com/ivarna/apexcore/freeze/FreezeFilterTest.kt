@@ -105,4 +105,34 @@ class FreezeFilterTest {
         `when`(prefs.getStringSet("pinned_packages", emptySet())).thenReturn(setOf("com.example.other"))
         assertTrue(FreezeFilter.default(selfContext, user))
     }
+
+    @Test
+    fun `excludes protect package set`() {
+        val game = appInfo("com.example.game")
+        assertFalse(
+            FreezeFilter.shouldFreeze(
+                selfContext,
+                game,
+                protectPackages = setOf("com.example.game")
+            )
+        )
+    }
+
+    @Test
+    fun `excludes process suffix of protected package`() {
+        val push = appInfo("com.example.game:push")
+        assertFalse(
+            FreezeFilter.shouldFreeze(
+                selfContext,
+                push,
+                protectPackages = setOf("com.example.game")
+            )
+        )
+    }
+
+    @Test
+    fun `excludes always-protect systemui`() {
+        val sysui = appInfo("com.android.systemui", flags = 0)
+        assertFalse(FreezeFilter.default(selfContext, sysui))
+    }
 }

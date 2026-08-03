@@ -32,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -50,7 +51,6 @@ import androidx.savedstate.*
 import com.ivarna.apexcore.R
 import com.ivarna.apexcore.fps.FpsStack
 import com.ivarna.apexcore.fps.model.FpsMethod
-import com.ivarna.apexcore.freeze.FreezeFilter
 import com.ivarna.apexcore.freeze.FreezeFramework
 import com.ivarna.apexcore.ui.components.zenGlassBackground
 import com.ivarna.apexcore.ui.theme.*
@@ -95,9 +95,13 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
     // Dynamic UI states
     private val isExpandedState = mutableStateOf(false)
     private val fpsState = mutableStateOf(0)
-    private val ramHistory = mutableStateListOf<Float>()
-    private val cpuLoadState = mutableStateOf(0.15f)
+    /** Normalized 0–1 FPS history for the sparkline (relative to refresh / 120). */
+    private val fpsHistory = mutableStateListOf<Float>()
+    /** Per-core load 0–1 for equalizer bars (factualstats /proc/stat). */
+    private val cpuCoreLoads = mutableStateListOf<Float>()
+    private val cpuLoadState = mutableStateOf(0f)
     private val isBoosting = mutableStateOf(false)
+    private var fpsGraphCeiling = 120f
 
     private val density: Float get() = resources.displayMetrics.density
 
@@ -172,7 +176,8 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
     }
 
     /**
-     * Poll factualstats cascade every 1s (DMA daemon samples on 1s windows).
+     * Poll factualstats cascade every 1s.
+     * Games: SF → (no DMA, no gfxinfo). UI: DMA → SF → gfxinfo.
      */
     private fun startFpsPolling() {
         fpsJob?.cancel()
@@ -184,13 +189,16 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
                     }
                     if (snapshot.currentFps > 0f && snapshot.method != FpsMethod.NONE) {
                         useChoreographerFallback = false
-                        fpsState.value = snapshot.currentFps.toInt().coerceIn(1, 240)
+                        val fps = snapshot.currentFps.coerceIn(1f, 240f)
+                        fpsState.value = fps.toInt()
+                        pushFpsHistory(fps)
                     } else {
                         // No real reading — allow Choreographer only for self-test HUD
                         useChoreographerFallback =
                             gamePkg == null || gamePkg == packageName
                         if (useChoreographerFallback && choreographerFps > 0) {
                             fpsState.value = choreographerFps
+                            pushFpsHistory(choreographerFps.toFloat())
                         }
                     }
                 } catch (t: Throwable) {
@@ -203,56 +211,70 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
         }
     }
 
+    private fun pushFpsHistory(fps: Float) {
+        // Raise ceiling gradually so a 60fps game does not sit as a flat mid line on 120 scale
+        if (fps > fpsGraphCeiling * 0.9f) {
+            fpsGraphCeiling = (fps * 1.15f).coerceIn(60f, 240f)
+        }
+        val norm = (fps / fpsGraphCeiling).coerceIn(0.02f, 1f)
+        if (fpsHistory.size >= HISTORY_POINTS) {
+            fpsHistory.removeAt(0)
+        }
+        fpsHistory.add(norm)
+    }
+
     private fun startStatsUpdates() {
         statsJob = scope.launch {
-            // Seed history
-            for (i in 0 until 60) ramHistory.add(0.4f + (0f..0.1f).random())
+            // Seed flat baseline so first paint is not empty
+            if (fpsHistory.isEmpty()) {
+                repeat(HISTORY_POINTS) { fpsHistory.add(0.05f) }
+            }
+            // Warm CPU counters (first sample is always 0% with /proc/stat deltas)
+            withContext(Dispatchers.IO) {
+                runCatching { fpsStack.cpuDataSource.readCpuStats() }
+            }
+            delay(400L)
 
             while (isActive) {
-                updateStats()
+                updateCpuStats()
                 delay(1000L)
             }
         }
     }
 
-    private fun updateStats() {
-        val mem = readMemInfo()
-        val total = mem.first
-        val avail = mem.second
-        val used = (total - avail).coerceAtLeast(0)
-        val fraction = if (total > 0) used.toFloat() / total else 0.45f
+    private suspend fun updateCpuStats() {
+        val snap = withContext(Dispatchers.IO) {
+            runCatching { fpsStack.cpuDataSource.readCpuStats() }.getOrNull()
+        } ?: return
 
-        if (ramHistory.size >= 60) {
-            ramHistory.removeAt(0)
-        }
-        ramHistory.add(fraction)
+        cpuLoadState.value = (snap.overallLoadPercent / 100f).coerceIn(0f, 1f)
 
-        // Read CPU load
-        cpuLoadState.value = readCpuLoadVal()
-    }
-
-    private fun readMemInfo(): Pair<Long, Long> {
-        var total = 0L; var avail = 0L
-        try {
-            java.io.File("/proc/meminfo").useLines { lines ->
-                for (line in lines) {
-                    when {
-                        line.startsWith("MemTotal:") -> total = parseKb(line)
-                        line.startsWith("MemAvailable:") -> avail = parseKb(line)
-                    }
+        val loads = if (snap.cores.isNotEmpty()) {
+            snap.cores.map { (it.loadPercent / 100f).coerceIn(0.05f, 1f) }
+        } else {
+            // Fallback: synthesise 8 bars from overall load with mild shape
+            val base = cpuLoadState.value.coerceIn(0.08f, 1f)
+            List(8) { i ->
+                val factor = when (i) {
+                    0, 7 -> 0.45f
+                    1, 6 -> 0.65f
+                    2, 5 -> 0.85f
+                    else -> 1f
                 }
+                (base * factor).coerceIn(0.08f, 1f)
             }
-        } catch (_: Throwable) {}
-        return total to avail
+        }
+
+        cpuCoreLoads.clear()
+        // Show up to 8 bars; subsample many-core SoCs
+        val display = if (loads.size <= 8) {
+            loads
+        } else {
+            val step = loads.size / 8f
+            (0 until 8).map { i -> loads[(i * step).toInt().coerceIn(0, loads.lastIndex)] }
+        }
+        cpuCoreLoads.addAll(display)
     }
-
-    private fun parseKb(line: String): Long =
-        line.split(Regex("\\s+"))[1].toLongOrNull() ?: 0L
-
-    private fun readCpuLoadVal(): Float = try {
-        val loadStr = java.io.File("/proc/loadavg").readText().split(" ").firstOrNull()
-        loadStr?.toFloatOrNull() ?: 0.15f
-    } catch (_: Throwable) { 0.15f + (0f..0.1f).random() }
 
     private fun startExitWatcher() {
         val pkg = gamePkg ?: return
@@ -282,6 +304,55 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
             }
         } catch (_: Throwable) {}
         return true
+    }
+
+    /**
+     * Packages BOOST must never force-stop:
+     * - ApexCore (always)
+     * - Monitored game ([gamePkg])
+     * - Whatever is currently resumed/foreground (UsageStats + dumpsys fallback)
+     */
+    private fun resolveBoostProtectPackages(): Set<String> {
+        val protect = linkedSetOf<String>()
+        protect.add(packageName)
+        gamePkg?.takeIf { it.isNotBlank() }?.let { protect.add(it) }
+        resolveForegroundPackage()?.let { protect.add(it) }
+        return protect
+    }
+
+    private fun resolveForegroundPackage(): String? {
+        // Prefer recent non-self usage (overlay steals window focus)
+        try {
+            val usm = getSystemService(Context.USAGE_STATS_SERVICE) as android.app.usage.UsageStatsManager
+            val time = System.currentTimeMillis()
+            val stats = usm.queryUsageStats(
+                android.app.usage.UsageStatsManager.INTERVAL_DAILY,
+                time - 1000 * 60 * 5,
+                time
+            )
+            if (stats != null && stats.isNotEmpty()) {
+                val top = stats
+                    .filter { it.packageName != packageName && it.lastTimeUsed > 0 }
+                    .maxByOrNull { it.lastTimeUsed }
+                    ?.packageName
+                if (!top.isNullOrBlank()) return top
+            }
+        } catch (_: Throwable) {
+        }
+        // dumpsys activity ResumedActivity
+        try {
+            val proc = Runtime.getRuntime().exec(
+                arrayOf("sh", "-c", "dumpsys activity activities 2>/dev/null | grep -E 'ResumedActivity|mResumedActivity' | head -5")
+            )
+            val out = proc.inputStream.bufferedReader().readText()
+            proc.waitFor()
+            val match = Regex("""([a-zA-Z0-9_.]+)/[a-zA-Z0-9_.$]+""").findAll(out)
+                .map { it.groupValues[1] }
+                .firstOrNull { it != packageName && it.contains('.') }
+            if (match != null) return match
+        } catch (_: Throwable) {
+        }
+        return null
     }
 
     private fun shutdown() {
@@ -346,7 +417,8 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
                     OverlayContent(
                         isExpanded = isExpandedState.value,
                         fps = fpsState.value,
-                        ramHistory = ramHistory,
+                        fpsHistory = fpsHistory,
+                        cpuCoreLoads = cpuCoreLoads,
                         cpuLoad = cpuLoadState.value,
                         isBoosting = isBoosting.value,
                         onBoostClick = {
@@ -355,10 +427,13 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
                             scope.launch {
                                 try {
                                     val result = withContext(Dispatchers.IO) {
-                                        FreezeFramework.freezeAll(applicationContext) { info ->
-                                            info.packageName != gamePkg &&
-                                                FreezeFilter.default(applicationContext, info)
-                                        }
+                                        // Never kill ApexCore, the monitored game, or current foreground.
+                                        val protect = resolveBoostProtectPackages()
+                                        android.util.Log.i(TAG, "BOOST protect=$protect")
+                                        FreezeFramework.freezeAll(
+                                            context = applicationContext,
+                                            protectPackages = protect
+                                        )
                                     }
                                     val msg = when {
                                         result.backend == "blocked" ->
@@ -466,6 +541,7 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
         private const val TAG = "GameOverlayService"
         private const val CHANNEL_ID = "apexcore_overlay"
         private const val NOTIF_ID = 1001
+        private const val HISTORY_POINTS = 48
         const val EXTRA_PKG = "game_pkg"
 
         fun start(context: Context, pkg: String) {
@@ -497,7 +573,8 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
 fun OverlayContent(
     isExpanded: Boolean,
     fps: Int,
-    ramHistory: List<Float>,
+    fpsHistory: List<Float>,
+    cpuCoreLoads: List<Float>,
     cpuLoad: Float,
     isBoosting: Boolean,
     onBoostClick: () -> Unit,
@@ -575,7 +652,7 @@ fun OverlayContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // FPS
+            // FPS number
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "FPS",
@@ -599,10 +676,10 @@ fun OverlayContent(
                 )
             }
 
-            // RAM sparkline
+            // FPS sparkline (was mislabeled RAM TREND with flat mem fraction)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "RAM TREND",
+                    text = "FPS GRAPH",
                     color = labelMuted,
                     fontSize = 8.sp,
                     fontFamily = PlusJakartaSans,
@@ -618,13 +695,13 @@ fun OverlayContent(
                         .height(36.dp)
                         .padding(horizontal = 2.dp)
                 ) {
-                    if (ramHistory.size >= 2) {
+                    if (fpsHistory.size >= 2) {
                         val path = Path()
                         val fillPath = Path()
-                        val pointsCount = ramHistory.size
-                        ramHistory.forEachIndexed { index, valFrac ->
-                            val x = index * (size.width / (pointsCount - 1))
-                            val y = size.height - (valFrac.coerceIn(0f, 1f) * size.height)
+                        val pointsCount = fpsHistory.size
+                        fpsHistory.forEachIndexed { index, valFrac ->
+                            val x = index * (size.width / (pointsCount - 1).coerceAtLeast(1))
+                            val y = size.height - (valFrac.coerceIn(0f, 1f) * size.height * 0.92f)
                             if (index == 0) {
                                 path.moveTo(x, y)
                                 fillPath.moveTo(x, size.height)
@@ -646,10 +723,14 @@ fun OverlayContent(
                 }
             }
 
-            // CPU equalizer
+            // CPU equalizer — real /proc/stat core loads (0–1)
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "CPU LOAD",
+                    text = if (cpuLoad > 0f) {
+                        "CPU ${ (cpuLoad * 100).toInt() }%"
+                    } else {
+                        "CPU LOAD"
+                    },
                     color = labelMuted,
                     fontSize = 8.sp,
                     fontFamily = PlusJakartaSans,
@@ -657,36 +738,35 @@ fun OverlayContent(
                     letterSpacing = 0.6.sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
+                val barCount = (cpuCoreLoads.size.takeIf { it > 0 } ?: 8).coerceIn(4, 8)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(3.dp),
                     verticalAlignment = Alignment.Bottom,
                     modifier = Modifier.height(30.dp)
                 ) {
-                    repeat(8) { barIdx ->
-                        val animHeight = remember { Animatable(0.1f) }
-                        LaunchedEffect(cpuLoad) {
-                            val factor = when (barIdx) {
-                                0, 7 -> 0.4f
-                                1, 6 -> 0.6f
-                                2, 5 -> 0.8f
-                                else -> 1.0f
-                            }
-                            val targetHeight =
-                                (cpuLoad * factor * (0.6f..1.2f).random()).coerceIn(0.12f, 1f)
-                            animHeight.animateTo(
-                                targetValue = targetHeight,
-                                animationSpec = tween(
-                                    (300..600).random(),
-                                    easing = FastOutSlowInEasing
+                    repeat(barCount) { barIdx ->
+                        key(barIdx) {
+                            val target = cpuCoreLoads.getOrNull(barIdx)
+                                ?: (cpuLoad * when (barIdx % 4) {
+                                    0 -> 0.5f
+                                    1 -> 0.75f
+                                    2 -> 0.9f
+                                    else -> 1f
+                                }).coerceIn(0.08f, 1f)
+                            val animHeight = remember(barIdx) { Animatable(0.08f) }
+                            LaunchedEffect(target) {
+                                animHeight.animateTo(
+                                    targetValue = target.coerceIn(0.08f, 1f),
+                                    animationSpec = tween(280, easing = FastOutSlowInEasing)
                                 )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .width(4.dp)
+                                    .fillMaxHeight(animHeight.value)
+                                    .background(scheme.primary, RoundedCornerShape(2.dp))
                             )
                         }
-                        Box(
-                            modifier = Modifier
-                                .width(4.dp)
-                                .fillMaxHeight(animHeight.value)
-                                .background(scheme.primary, RoundedCornerShape(2.dp))
-                        )
                     }
                 }
             }
@@ -737,6 +817,3 @@ fun OverlayContent(
         }
     }
 }
-
-private fun ClosedFloatingPointRange<Float>.random(): Float =
-    (Math.random() * (endInclusive - start) + start).toFloat()

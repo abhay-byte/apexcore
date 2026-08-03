@@ -54,8 +54,17 @@ object FreezeFramework {
         detect() != null
     } catch (_: Throwable) { false }
 
+    /**
+     * Force-stop background apps to free RAM.
+     *
+     * @param protectPackages packages that must never be killed (game, foreground, etc.).
+     *   ApexCore itself, pinned apps, pure system apps, and [FreezeFilter.ALWAYS_PROTECT]
+     *   are always protected even if a custom [filter] would include them.
+     * @param filter additional inclusion predicate; default is [FreezeFilter.default].
+     */
     suspend fun freezeAll(
         context: Context,
+        protectPackages: Set<String> = emptySet(),
         filter: (ApplicationInfo) -> Boolean = { FreezeFilter.default(context, it) }
     ): FreezeResult = withContext(Dispatchers.IO) {
         val backend = detect()
@@ -78,12 +87,22 @@ object FreezeFramework {
             _lastResult.value = result
             return@withContext result
         }
+
+        val selfPkg = context.packageName
+        val protected = buildProtectedSet(selfPkg, protectPackages)
+        Log.i(TAG, "freezeAll protect=${protected.joinToString()}")
+
         val pm = context.packageManager
         val apps = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-        val targets = apps.filter(filter)
-        Log.i(TAG, "freezeAll via ${backend.name} -> ${targets.size} apps")
+        // Caller filter + hard protect gate (never force-stop self / game / always-protect)
+        val targets = apps.filter { info ->
+            val name = info.packageName ?: return@filter false
+            if (isProtectedPackage(name, protected)) return@filter false
+            filter(info) && FreezeFilter.shouldFreeze(context, info, protected)
+        }
+        Log.i(TAG, "freezeAll via ${backend.name} -> ${targets.size} apps (protected ${protected.size})")
 
-        val targetPkgs = targets.map { it.packageName }
+        val targetPkgs = targets.map { it.packageName }.filter { !isProtectedPackage(it, protected) }
         val beforeRssKb = calculateTargetRssKb(backend, targetPkgs)
         Log.i(TAG, "Target apps before RSS sum = ${beforeRssKb}KB")
 
@@ -95,7 +114,7 @@ object FreezeFramework {
         var failed = 0
         var skipped = 0
 
-        val allOps = targets.map { FreezeOperation.ForceStop(it.packageName) }
+        val allOps = targetPkgs.map { FreezeOperation.ForceStop(it) }
         val allResults = backend.executeMany(allOps)
 
         for (res in allResults) {
@@ -146,12 +165,37 @@ object FreezeFramework {
     }
 
     suspend fun forceStopOne(context: Context, pkg: String): FreezeOperation.Result {
+        val protected = buildProtectedSet(context.packageName, emptySet())
+        if (isProtectedPackage(pkg, protected)) {
+            Log.w(TAG, "forceStopOne refused protected package: $pkg")
+            return FreezeOperation.Result.Failure("protected-package")
+        }
         val backend = detect() ?: return FreezeOperation.Result.Failure("no-elevated-backend")
         return try {
             backend.execute(FreezeOperation.ForceStop(pkg))
         } catch (t: Throwable) {
             FreezeOperation.Result.Failure(t.message ?: "threw")
         }
+    }
+
+    private fun buildProtectedSet(selfPkg: String, extra: Set<String>): Set<String> {
+        val out = LinkedHashSet<String>()
+        out.add(selfPkg)
+        out.addAll(FreezeFilter.ALWAYS_PROTECT)
+        for (p in extra) {
+            val trimmed = p.trim()
+            if (trimmed.isNotEmpty()) {
+                out.add(trimmed)
+                out.add(trimmed.substringBefore(':'))
+            }
+        }
+        return out
+    }
+
+    private fun isProtectedPackage(pkg: String, protected: Set<String>): Boolean {
+        if (pkg in protected) return true
+        val base = pkg.substringBefore(':')
+        return base in protected
     }
 
     /** Returns (MemTotalKb, MemAvailableKb). */

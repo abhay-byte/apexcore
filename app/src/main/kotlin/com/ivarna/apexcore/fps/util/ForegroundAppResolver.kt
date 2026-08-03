@@ -10,13 +10,42 @@ data class ForegroundApp(
 class ForegroundAppResolver(
     private val shellExecutor: ShellExecutor
 ) {
+    /**
+     * When the game overlay is active it can steal `mCurrentFocus`.
+     * Prefer this package for SF/gfxinfo surface selection so FPS tracks the game.
+     */
+    @Volatile
+    var preferredPackage: String? = null
+
     fun resolve(): ForegroundApp? {
+        val preferred = preferredPackage?.takeIf { it.isNotBlank() && it.contains('.') }
+        val system = resolveSystemForeground()
+        if (preferred != null) {
+            val refresh = system?.refreshRateHz?.takeIf { it > 0f } ?: 60f
+            val pid = when {
+                system?.packageName == preferred -> system.pid
+                else -> pidOf(preferred, useRoot = shellExecutor.isSuAvailable())
+            }
+            return ForegroundApp(preferred, pid, refresh)
+        }
+        return system
+    }
+
+    private fun resolveSystemForeground(): ForegroundApp? {
         readFromDaemonFile()?.let { return it }
         // Try dumpsys window — skip null focus lines, take first real one
         val fromWindow = readFromDumpsys(useRoot = false) ?: readFromDumpsys(useRoot = true)
         if (fromWindow != null) return fromWindow
         // Fallback: dumpsys activity activities ResumedActivity
         return readFromActivityDumpsys()
+    }
+
+    private fun pidOf(packageName: String, useRoot: Boolean): Int {
+        val pidResult = shellExecutor.execute(
+            "pidof $packageName 2>/dev/null | awk '{print \$1}'",
+            useRoot = useRoot
+        )
+        return pidResult.output.trim().toIntOrNull() ?: 0
     }
 
     /**

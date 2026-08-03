@@ -104,11 +104,19 @@ class SurfaceFlingerFpsDataSource(
 
         if (frametimesMs.isEmpty()) return null
 
-        val avgMs = frametimesMs.average().toFloat()
+        // SF --latency is a ring of ~128 frames; old history makes FPS jump when
+        // framerate changes. Instantaneous FPS uses the newest window only.
+        val recent = if (frametimesMs.size > RECENT_FRAME_WINDOW) {
+            frametimesMs.takeLast(RECENT_FRAME_WINDOW)
+        } else {
+            frametimesMs
+        }
+        val avgMs = recent.average().toFloat()
+        if (avgMs <= 0f) return null
         val fps = 1000f / avgMs
 
         return FpsSnapshot(
-            currentFps = fps,
+            currentFps = fps.coerceIn(1f, 240f),
             frametimeAvgMs = avgMs,
             frametimeP1Ms = 0f,
             frametimeP01Ms = 0f,
@@ -116,5 +124,10 @@ class SurfaceFlingerFpsDataSource(
             jankCount = jankCount,
             method = FpsMethod.SURFACEFLINGER
         )
+    }
+
+    private companion object {
+        /** ~0.5s at 60Hz / ~0.25s at 120Hz — responsive without full-ring noise. */
+        const val RECENT_FRAME_WINDOW = 32
     }
 }

@@ -13,18 +13,18 @@ import com.ivarna.apexcore.fps.util.ForegroundAppResolver
 /**
  * Multi-tier FPS resolver (ported from factualstats).
  *
- * Cascade (docs/fps-measurement.md + modular-fps-components):
+ * Cascade (matches factualstats FpsRepositoryImpl):
  * ```
- * Root available?
- *   Yes → DMA daemon (Adreno cmdbatch-hybrid / Mali dma_fence)
- *         └── SurfaceFlinger --latency
- *   No  → SurfaceFlinger --latency
- *         └── gfxinfo framestats (UI only, never games)
+ * Games:
+ *   SurfaceFlinger --latency  (never DMA: counts vsync on Mali/non-Adreno)
+ *   gfxinfo skipped
+ * UI / non-game:
+ *   DMA daemon (root Adreno/Mali) → SurfaceFlinger → gfxinfo
  * ```
  *
- * Note: factualstats repo briefly skipped DMA for all games (SF-only); that
- * contradicts the Adreno/Mali root path and T1 handoff. ApexCore uses DMA first
- * for games when the daemon is live, then SF, never gfxinfo for games.
+ * Skipping DMA for games is intentional — factualstats found dma_fence often
+ * reports display refresh rate rather than real game frame rate, causing
+ * huge FPS swings when methods fight (e.g. 120 vs 60–80).
  */
 interface FpsRepository {
     suspend fun getFps(): FpsSnapshot
@@ -54,12 +54,16 @@ class FpsRepositoryImpl(
     private var lastBatchFingerprint: String? = null
     private var lastGoodSnapshot: FpsSnapshot? = null
     private var lastGoodAtMs: Long = 0L
+    /** Short ring for HUD display stability (median of last samples). */
+    private val recentDisplayFps = ArrayDeque<Float>(DISPLAY_SMOOTH_N)
 
     @Volatile
     private var targetPackage: String? = null
 
     override fun setTargetPackage(packageName: String?) {
         targetPackage = packageName
+        // Keep SF/gfxinfo locked on the monitored game even if overlay steals focus.
+        foregroundAppResolver.preferredPackage = packageName
     }
 
     override fun ensureDaemonStarted(): Boolean = fpsDaemonManager.ensureStarted()
@@ -83,6 +87,10 @@ class FpsRepositoryImpl(
         for (source in sources) {
             // Never trust gfxinfo for Vulkan/NativeActivity/SurfaceView games.
             if (isGame && source is GfxinfoFpsDataSource) continue
+            // For games, skip DMA_FENCE: on Mali/non-Adreno GPUs it counts
+            // display refresh rate (vsync), not actual game frame rate.
+            // Use SurfaceFlinger latency which measures real buffer presentation.
+            if (isGame && source is DmaFenceFpsDataSource) continue
             val snapshot = source.readFps() ?: continue
             if (snapshot.currentFps <= 0f) continue
             rawSnapshot = snapshot
@@ -128,17 +136,27 @@ class FpsRepositoryImpl(
         val percentiles = buffer.computePercentiles()
         val refreshHz = foreground?.refreshRateHz ?: 60f
         val resolvedFps = resolveDisplayFps(rawSnapshot, refreshHz)
+        val displayFps = smoothDisplayFps(resolvedFps)
         val p1Ms = percentiles.p1FrametimeMs
             .takeIf { it in 1f..200f } ?: rawSnapshot.frametimeP1Ms.takeIf { it in 1f..200f } ?: 0f
         val p01Ms = percentiles.p01FrametimeMs
             .takeIf { it in 1f..200f } ?: rawSnapshot.frametimeP01Ms.takeIf { it in 1f..200f } ?: 0f
         return rawSnapshot.copy(
-            currentFps = resolvedFps,
-            frametimeAvgMs = if (resolvedFps > 0f) 1000f / resolvedFps else rawSnapshot.frametimeAvgMs,
+            currentFps = displayFps,
+            frametimeAvgMs = if (displayFps > 0f) 1000f / displayFps else rawSnapshot.frametimeAvgMs,
             frametimeP1Ms = p1Ms,
             frametimeP01Ms = p01Ms,
             frametimeHistogram = if (buffer.size > 0) buffer.samples else rawSnapshot.frametimeHistogram
         )
+    }
+
+    /** Median of last N samples — kills one-sample spikes without laggy EMA. */
+    private fun smoothDisplayFps(fps: Float): Float {
+        if (fps <= 0f) return fps
+        while (recentDisplayFps.size >= DISPLAY_SMOOTH_N) recentDisplayFps.removeFirst()
+        recentDisplayFps.addLast(fps)
+        val sorted = recentDisplayFps.sorted()
+        return sorted[sorted.size / 2]
     }
 
     /**
@@ -162,6 +180,7 @@ class FpsRepositoryImpl(
     private companion object {
         const val UI_GPU_UNDERCNT_MAX_FPS = 5f
         const val LAST_GOOD_HOLD_MS = 4000L
+        const val DISPLAY_SMOOTH_N = 3
     }
 
     private fun resolveDisplayFps(snapshot: FpsSnapshot, refreshHz: Float): Float {

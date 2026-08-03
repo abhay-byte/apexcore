@@ -11,14 +11,14 @@ object GameLauncher {
 
     private const val TAG = "ApexCore.Games"
 
-    /** Freeze all background apps (excluding the game), then launch the game. */
+    /** Freeze all background apps (excluding the game + ApexCore), then launch the game. */
     suspend fun launch(context: Context, gamePkg: String): LaunchResult = withContext(Dispatchers.IO) {
         try {
-            // Freeze everything except the game being launched
-            val result = FreezeFramework.freezeAll(context) { appInfo ->
-                val keep = appInfo.packageName == gamePkg
-                !keep && com.ivarna.apexcore.freeze.FreezeFilter.default(context, appInfo)
-            }
+            // Freeze everything except the game being launched (and self — hard-gated in framework)
+            val result = FreezeFramework.freezeAll(
+                context = context,
+                protectPackages = setOf(gamePkg, context.packageName)
+            )
             if (result.backend == "blocked") {
                 Log.w(TAG, "Pre-launch freeze skipped: no Shizuku/Root elevation (backend=blocked)")
             }
@@ -30,11 +30,8 @@ object GameLauncher {
                 return@withContext LaunchResult(false, "no-launch-intent", null, result)
             }
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
-            try {
-                context.sendBroadcast(Intent("com.ivarna.apexcore.action.FREEZE_ALL").apply {
-                    setPackage(context.packageName) // internal/external broadcast
-                })
-            } catch (_: Throwable) {}
+            // Do NOT re-broadcast FREEZE_ALL without protect list — that previously
+            // force-stopped the game right after launch (and could kill ApexCore).
             context.startActivity(intent)
             Log.i(TAG, "Launched $gamePkg after freezing ${result.killed} apps")
             // Start game overlay (silently if overlay permission not granted)
