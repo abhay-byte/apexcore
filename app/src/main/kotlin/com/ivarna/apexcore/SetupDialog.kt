@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,7 +20,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -60,7 +60,7 @@ fun SetupDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(SurfaceGlass)
+                .background(MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.40f))
                 .clickable(onClick = onDismiss),
             contentAlignment = Alignment.Center
         ) {
@@ -69,8 +69,8 @@ fun SetupDialog(
                     .padding(horizontal = 24.dp)
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(28.dp))
-                    .background(SurfaceCard)
-                    .border(1.dp, BorderGlass, RoundedCornerShape(28.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(28.dp))
                     .clickable(enabled = false) {} // block click propagation
                     .padding(24.dp)
                     .verticalScroll(rememberScrollState()),
@@ -79,15 +79,15 @@ fun SetupDialog(
                 // Header
                 Text(
                     text = "SYSTEM ACCESS CONFIG",
-                    color = TextMuted,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                     fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = PlusJakartaSans,
                     letterSpacing = 2.sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Deep freeze (BOOST) requires Shizuku or Root access.",
-                    color = TextBody,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center
                 )
@@ -134,16 +134,16 @@ fun SetupDialog(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(BgDark)
-                        .border(1.dp, BorderGlass, RoundedCornerShape(50))
+                        .background(MaterialTheme.colorScheme.background)
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(50))
                         .clickable { openPrivacyPolicy(context) }
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Text(
                         text = "PRIVACY POLICY",
-                        color = TextMuted,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                         fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
                     )
@@ -156,18 +156,18 @@ fun SetupDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(BgDark)
-                        .border(1.dp, BorderGlass, RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.background)
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
                         .clickable(onClick = onDismiss)
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "NOT NOW",
-                        color = TextBody,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = PlusJakartaSans,
                         letterSpacing = 1.sp
                     )
                 }
@@ -187,15 +187,15 @@ fun OptionCard(
     onClick: () -> Unit
 ) {
     val bgBrush = if (isRecommended) {
-        Brush.verticalGradient(listOf(AccentPrimary.copy(alpha = 0.15f), AccentSecondary.copy(alpha = 0.05f)))
+        Brush.verticalGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)))
     } else {
-        Brush.verticalGradient(listOf(BgDark, BgDark))
+        Brush.verticalGradient(listOf(MaterialTheme.colorScheme.background, MaterialTheme.colorScheme.background))
     }
     
     val borderBrush = if (isRecommended) {
-        Brush.horizontalGradient(listOf(AccentPrimary.copy(alpha = 0.6f), AccentSecondary.copy(alpha = 0.4f)))
+        Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)))
     } else {
-        Brush.horizontalGradient(listOf(BorderGlass, BorderGlass))
+        Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.outlineVariant, MaterialTheme.colorScheme.outlineVariant))
     }
 
     Column(
@@ -213,7 +213,7 @@ fun OptionCard(
         ) {
             Text(
                 text = title,
-                color = TextTitle,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -221,15 +221,15 @@ fun OptionCard(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(AccentSuccess.copy(alpha = 0.2f))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = badge,
-                        color = AccentSuccess,
+                        color = MaterialTheme.colorScheme.primary,
                         fontSize = 8.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = PlusJakartaSans
                     )
                 }
             }
@@ -237,17 +237,17 @@ fun OptionCard(
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = sub,
-            color = TextMuted,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
             fontSize = 11.sp,
             lineHeight = 15.sp
         )
         Spacer(modifier = Modifier.height(18.dp))
         Text(
             text = cta + "  →",
-            color = if (isRecommended) AccentPrimary else TextTitle,
+            color = if (isRecommended) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace
+            fontFamily = PlusJakartaSans
         )
     }
 }

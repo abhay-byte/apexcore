@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -22,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -107,7 +107,7 @@ fun MainScreen(gameManager: GameManager) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgDark)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         // Main Layout Container
         Column(
@@ -136,9 +136,9 @@ fun MainScreen(gameManager: GameManager) {
                                 .clip(RoundedCornerShape(8.dp))
                         )
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("APEX", color = TextTitle, fontSize = 16.sp, fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        Text("APEX", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("CORE", color = AccentPrimary, fontSize = 16.sp, fontFamily = SpaceGrotesk, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+                        Text("CORE", color = MaterialTheme.colorScheme.primary, fontSize = 16.sp, fontFamily = PlusJakartaSans, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
                     }
                     
                     // Global backend dropdown
@@ -247,14 +247,14 @@ fun MainScreen(gameManager: GameManager) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(SurfaceCard.copy(alpha = 0.95f))
+                        .background(MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.95f))
                         .navigationBarsPadding()
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(1.dp)
-                            .background(BorderGlass)
+                            .background(MaterialTheme.colorScheme.outlineVariant)
                     )
                     Row(
                         modifier = Modifier
@@ -307,11 +307,11 @@ fun NavBarItem(
     onClick: () -> Unit
 ) {
     val contentColor by animateColorAsState(
-        targetValue = if (isActive) AccentPrimary else TextMuted,
+        targetValue = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
         animationSpec = tween(300, easing = FastOutSlowInEasing)
     )
     val indicatorBackground by animateColorAsState(
-        targetValue = if (isActive) AccentPrimary.copy(alpha = 0.15f) else Color.Transparent,
+        targetValue = if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else Color.Transparent,
         animationSpec = tween(300, easing = FastOutSlowInEasing)
     )
 
@@ -354,7 +354,7 @@ fun NavBarItem(
                     color = contentColor,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = PlusJakartaSans,
                     letterSpacing = 0.5.sp
                 )
             }
@@ -394,15 +394,15 @@ fun GlobalBackendDropdown(
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(50))
-                .background(if (isElevated) AccentSuccess.copy(alpha = 0.15f) else AccentWarning.copy(alpha = 0.15f))
+                .background(if (isElevated) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f))
                 .clickable { onToggleDropdown() }
                 .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Text(
                 text = displayName,
-                color = if (isElevated) AccentSuccess else AccentWarning,
+                color = if (isElevated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
                 fontSize = 9.sp,
-                fontFamily = JetBrainsMono,
+                fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold
             )
         }
@@ -410,7 +410,7 @@ fun GlobalBackendDropdown(
         DropdownMenu(
             expanded = showDropdown,
             onDismissRequest = { onToggleDropdown() },
-            modifier = Modifier.background(SurfaceCard)
+            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerLowest)
         ) {
             DropdownMenuItem(
                 text = {
@@ -419,7 +419,7 @@ fun GlobalBackendDropdown(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Shizuku", color = if (currentPref == "shizuku") AccentPrimary else TextTitle, fontSize = 13.sp, fontWeight = if (currentPref == "shizuku") FontWeight.Bold else FontWeight.Normal)
+                        Text("Shizuku", color = if (currentPref == "shizuku") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = if (currentPref == "shizuku") FontWeight.Bold else FontWeight.Normal)
                         Text(
                             when (dropdownReadiness["shizuku"]) {
                                 true -> "Ready"
@@ -427,12 +427,12 @@ fun GlobalBackendDropdown(
                                 else -> "Checking…"
                             },
                             color = when (dropdownReadiness["shizuku"]) {
-                                true -> AccentSuccess
-                                false -> AccentWarning
-                                else -> TextMuted
+                                true -> MaterialTheme.colorScheme.primary
+                                false -> MaterialTheme.colorScheme.secondary
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
                             },
                             fontSize = 10.sp,
-                            fontFamily = JetBrainsMono
+                            fontFamily = PlusJakartaSans
                         )
                     }
                 },
@@ -449,7 +449,7 @@ fun GlobalBackendDropdown(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Root", color = if (currentPref == "root") AccentPrimary else TextTitle, fontSize = 13.sp, fontWeight = if (currentPref == "root") FontWeight.Bold else FontWeight.Normal)
+                        Text("Root", color = if (currentPref == "root") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = if (currentPref == "root") FontWeight.Bold else FontWeight.Normal)
                         Text(
                             when (dropdownReadiness["root"]) {
                                 true -> "Ready"
@@ -457,12 +457,12 @@ fun GlobalBackendDropdown(
                                 else -> "Checking…"
                             },
                             color = when (dropdownReadiness["root"]) {
-                                true -> AccentSuccess
-                                false -> AccentWarning
-                                else -> TextMuted
+                                true -> MaterialTheme.colorScheme.primary
+                                false -> MaterialTheme.colorScheme.secondary
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
                             },
                             fontSize = 10.sp,
-                            fontFamily = JetBrainsMono
+                            fontFamily = PlusJakartaSans
                         )
                     }
                 },

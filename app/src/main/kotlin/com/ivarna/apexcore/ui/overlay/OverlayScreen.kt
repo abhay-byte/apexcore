@@ -10,12 +10,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,14 +44,14 @@ fun OverlayScreen(context: Context = LocalContext.current) {
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "HUD OVERLAY",
-            color = TextTitle,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.5.sp
         )
         Text(
             text = "Configure floating gameplay monitor",
-            color = TextMuted,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
             fontSize = 12.sp
         )
         
@@ -62,16 +62,16 @@ fun OverlayScreen(context: Context = LocalContext.current) {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(24.dp))
-                .background(if (hasPermission) AccentSuccess.copy(alpha = 0.1f) else AccentWarning.copy(alpha = 0.1f))
-                .border(1.dp, if (hasPermission) AccentSuccess.copy(alpha = 0.4f) else AccentWarning.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
+                .background(if (hasPermission) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f))
+                .border(1.dp, if (hasPermission) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
                 .padding(24.dp)
         ) {
             Column {
                 Text(
                     text = if (hasPermission) "PERMISSION GRANTED" else "ACTION REQUIRED",
-                    color = if (hasPermission) AccentSuccess else AccentWarning,
+                    color = if (hasPermission) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
                     fontSize = 10.sp,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
@@ -79,7 +79,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                 Text(
                     text = if (hasPermission) "ApexCore has permission to render the performance HUD on top of other games."
                            else "To display the real-time FPS & memory monitor during gaming, please grant the Draw Over Apps permission.",
-                    color = TextBody,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 13.sp,
                     lineHeight = 18.sp
                 )
@@ -88,7 +88,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(AccentWarning)
+                            .background(MaterialTheme.colorScheme.secondary)
                             .clickable {
                                 try {
                                     val intent = Intent(
@@ -105,7 +105,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                             }
                             .padding(horizontal = 16.dp, vertical = 10.dp)
                     ) {
-                        Text("GRANT PERMISSION", color = BgDark, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("GRANT PERMISSION", color = MaterialTheme.colorScheme.onSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -116,7 +116,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
         // Test HUD Controls
         Text(
             text = "TEST HUD OVERLAY",
-            color = TextTitle,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
@@ -127,14 +127,14 @@ fun OverlayScreen(context: Context = LocalContext.current) {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(SurfaceCard)
-                .border(1.dp, BorderGlass, RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(20.dp))
                 .padding(20.dp)
         ) {
             Column {
                 Text(
                     text = "Launch a dummy monitor to test placement, transparency, and drag gestures directly on this screen.",
-                    color = TextBody,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp,
                     lineHeight = 16.sp
                 )
@@ -147,7 +147,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (testOverlayActive) BorderGlass else AccentPrimary)
+                            .background(if (testOverlayActive) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.primary)
                             .clickable(enabled = hasPermission && !testOverlayActive) {
                                 GameOverlayService.start(context, context.packageName)
                                 testOverlayActive = true
@@ -157,7 +157,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                     ) {
                         Text(
                             text = "START TEST HUD",
-                            color = if (testOverlayActive) TextMuted else TextTitle,
+                            color = if (testOverlayActive) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f) else MaterialTheme.colorScheme.onPrimary,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -166,7 +166,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (testOverlayActive) AccentWarning.copy(alpha=0.2f) else BorderGlass)
+                            .background(if (testOverlayActive) MaterialTheme.colorScheme.secondary.copy(alpha=0.2f) else MaterialTheme.colorScheme.outlineVariant)
                             .clickable(enabled = testOverlayActive) {
                                 GameOverlayService.stop(context)
                                 testOverlayActive = false
@@ -176,7 +176,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                     ) {
                         Text(
                             text = "STOP TEST HUD",
-                            color = if (testOverlayActive) AccentWarning else TextMuted,
+                            color = if (testOverlayActive) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
                         )

@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,7 +19,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.window.Dialog
@@ -59,7 +59,7 @@ fun WhitelistPickerDialog(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(SurfaceGlass)
+                .background(MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.40f))
                 .clickable(onClick = onDismiss),
             contentAlignment = Alignment.Center
         ) {
@@ -69,8 +69,8 @@ fun WhitelistPickerDialog(
                     .fillMaxWidth()
                     .fillMaxHeight(0.85f)
                     .clip(RoundedCornerShape(28.dp))
-                    .background(SurfaceCard)
-                    .border(1.dp, BorderGlass, RoundedCornerShape(28.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(28.dp))
                     .clickable(enabled = false) {} // block click propagation
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -78,18 +78,18 @@ fun WhitelistPickerDialog(
                 // Header
                 Text(
                     text = "PIN APPS",
-                    color = TextTitle,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 14.sp,
-                    fontFamily = SpaceGrotesk,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 2.sp
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Pinned apps are never frozen · ${pinned.size} pinned",
-                    color = TextMuted,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                     fontSize = 11.sp,
-                    fontFamily = SpaceGrotesk
+                    fontFamily = PlusJakartaSans
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -97,18 +97,18 @@ fun WhitelistPickerDialog(
                 BasicTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    textStyle = TextStyle(color = TextTitle, fontSize = 13.sp, fontFamily = JetBrainsMono),
+                    textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontFamily = PlusJakartaSans),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                    cursorBrush = SolidColor(AccentPrimary),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
-                        .background(BgDark)
-                        .border(1.dp, BorderGlass, RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.background)
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     decorationBox = { innerTextField ->
                         if (searchQuery.isEmpty()) {
-                            Text("SEARCH APPS...", color = TextMuted, fontSize = 13.sp, fontFamily = JetBrainsMono)
+                            Text("SEARCH APPS...", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f), fontSize = 13.sp, fontFamily = PlusJakartaSans)
                         }
                         innerTextField()
                     }
@@ -124,12 +124,12 @@ fun WhitelistPickerDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(color = AccentPrimary)
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     } else if (filteredApps.isEmpty()) {
                         Text(
                             text = "NO APPS FOUND",
-                            color = TextMuted,
-                            fontFamily = JetBrainsMono,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                            fontFamily = PlusJakartaSans,
                             fontSize = 12.sp,
                             letterSpacing = 1.sp
                         )
@@ -144,10 +144,10 @@ fun WhitelistPickerDialog(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(16.dp))
-                                        .background(if (isPinned) AccentPrimary.copy(alpha = 0.08f) else Color.Transparent)
+                                        .background(if (isPinned) MaterialTheme.colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent)
                                         .border(
                                             1.dp,
-                                            if (isPinned) AccentPrimary.copy(alpha = 0.3f) else BorderGlass,
+                                            if (isPinned) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant,
                                             RoundedCornerShape(16.dp)
                                         )
                                         .clickable {
@@ -161,8 +161,8 @@ fun WhitelistPickerDialog(
                                         modifier = Modifier
                                             .size(40.dp)
                                             .clip(RoundedCornerShape(12.dp))
-                                            .background(BgDark)
-                                            .border(1.dp, BorderGlass, RoundedCornerShape(12.dp))
+                                            .background(MaterialTheme.colorScheme.background)
+                                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
                                             .padding(6.dp)
                                     ) {
                                         AppIcon(
@@ -176,17 +176,17 @@ fun WhitelistPickerDialog(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = app.name,
-                                            color = TextTitle,
+                                            color = MaterialTheme.colorScheme.onSurface,
                                             fontSize = 14.sp,
-                                            fontFamily = SpaceGrotesk,
+                                            fontFamily = PlusJakartaSans,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1
                                         )
                                         Text(
                                             text = app.pkg,
-                                            color = TextMuted,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
                                             fontSize = 10.sp,
-                                            fontFamily = JetBrainsMono,
+                                            fontFamily = PlusJakartaSans,
                                             maxLines = 1
                                         )
                                     }
@@ -198,9 +198,9 @@ fun WhitelistPickerDialog(
                                             pinned = WhitelistStore.allPinned(context)
                                         },
                                         colors = CheckboxDefaults.colors(
-                                            checkedColor = AccentPrimary,
-                                            uncheckedColor = TextMuted,
-                                            checkmarkColor = BgDark
+                                            checkedColor = MaterialTheme.colorScheme.primary,
+                                            uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+                                            checkmarkColor = MaterialTheme.colorScheme.onPrimary
                                         )
                                     )
                                 }
@@ -216,17 +216,17 @@ fun WhitelistPickerDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
-                        .background(AccentPrimary)
+                        .background(MaterialTheme.colorScheme.primary)
                         .clickable(onClick = onDismiss)
                         .padding(vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "DONE",
-                        color = BgDark,
+                        color = MaterialTheme.colorScheme.onPrimary,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = PlusJakartaSans
                     )
                 }
             }

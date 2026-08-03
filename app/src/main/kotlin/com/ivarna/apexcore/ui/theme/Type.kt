@@ -17,18 +17,6 @@ val provider = GoogleFont.Provider(
     certificates = R.array.com_google_android_gms_fonts_certs
 )
 
-val SpaceGrotesk = FontFamily(
-    Font(googleFont = GoogleFont("Space Grotesk"), fontProvider = provider)
-)
-
-val JetBrainsMono = FontFamily(
-    Font(googleFont = GoogleFont("JetBrains Mono"), fontProvider = provider)
-)
-
-val Inter = FontFamily(
-    Font(googleFont = GoogleFont("Inter"), fontProvider = provider)
-)
-
 val PlusJakartaSans = FontFamily(
     Font(googleFont = GoogleFont("Plus Jakarta Sans"), fontProvider = provider, weight = FontWeight.Light),
     Font(googleFont = GoogleFont("Plus Jakarta Sans"), fontProvider = provider, weight = FontWeight.Normal),
@@ -36,7 +24,7 @@ val PlusJakartaSans = FontFamily(
     Font(googleFont = GoogleFont("Plus Jakarta Sans"), fontProvider = provider, weight = FontWeight.Bold),
 )
 
-/** Zen Organic typography (additive; ApexCoreTheme still uses cryo Typography). */
+/** Zen Organic typography — Plus Jakarta Sans for all UI text. */
 val ZenTypography = Typography(
     headlineLarge = TextStyle(
         fontFamily = PlusJakartaSans,

@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,7 +42,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.ComposeView
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -435,7 +435,7 @@ fun OverlayContent(
         
         // Determine state colors based on stability/throttling
         val isThrottling = fps < 50
-        val targetColor1: Color = if (isThrottling) AccentWarning else AccentPrimary
+        val targetColor1: Color = if (isThrottling) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.inversePrimary
         val targetColor2: Color = if (isThrottling) Color(0xFF660000) else Color.Transparent
 
         val pulseColor by infiniteTransition.animateColor(
@@ -470,10 +470,10 @@ fun OverlayContent(
                 .fillMaxHeight()
                 .width(96.dp)
                 .clip(RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp))
-                .background(SurfaceCard.copy(alpha = 0.85f)) // semi-transparent carbon
+                .background(MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.85f)) // semi-transparent carbon
                 .border(
                     width = 1.dp,
-                    brush = Brush.horizontalGradient(listOf(BorderGlass, Color.Transparent)),
+                    brush = Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.2f), Color.Transparent)),
                     shape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
                 )
                 .padding(vertical = 16.dp, horizontal = 8.dp),
@@ -484,17 +484,17 @@ fun OverlayContent(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "FPS",
-                    color = TextMuted,
+                    color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.65f),
                     fontSize = 8.sp,
-                    fontFamily = SpaceGrotesk,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
                 Text(
                     text = "$fps",
-                    color = if (fps >= 55) AccentPrimary else if (fps >= 45) AccentSuccess else AccentWarning,
+                    color = if (fps >= 55) MaterialTheme.colorScheme.inversePrimary else if (fps >= 45) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
                     fontSize = 24.sp,
-                    fontFamily = JetBrainsMono,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.ExtraBold,
                     modifier = Modifier.padding(top = 2.dp)
                 )
@@ -504,13 +504,14 @@ fun OverlayContent(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "RAM TREND",
-                    color = TextMuted,
+                    color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.65f),
                     fontSize = 7.sp,
-                    fontFamily = SpaceGrotesk,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
                 )
                 Spacer(modifier = Modifier.height(4.dp))
+                val sparklineColor = MaterialTheme.colorScheme.inversePrimary
                 Canvas(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -531,7 +532,7 @@ fun OverlayContent(
                         }
                         drawPath(
                             path = path,
-                            color = AccentPrimary,
+                            color = sparklineColor,
                             style = Stroke(width = 1.5.dp.toPx())
                         )
                     }
@@ -542,9 +543,9 @@ fun OverlayContent(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "CPU LOAD",
-                    color = TextMuted,
+                    color = MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.65f),
                     fontSize = 7.sp,
-                    fontFamily = SpaceGrotesk,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.5.sp
                 )
@@ -574,7 +575,7 @@ fun OverlayContent(
                             modifier = Modifier
                                 .width(3.dp)
                                 .fillMaxHeight(animHeight.value)
-                                .background(AccentPrimary, RoundedCornerShape(1.dp))
+                                .background(MaterialTheme.colorScheme.inversePrimary, RoundedCornerShape(1.dp))
                         )
                     }
                 }
@@ -584,9 +585,9 @@ fun OverlayContent(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "BOOST",
-                    color = if (isBoosting) AccentWarning else TextMuted,
+                    color = if (isBoosting) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.65f),
                     fontSize = 7.sp,
-                    fontFamily = SpaceGrotesk,
+                    fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
@@ -595,12 +596,17 @@ fun OverlayContent(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(BorderGlass)
+                        .background(MaterialTheme.colorScheme.inverseOnSurface.copy(alpha = 0.2f))
                         .clickable(enabled = !isBoosting) { onBoostClick() }
                         .alpha(if (isBoosting) 0.4f else 1f),
                     contentAlignment = Alignment.Center
                 ) {
                     // Lightning bolt
+                    val boltColor = if (isBoosting) {
+                        MaterialTheme.colorScheme.secondary
+                    } else {
+                        MaterialTheme.colorScheme.inversePrimary
+                    }
                     Canvas(modifier = Modifier.size(16.dp)) {
                         val w = size.width
                         val h = size.height
@@ -613,10 +619,7 @@ fun OverlayContent(
                             lineTo(0.55f * w, 0.4f * h)
                             close()
                         }
-                        drawPath(
-                            path = bolt,
-                            color = if (isBoosting) AccentWarning else AccentPrimary
-                        )
+                        drawPath(path = bolt, color = boltColor)
                     }
                 }
             }

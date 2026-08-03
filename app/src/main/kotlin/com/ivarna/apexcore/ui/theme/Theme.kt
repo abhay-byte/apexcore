@@ -1,29 +1,13 @@
 package com.ivarna.apexcore.ui.theme
 
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.core.view.WindowCompat
 
-private val DarkColorScheme = darkColorScheme(
-    primary = AccentPrimary,
-    background = BgDark,
-    surface = SurfaceCard,
-    onPrimary = TextTitle,
-    onBackground = TextTitle,
-    onSurface = TextBody,
-    error = AccentWarning,
-    outline = BorderGlass,
-    onSurfaceVariant = TextMuted
-)
-
-/** Zen Organic light scheme (additive; ApexCoreTheme still uses DarkColorScheme). */
+/** Zen Organic light scheme — app default (v1 light-only). */
 val ZenLightColorScheme = lightColorScheme(
     primary = ZenColors.primary,
     onPrimary = ZenColors.onPrimary,
@@ -62,29 +46,6 @@ val ZenLightColorScheme = lightColorScheme(
     surfaceContainerLowest = ZenColors.surfaceContainerLowest,
 )
 
-val Typography = Typography(
-    displayLarge = TextStyle(
-        fontFamily = SpaceGrotesk,
-        fontWeight = FontWeight.Normal
-    ),
-    headlineLarge = TextStyle(
-        fontFamily = SpaceGrotesk,
-        fontWeight = FontWeight.Bold
-    ),
-    titleLarge = TextStyle(
-        fontFamily = SpaceGrotesk,
-        fontWeight = FontWeight.Medium
-    ),
-    bodyLarge = TextStyle(
-        fontFamily = Inter,
-        fontWeight = FontWeight.Normal
-    ),
-    labelLarge = TextStyle(
-        fontFamily = JetBrainsMono,
-        fontWeight = FontWeight.Medium
-    )
-)
-
 @Composable
 fun ApexCoreTheme(
     content: @Composable () -> Unit
@@ -97,15 +58,15 @@ fun ApexCoreTheme(
                 val window = context.window
                 window.statusBarColor = android.graphics.Color.TRANSPARENT
                 window.navigationBarColor = android.graphics.Color.TRANSPARENT
-                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
-                WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
+                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
+                WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = true
             }
         }
     }
 
     MaterialTheme(
-        colorScheme = DarkColorScheme,
-        typography = Typography,
+        colorScheme = ZenLightColorScheme,
+        typography = ZenTypography,
         content = content
     )
 }
