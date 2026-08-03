@@ -14,7 +14,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ivarna.apexcore.State
+import com.ivarna.apexcore.ui.shell.State
 import com.ivarna.apexcore.ui.theme.*
 import kotlinx.coroutines.delay
 
