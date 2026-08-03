@@ -1,16 +1,9 @@
 package com.ivarna.apexcore.games
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -26,8 +19,11 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Games / launch ambient — energy core, hex lattice fragments, rising sparks,
- * pulse rings. Deliberately geometric & kinetic (not organic vines).
+ * Games / launch ambient — energy core, hex lattice, sparks, rings.
+ * Deliberately geometric (not organic vines).
+ *
+ * Perf: static pose (no infinite phase/pulse/spin). Still reads as energy
+ * without continuous Canvas invalidation.
  */
 @Composable
 fun GamesEnergyBackground(modifier: Modifier = Modifier) {
@@ -45,46 +41,14 @@ fun GamesEnergyBackground(modifier: Modifier = Modifier) {
     val orbTeal = scheme.primaryContainer.copy(alpha = 0.12f)
     val orbGold = scheme.secondaryContainer.copy(alpha = 0.14f)
 
-    val infinite = rememberInfiniteTransition(label = "games_energy")
-    val phase by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(5200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phase"
-    )
-    val pulse by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2800, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "pulse"
-    )
-    val rise by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(6400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rise"
-    )
-    val spin by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(18000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "spin"
-    )
+    // Fixed aesthetic pose (was continuous animation).
+    val phase = 1.1f
+    val pulse = 0.42f
+    val rise = 0.55f
+    val spin = 28f
 
     val sparks = remember {
-        List(22) { i ->
+        List(12) { i ->
             SparkSeed(
                 xFrac = ((i * 37) % 100) / 100f * 0.92f + 0.04f,
                 yBase = ((i * 53) % 100) / 100f,
@@ -103,15 +67,8 @@ fun GamesEnergyBackground(modifier: Modifier = Modifier) {
         val pu = pulse
         val r = rise
 
-        // Soft energy orbs (corners) — animated light, not static Home orbs
-        val orb1 = Offset(
-            w * (0.12f + sin(p) * 0.02f),
-            h * (0.18f + cos(p * 0.8f) * 0.015f)
-        )
-        val orb2 = Offset(
-            w * (0.88f + cos(p * 0.7f) * 0.02f),
-            h * (0.62f + sin(p * 0.9f) * 0.02f)
-        )
+        val orb1 = Offset(w * 0.12f, h * 0.18f)
+        val orb2 = Offset(w * 0.88f, h * 0.62f)
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(orbGold, Color.Transparent),
@@ -143,7 +100,7 @@ fun GamesEnergyBackground(modifier: Modifier = Modifier) {
             center = core
         )
 
-        // Expanding pulse rings from core
+        // Pulse rings frozen at staggered radii
         for (i in 0 until 3) {
             val t = ((pu + i / 3f) % 1f)
             val radius = w * (0.08f + t * 0.42f)
@@ -162,7 +119,6 @@ fun GamesEnergyBackground(modifier: Modifier = Modifier) {
             )
         }
 
-        // Hex lattice fragments (edges) — slowly rotating cluster
         rotate(degrees = spin * 0.15f, pivot = Offset(w * 0.08f, h * 0.35f)) {
             drawHexCluster(
                 center = Offset(w * 0.08f, h * 0.35f),
@@ -188,8 +144,7 @@ fun GamesEnergyBackground(modifier: Modifier = Modifier) {
             )
         }
 
-        // Diagonal energy streaks
-        for (i in 0 until 5) {
+        for (i in 0 until 4) {
             val t = ((r * 0.7f + i * 0.18f + sin(p + i) * 0.05f) % 1f)
             val y = h * (1.05f - t * 1.2f)
             val x0 = w * (0.15f + (i % 3) * 0.28f)
@@ -204,19 +159,17 @@ fun GamesEnergyBackground(modifier: Modifier = Modifier) {
             )
         }
 
-        // Rising sparks
         sparks.forEach { s ->
             val localT = ((r * s.speed + s.yBase) % 1f)
             val y = h * (1.05f - localT * 1.15f)
-            val x = w * s.xFrac + sin(p + s.phase) * w * 0.018f
-            val a = (sin(localT * PI.toFloat()) * 0.95f).coerceIn(0f, 1f)
+            val x = w * s.xFrac
+            val a = (sin(localT * PI.toFloat()) * 0.95f).coerceIn(0.25f, 1f)
             val c = if (s.gold) sparkA else sparkB
             drawCircle(
                 color = c.copy(alpha = c.alpha * a),
                 radius = s.size,
                 center = Offset(x, y)
             )
-            // tiny trail
             drawCircle(
                 color = c.copy(alpha = c.alpha * a * 0.35f),
                 radius = s.size * 2.2f,
@@ -224,8 +177,7 @@ fun GamesEnergyBackground(modifier: Modifier = Modifier) {
             )
         }
 
-        // Chevrons near bottom (launch motif)
-        val chevronY = h * 0.78f + sin(p) * 6f
+        val chevronY = h * 0.78f
         drawChevron(Offset(w * 0.5f, chevronY), w * 0.08f, ringColor.copy(alpha = 0.28f))
         drawChevron(
             Offset(w * 0.5f, chevronY + 18f),

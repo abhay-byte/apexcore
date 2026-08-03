@@ -1,15 +1,8 @@
 package com.ivarna.apexcore.ui.home
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -39,7 +32,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,7 +42,7 @@ import com.ivarna.apexcore.ui.theme.ZenIcons
 /**
  * River-pebble Purge Engine CTA.
  * RESULT is not shown here — parent AnimatedContent swaps to UnifiedResultCard.
- * Home-only: large looping flowers + lively icon / breath motion.
+ * Perf: press springs only — no idle infinite breath/shimmer (UI-thread cost).
  */
 @Composable
 fun PebbleButton(
@@ -76,71 +68,21 @@ fun PebbleButton(
         label = "pebble_scale"
     )
 
-    val infinite = rememberInfiniteTransition(label = "pebble_infinite")
-    val breath by infinite.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.025f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pebble_breath"
-    )
-    val shimmer by infinite.animateFloat(
-        initialValue = 0.35f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pebble_shimmer"
-    )
-    val iconBob by infinite.animateFloat(
-        initialValue = -3f,
-        targetValue = 3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1600, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "icon_bob"
-    )
-    val iconSpin by infinite.animateFloat(
-        initialValue = -8f,
-        targetValue = 8f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "icon_spin"
-    )
-    val glowPulse by infinite.animateFloat(
-        initialValue = 0.10f,
-        targetValue = 0.22f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "glow_pulse"
-    )
-
-    val displayScale = if (state == State.IDLE) breath * pressScale else pressScale
-    val displayTitle = if (state == State.BOOSTING) "Purging system…" else title
-    val displaySubtitle = if (state == State.BOOSTING) "Freezing background services" else subtitle
+    val isBoosting = state == State.BOOSTING
+    val displayTitle = if (isBoosting) "Purging system…" else title
+    val displaySubtitle = if (isBoosting) "Freezing background services" else subtitle
 
     val fillBrush = Brush.verticalGradient(
         colors = listOf(scheme.primary, scheme.primary.copy(alpha = 0.88f))
     )
-    val borderColor = if (state == State.BOOSTING) {
-        scheme.onPrimary.copy(alpha = shimmer * 0.7f)
-    } else {
-        scheme.onPrimary.copy(alpha = 0.28f)
-    }
+    val borderColor = scheme.onPrimary.copy(alpha = if (isBoosting) 0.55f else 0.28f)
+    val iconBgAlpha = if (isBoosting) 0.22f else 0.14f
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(128.dp)
-            .scale(displayScale)
+            .scale(pressScale)
             .offset(y = pressOffset),
         contentAlignment = Alignment.Center
     ) {
@@ -156,7 +98,6 @@ fun PebbleButton(
                     onClick = onClick
                 )
         ) {
-            // Soft flowers on primary CTA (onPrimary-tinted via alphaScale)
             HomeCardFlowerDecor(
                 style = 2,
                 sizeScale = 1.4f,
@@ -192,24 +133,15 @@ fun PebbleButton(
                 Box(
                     modifier = Modifier
                         .size(56.dp)
-                        .graphicsLayer {
-                            translationY = if (state == State.BOOSTING) 0f else iconBob
-                            rotationZ = if (state == State.BOOSTING) shimmer * 12f else iconSpin
-                        }
                         .clip(RoundedCornerShape(20.dp))
-                        .background(scheme.onPrimary.copy(alpha = glowPulse)),
+                        .background(scheme.onPrimary.copy(alpha = iconBgAlpha)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = ZenIcons.WaterDrop,
                         contentDescription = null,
                         tint = scheme.onPrimary,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .graphicsLayer {
-                                scaleX = if (state == State.BOOSTING) 0.9f + shimmer * 0.15f else 1f
-                                scaleY = if (state == State.BOOSTING) 0.9f + shimmer * 0.15f else 1f
-                            }
+                        modifier = Modifier.size(28.dp)
                     )
                 }
             }

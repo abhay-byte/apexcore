@@ -1,16 +1,9 @@
 package com.ivarna.apexcore.ui.components
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -21,16 +14,16 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
-import kotlin.math.PI
 import kotlin.math.atan2
-import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Soft organic accents for glass cards — flowers + leaves with looping
- * sway / breathe / spin. Style seeds vary layout, palette, shape & size.
- * Keep alpha low so body text stays legible.
+ * Soft organic accents for glass cards — flowers + leaves.
+ * Style seeds vary layout, palette, shape & size.
+ *
+ * Perf: static pose (no infinite sway/spin). Continuous path redraw was a
+ * major GPU path-mask + UI-thread cost when many cards were on screen.
  */
 @Composable
 fun OrganicCardDecor(
@@ -54,7 +47,7 @@ fun OrganicCardDecor(
                 outer = scheme.secondary.copy(alpha = (0.18f * a).coerceAtMost(0.28f)),
                 inner = scheme.secondaryContainer.copy(alpha = (0.22f * a).coerceAtMost(0.32f)),
                 core = scheme.tertiary.copy(alpha = (0.20f * a).coerceAtMost(0.30f)),
-                petals = 7,
+                petals = 5,
                 petalShape = PetalShape.ROUNDED
             ),
             FlowerPal(
@@ -68,14 +61,14 @@ fun OrganicCardDecor(
                 outer = scheme.tertiary.copy(alpha = (0.16f * a).coerceAtMost(0.26f)),
                 inner = scheme.tertiaryContainer.copy(alpha = (0.20f * a).coerceAtMost(0.30f)),
                 core = scheme.secondary.copy(alpha = (0.17f * a).coerceAtMost(0.27f)),
-                petals = 6,
+                petals = 5,
                 petalShape = PetalShape.WIDE
             ),
             FlowerPal(
                 outer = scheme.primary.copy(alpha = (0.14f * a).coerceAtMost(0.24f)),
                 inner = scheme.primaryContainer.copy(alpha = (0.18f * a).coerceAtMost(0.28f)),
                 core = scheme.secondary.copy(alpha = (0.16f * a).coerceAtMost(0.26f)),
-                petals = 8,
+                petals = 5,
                 petalShape = PetalShape.NARROW
             ),
             FlowerPal(
@@ -89,7 +82,7 @@ fun OrganicCardDecor(
                 outer = scheme.tertiaryContainer.copy(alpha = (0.17f * a).coerceAtMost(0.27f)),
                 inner = scheme.secondaryContainer.copy(alpha = (0.20f * a).coerceAtMost(0.30f)),
                 core = scheme.primary.copy(alpha = (0.15f * a).coerceAtMost(0.25f)),
-                petals = 9,
+                petals = 5,
                 petalShape = PetalShape.ROUNDED
             )
         )
@@ -122,51 +115,17 @@ fun OrganicCardDecor(
 
     val motifs = remember(style) { motifLayoutsFor(style) }
 
-    val infinite = rememberInfiniteTransition(label = "organic_$style")
-    val phase by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(6800 + (style % 5) * 800, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "phase"
-    )
-    val breathe by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(4000 + (style % 4) * 350, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "breathe"
-    )
-    val spin by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(24000 + (style % 6) * 3500, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "spin"
-    )
-
     Canvas(modifier = modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
         val base = minOf(w, h) * sizeScale
 
         for ((i, m) in motifs.withIndex()) {
-            val breatheMul = 1f + 0.065f * sin(breathe + i * 1.25f).toFloat()
-            val bobX = cos(phase + i * 0.9f).toFloat() * base * 0.014f
-            val bobY = sin(phase * 0.88f + i * 0.65f).toFloat() * base * 0.016f
-            val center = Offset(w * m.x + bobX, h * m.y + bobY)
-            val scale = base * m.scale * breatheMul
-            val rot = when (m.kind) {
-                MotifKind.FLOWER -> spin * (if (i % 2 == 0) 1f else -0.55f) + m.baseRot +
-                    sin(phase + i).toFloat() * 7f
-                MotifKind.LEAF -> m.baseRot + sin(phase + i * 0.8f).toFloat() * 10f
-            }
+            // Static offsets derived from index (no continuous animation).
+            val phase = i * 0.9f
+            val center = Offset(w * m.x, h * m.y)
+            val scale = base * m.scale
+            val rot = m.baseRot + sin(phase).toFloat() * 4f
 
             when (m.kind) {
                 MotifKind.FLOWER -> {

@@ -2,18 +2,12 @@ package com.ivarna.apexcore.ui.home
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOutCubic
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -27,15 +21,16 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.withTransform
-import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * Home organic accent — balanced density: three edge vines, readable leaves &
- * blooms, light tendrils. Mid scale (between sparse/tiny and heavy/dense).
+ * Home organic accent — three edge vines, leaves & blooms.
+ *
+ * Perf: one-shot growth animation, then a static pose (no infinite sway/breathe).
+ * Continuous path redraw was ~50MB SW path masks + UI-thread jank.
  */
 @Composable
 fun HomeNatureBackground(
@@ -66,30 +61,11 @@ fun HomeNatureBackground(
     val coralInner = scheme.tertiaryContainer.copy(alpha = 0.52f * dim)
     val coralCore = scheme.secondary.copy(alpha = 0.40f * dim)
 
+    // One-shot grow-in only — freeze pose after completion (no infinite invalidation).
     val growth = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         growth.animateTo(1f, tween(2800, easing = EaseOutCubic))
     }
-
-    val infinite = rememberInfiniteTransition(label = "nature_idle")
-    val sway by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(7800, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "sway"
-    )
-    val breathe by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(4800, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "breathe"
-    )
 
     val pathMeasure = remember { PathMeasure() }
     val segmentPath = remember { Path() }
@@ -107,19 +83,21 @@ fun HomeNatureBackground(
         coralOuter, coralInner, coralCore
     ) {
         listOf(
-            FlowerColors(goldOuter, goldInner, goldCore, petals = 7),
+            FlowerColors(goldOuter, goldInner, goldCore, petals = 5),
             FlowerColors(creamOuter, creamInner, creamCore, petals = 5),
-            FlowerColors(coralOuter, coralInner, coralCore, petals = 6)
+            FlowerColors(coralOuter, coralInner, coralCore, petals = 5)
         )
     }
+
+    // Fixed idle pose (slight natural offsets, not animated).
+    val s = 0.35f
+    val b = 0.8f
+    val amp = 3f
 
     Canvas(modifier = modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
         val g = growth.value
-        val s = sway
-        val b = breathe
-        val amp = 7f
 
         // Left main vine
         drawVine(
@@ -230,58 +208,47 @@ private data class FlowerColors(
     val petals: Int
 )
 
+// Slightly fewer leaves/blooms — lower path-mask pressure while keeping density.
 private val leftLeaves = arrayOf(
     LeafSpec(0.12f, 1.05f, 0, 1f),
-    LeafSpec(0.22f, 0.85f, 1, -1f, wide = true),
-    LeafSpec(0.34f, 1.15f, 0, 1f),
-    LeafSpec(0.46f, 0.90f, 2, -1f),
-    LeafSpec(0.58f, 1.10f, 1, 1f, wide = true),
-    LeafSpec(0.70f, 0.95f, 0, -1f),
-    LeafSpec(0.82f, 1.05f, 1, 1f),
-    LeafSpec(0.92f, 0.80f, 0, -1f)
+    LeafSpec(0.28f, 0.85f, 1, -1f, wide = true),
+    LeafSpec(0.46f, 1.15f, 0, 1f),
+    LeafSpec(0.64f, 0.95f, 2, -1f),
+    LeafSpec(0.82f, 1.05f, 1, 1f, wide = true)
 )
 private val leftBlooms = arrayOf(
-    BloomSpec(0.28f, 1.05f, 0, 1f),
-    BloomSpec(0.55f, 0.90f, 1, -1f),
-    BloomSpec(0.80f, 1.10f, 2, 1f)
+    BloomSpec(0.38f, 1.05f, 0, 1f),
+    BloomSpec(0.72f, 0.95f, 1, -1f)
 )
 private val leftTendrils = arrayOf(
-    TendrilSpec(0.40f, 1.35f, 1f, 0.85f, bloom = true, bloomPalette = 1),
-    TendrilSpec(0.68f, 1.45f, -1f, 0.95f)
+    TendrilSpec(0.54f, 1.35f, 1f, 0.85f, bloom = true, bloomPalette = 1)
 )
 
 private val rightLeaves = arrayOf(
-    LeafSpec(0.14f, 1.00f, 1, 1f, wide = true),
-    LeafSpec(0.26f, 0.90f, 0, -1f),
-    LeafSpec(0.38f, 1.15f, 1, 1f),
-    LeafSpec(0.50f, 0.85f, 2, -1f),
-    LeafSpec(0.62f, 1.08f, 0, 1f, wide = true),
-    LeafSpec(0.74f, 0.92f, 1, -1f),
-    LeafSpec(0.86f, 1.00f, 0, 1f),
-    LeafSpec(0.94f, 0.78f, 1, -1f)
+    LeafSpec(0.16f, 1.00f, 1, 1f, wide = true),
+    LeafSpec(0.34f, 0.90f, 0, -1f),
+    LeafSpec(0.52f, 1.10f, 1, 1f),
+    LeafSpec(0.70f, 0.92f, 2, -1f),
+    LeafSpec(0.88f, 1.00f, 0, 1f)
 )
 private val rightBlooms = arrayOf(
-    BloomSpec(0.32f, 1.00f, 1, -1f),
-    BloomSpec(0.58f, 1.12f, 0, 1f),
-    BloomSpec(0.84f, 0.95f, 2, -1f)
+    BloomSpec(0.42f, 1.00f, 1, -1f),
+    BloomSpec(0.76f, 1.05f, 0, 1f)
 )
 private val rightTendrils = arrayOf(
-    TendrilSpec(0.44f, 1.4f, -1f, 0.9f, bloom = true, bloomPalette = 0),
-    TendrilSpec(0.72f, 1.3f, 1f, 0.85f)
+    TendrilSpec(0.58f, 1.35f, -1f, 0.9f, bloom = true, bloomPalette = 0)
 )
 
 private val hangLeaves = arrayOf(
-    LeafSpec(0.22f, 0.95f, 0, 1f),
-    LeafSpec(0.42f, 1.05f, 1, -1f, wide = true),
-    LeafSpec(0.62f, 0.90f, 0, 1f),
-    LeafSpec(0.80f, 0.85f, 2, -1f)
+    LeafSpec(0.28f, 0.95f, 0, 1f),
+    LeafSpec(0.55f, 1.05f, 1, -1f, wide = true),
+    LeafSpec(0.82f, 0.88f, 0, 1f)
 )
 private val hangBlooms = arrayOf(
-    BloomSpec(0.50f, 0.95f, 1, 1f),
-    BloomSpec(0.88f, 1.05f, 0, -1f)
+    BloomSpec(0.65f, 1.00f, 1, 1f)
 )
 private val hangTendrils = arrayOf(
-    TendrilSpec(0.55f, 1.25f, 1f, 0.8f, bloom = true, bloomPalette = 2)
+    TendrilSpec(0.48f, 1.2f, 1f, 0.8f)
 )
 
 private fun DrawScope.drawVine(

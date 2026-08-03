@@ -24,20 +24,23 @@ import dev.chrisbanes.haze.hazeChild
  * Without [tints], only a weak translucent plate shows (no real frost).
  */
 object ZenFrost {
-    /** Strong soften under chrome — in the ballpark of dialog FLAG_BLUR_BEHIND. */
-    val blurRadius = 48.dp
-    /** Content cards: still soft, slightly less than chrome so vines read through. */
-    val cardBlurRadius = 40.dp
-    val noiseFactor = 0.15f
+    /**
+     * Chrome frost blur. Lower than the original 48dp — large radii force big
+     * offscreen layers (major EGL / Graphics PSS cost). 24dp still reads as glass.
+     */
+    val blurRadius = 24.dp
+    /** Content cards: lighter than chrome so vines stay visible with less GPU cost. */
+    val cardBlurRadius = 18.dp
+    val noiseFactor = 0.10f
     /**
      * Glass veil alpha on [HazeTint]. High enough that scrolled text under bars
      * is soft/illegible; low enough to keep material as glass not solid.
      */
-    const val tintAlpha = 0.78f
+    const val tintAlpha = 0.80f
     /**
      * Card veil — a bit denser than chrome so stats/labels stay crisp over nature BG.
      */
-    const val cardTintAlpha = 0.86f
+    const val cardTintAlpha = 0.88f
     /** When RenderEffect blur is unavailable, stay nearly solid so chrome still reads. */
     const val fallbackTintAlpha = 0.94f
 

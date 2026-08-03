@@ -689,7 +689,24 @@ fun TopographicGridSweep(
     }
 }
 
-private val iconCache = LruCache<String, ImageBitmap>(120)
+/** Cap decoded icon size — full adaptive icons are often 432+ px (huge ARGB cost). */
+private const val ICON_DECODE_PX = 128
+private val iconCache = LruCache<String, ImageBitmap>(48)
+
+private fun decodeAppIconBitmap(
+    drawable: android.graphics.drawable.Drawable,
+    sizePx: Int = ICON_DECODE_PX
+): android.graphics.Bitmap {
+    val bmp = android.graphics.Bitmap.createBitmap(
+        sizePx,
+        sizePx,
+        android.graphics.Bitmap.Config.ARGB_8888
+    )
+    val canvas = android.graphics.Canvas(bmp)
+    drawable.setBounds(0, 0, sizePx, sizePx)
+    drawable.draw(canvas)
+    return bmp
+}
 
 @Composable
 fun AppIcon(packageName: String, modifier: Modifier = Modifier) {
@@ -704,20 +721,7 @@ fun AppIcon(packageName: String, modifier: Modifier = Modifier) {
             try {
                 val pm = context.packageManager
                 val drawable = pm.getApplicationIcon(packageName)
-                val bitmap = when (drawable) {
-                    is android.graphics.drawable.BitmapDrawable -> drawable.bitmap
-                    else -> {
-                        val bmp = android.graphics.Bitmap.createBitmap(
-                            drawable.intrinsicWidth.coerceAtLeast(1),
-                            drawable.intrinsicHeight.coerceAtLeast(1),
-                            android.graphics.Bitmap.Config.ARGB_8888
-                        )
-                        val canvas = android.graphics.Canvas(bmp)
-                        drawable.setBounds(0, 0, canvas.width, canvas.height)
-                        drawable.draw(canvas)
-                        bmp
-                    }
-                }
+                val bitmap = decodeAppIconBitmap(drawable)
                 val imageBitmap = bitmap.asImageBitmap()
                 iconCache.put(packageName, imageBitmap)
                 value = imageBitmap
@@ -725,15 +729,8 @@ fun AppIcon(packageName: String, modifier: Modifier = Modifier) {
                 try {
                     val fallbackDrawable = context.getDrawable(android.R.drawable.sym_def_app_icon)
                     if (fallbackDrawable != null) {
-                        val bmp = android.graphics.Bitmap.createBitmap(
-                            fallbackDrawable.intrinsicWidth.coerceAtLeast(1),
-                            fallbackDrawable.intrinsicHeight.coerceAtLeast(1),
-                            android.graphics.Bitmap.Config.ARGB_8888
-                        )
-                        val canvas = android.graphics.Canvas(bmp)
-                        fallbackDrawable.setBounds(0, 0, canvas.width, canvas.height)
-                        fallbackDrawable.draw(canvas)
-                        val imageBitmap = bmp.asImageBitmap()
+                        val bitmap = decodeAppIconBitmap(fallbackDrawable)
+                        val imageBitmap = bitmap.asImageBitmap()
                         iconCache.put(packageName, imageBitmap)
                         value = imageBitmap
                     }
@@ -764,28 +761,17 @@ fun getIconThemeColor(context: Context, pkg: String): Color {
     try {
         val pm = context.packageManager
         val icon = pm.getApplicationIcon(pkg)
-        val bitmap = when (icon) {
-            is android.graphics.drawable.BitmapDrawable -> icon.bitmap
-            else -> {
-                val bmp = android.graphics.Bitmap.createBitmap(
-                    icon.intrinsicWidth.coerceAtLeast(1),
-                    icon.intrinsicHeight.coerceAtLeast(1),
-                    android.graphics.Bitmap.Config.ARGB_8888
-                )
-                val canvas = android.graphics.Canvas(bmp)
-                icon.setBounds(0, 0, canvas.width, canvas.height)
-                icon.draw(canvas)
-                bmp
-            }
-        }
+        // Tiny sample bitmap — only need a few pixels for average tint.
+        val bitmap = decodeAppIconBitmap(icon, sizePx = 32)
         val p1 = bitmap.getPixel(bitmap.width / 2, bitmap.height / 2)
         val p2 = bitmap.getPixel(bitmap.width / 3, bitmap.height / 3)
         val p3 = bitmap.getPixel(2 * bitmap.width / 3, 2 * bitmap.height / 3)
-        
+        bitmap.recycle()
+
         val r = (android.graphics.Color.red(p1) + android.graphics.Color.red(p2) + android.graphics.Color.red(p3)) / 3
         val g = (android.graphics.Color.green(p1) + android.graphics.Color.green(p2) + android.graphics.Color.green(p3)) / 3
         val b = (android.graphics.Color.blue(p1) + android.graphics.Color.blue(p2) + android.graphics.Color.blue(p3)) / 3
-        
+
         val color = Color(r, g, b).copy(alpha = 0.22f)
         iconThemeColorCache[pkg] = color
         return color

@@ -114,26 +114,6 @@ fun MemoryLeaf(
         label = "leaf_fill_$label"
     )
 
-    val infinite = rememberInfiniteTransition(label = "leaf_wave_$label")
-    val wavePhase by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * PI).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(3200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "wave_phase_$label"
-    )
-    val pulseAlpha by infinite.animateFloat(
-        initialValue = 0.55f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(500, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse_$label"
-    )
-
     val genericShape = when (shape) {
         LeafShape.Teardrop -> TeardropLeafShape
         LeafShape.Diamond -> DiamondLeafShape
@@ -153,7 +133,6 @@ fun MemoryLeaf(
         Box(
             modifier = Modifier
                 .size(size)
-                .graphicsLayer { alpha = if (isPulsing) pulseAlpha else 1f }
                 .clip(genericShape)
                 .background(tankShell)
                 .border(
@@ -162,60 +141,14 @@ fun MemoryLeaf(
                     shape = genericShape
                 )
         ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val w = this.size.width
-                val h = this.size.height
-                val leafPath = Path().apply {
-                    when (shape) {
-                        LeafShape.Teardrop -> {
-                            moveTo(w * 0.50f, h * 0.02f)
-                            cubicTo(w * 0.72f, h * 0.18f, w * 0.95f, h * 0.42f, w * 0.88f, h * 0.68f)
-                            cubicTo(w * 0.82f, h * 0.92f, w * 0.62f, h * 0.98f, w * 0.50f, h * 0.96f)
-                            cubicTo(w * 0.38f, h * 0.98f, w * 0.18f, h * 0.92f, w * 0.12f, h * 0.68f)
-                            cubicTo(w * 0.05f, h * 0.42f, w * 0.28f, h * 0.18f, w * 0.50f, h * 0.02f)
-                            close()
-                        }
-                        LeafShape.Diamond -> {
-                            moveTo(w * 0.50f, h * 0.04f)
-                            cubicTo(w * 0.70f, h * 0.22f, w * 0.92f, h * 0.40f, w * 0.92f, h * 0.55f)
-                            cubicTo(w * 0.92f, h * 0.72f, w * 0.70f, h * 0.90f, w * 0.50f, h * 0.96f)
-                            cubicTo(w * 0.30f, h * 0.90f, w * 0.08f, h * 0.72f, w * 0.08f, h * 0.55f)
-                            cubicTo(w * 0.08f, h * 0.40f, w * 0.30f, h * 0.22f, w * 0.50f, h * 0.04f)
-                            close()
-                        }
-                    }
-                }
-
-                clipPath(leafPath) {
-                    val fillTop = h * (1f - animatedFraction)
-                    // Solid body under the wave
-                    drawRect(
-                        color = fillColor.copy(alpha = 0.55f),
-                        topLeft = Offset(0f, fillTop),
-                        size = Size(w, h - fillTop)
-                    )
-                    // Front wave layer
-                    val wavePath = buildWavePath(
-                        width = w,
-                        height = h,
-                        fillTop = fillTop,
-                        phase = wavePhase,
-                        amplitude = h * 0.035f,
-                        samples = WAVE_SAMPLES
-                    )
-                    drawPath(wavePath, color = waveColor.copy(alpha = 0.85f))
-                    // Secondary soft wave (offset phase)
-                    val wave2 = buildWavePath(
-                        width = w,
-                        height = h,
-                        fillTop = fillTop + h * 0.02f,
-                        phase = wavePhase + 1.2f,
-                        amplitude = h * 0.025f,
-                        samples = WAVE_SAMPLES
-                    )
-                    drawPath(wave2, color = waveColor.copy(alpha = 0.45f))
-                }
-            }
+            // Separate composable so infinite transitions only exist while pulsing.
+            LeafLiquidFill(
+                shape = shape,
+                fillColor = fillColor,
+                waveColor = waveColor,
+                animatedFraction = animatedFraction,
+                isPulsing = isPulsing
+            )
         }
 
         if (showMetrics) {
@@ -225,6 +158,135 @@ fun MemoryLeaf(
                 usedMb = usedMb,
                 fillColor = fillColor
             )
+        }
+    }
+}
+
+@Composable
+private fun LeafLiquidFill(
+    shape: LeafShape,
+    fillColor: Color,
+    waveColor: Color,
+    animatedFraction: Float,
+    isPulsing: Boolean
+) {
+    // Branch so idle leaves never subscribe to infinite transitions.
+    if (isPulsing) {
+        PulsingLeafLiquidFill(
+            shape = shape,
+            fillColor = fillColor,
+            waveColor = waveColor,
+            animatedFraction = animatedFraction
+        )
+    } else {
+        StaticLeafLiquidFill(
+            shape = shape,
+            fillColor = fillColor,
+            waveColor = waveColor,
+            animatedFraction = animatedFraction,
+            wavePhase = 0.4f
+        )
+    }
+}
+
+@Composable
+private fun PulsingLeafLiquidFill(
+    shape: LeafShape,
+    fillColor: Color,
+    waveColor: Color,
+    animatedFraction: Float
+) {
+    val infinite = rememberInfiniteTransition(label = "leaf_wave_pulse")
+    val wavePhase by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = (2f * PI).toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(3200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "wave_phase"
+    )
+    val pulseAlpha by infinite.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_alpha"
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .graphicsLayer { alpha = pulseAlpha }
+    ) {
+        StaticLeafLiquidFill(
+            shape = shape,
+            fillColor = fillColor,
+            waveColor = waveColor,
+            animatedFraction = animatedFraction,
+            wavePhase = wavePhase
+        )
+    }
+}
+
+@Composable
+private fun StaticLeafLiquidFill(
+    shape: LeafShape,
+    fillColor: Color,
+    waveColor: Color,
+    animatedFraction: Float,
+    wavePhase: Float
+) {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val w = this.size.width
+        val h = this.size.height
+        val leafPath = Path().apply {
+            when (shape) {
+                LeafShape.Teardrop -> {
+                    moveTo(w * 0.50f, h * 0.02f)
+                    cubicTo(w * 0.72f, h * 0.18f, w * 0.95f, h * 0.42f, w * 0.88f, h * 0.68f)
+                    cubicTo(w * 0.82f, h * 0.92f, w * 0.62f, h * 0.98f, w * 0.50f, h * 0.96f)
+                    cubicTo(w * 0.38f, h * 0.98f, w * 0.18f, h * 0.92f, w * 0.12f, h * 0.68f)
+                    cubicTo(w * 0.05f, h * 0.42f, w * 0.28f, h * 0.18f, w * 0.50f, h * 0.02f)
+                    close()
+                }
+                LeafShape.Diamond -> {
+                    moveTo(w * 0.50f, h * 0.04f)
+                    cubicTo(w * 0.70f, h * 0.22f, w * 0.92f, h * 0.40f, w * 0.92f, h * 0.55f)
+                    cubicTo(w * 0.92f, h * 0.72f, w * 0.70f, h * 0.90f, w * 0.50f, h * 0.96f)
+                    cubicTo(w * 0.30f, h * 0.90f, w * 0.08f, h * 0.72f, w * 0.08f, h * 0.55f)
+                    cubicTo(w * 0.08f, h * 0.40f, w * 0.30f, h * 0.22f, w * 0.50f, h * 0.04f)
+                    close()
+                }
+            }
+        }
+
+        clipPath(leafPath) {
+            val fillTop = h * (1f - animatedFraction)
+            drawRect(
+                color = fillColor.copy(alpha = 0.55f),
+                topLeft = Offset(0f, fillTop),
+                size = Size(w, h - fillTop)
+            )
+            val wavePath = buildWavePath(
+                width = w,
+                height = h,
+                fillTop = fillTop,
+                phase = wavePhase,
+                amplitude = h * 0.035f,
+                samples = WAVE_SAMPLES
+            )
+            drawPath(wavePath, color = waveColor.copy(alpha = 0.85f))
+            val wave2 = buildWavePath(
+                width = w,
+                height = h,
+                fillTop = fillTop + h * 0.02f,
+                phase = wavePhase + 1.2f,
+                amplitude = h * 0.025f,
+                samples = WAVE_SAMPLES
+            )
+            drawPath(wave2, color = waveColor.copy(alpha = 0.45f))
         }
     }
 }

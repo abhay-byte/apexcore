@@ -3,13 +3,8 @@ package com.ivarna.apexcore.ui.home
 import android.content.Context
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -72,6 +67,7 @@ import com.ivarna.apexcore.getSystemMemStats
 import com.ivarna.apexcore.ui.components.MemoryLeafPair
 import com.ivarna.apexcore.ui.components.StatusPebble
 import com.ivarna.apexcore.ui.components.zenFrostCard
+import com.ivarna.apexcore.ui.components.zenGlassBackground
 import com.ivarna.apexcore.ui.shell.State
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenDimens
@@ -260,7 +256,6 @@ fun HomeScreen(
                 subtitle = "Force system reclaim",
                 icon = ZenIcons.WaterDrop,
                 enabled = state != State.BOOSTING,
-                flowerStyle = 0,
                 onClick = onRamFreeClick
             )
 
@@ -271,7 +266,6 @@ fun HomeScreen(
                 subtitle = "Protect apps from being frozen",
                 icon = ZenIcons.PushPin,
                 enabled = state != State.BOOSTING,
-                flowerStyle = 1,
                 onClick = onPinClick
             )
 
@@ -343,10 +337,16 @@ private fun GameOptimisationToggles(
                 .padding(start = 4.dp, bottom = 10.dp)
         )
 
-        HomeFlowerCard(
-            style = 3,
-            sizeScale = 1.35f,
-            flowerAlpha = 0.8f
+        val shape = RoundedCornerShape(ZenDimens.roundedLg)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .zenGlassBackground(
+                    shape = shape,
+                    fill = scheme.surfaceContainerLow.copy(alpha = 0.90f),
+                    borderColor = scheme.outlineVariant.copy(alpha = 0.42f)
+                )
         ) {
             Column(
                 modifier = Modifier
@@ -410,7 +410,7 @@ private fun GameOptimisationToggles(
 }
 
 /**
- * Home entry row with looping flower décor + press / idle motion.
+ * Home entry row with press feedback only (no idle infinite motion).
  * Keeps ZenEntryRow unchanged for other screens.
  */
 @Composable
@@ -419,10 +419,10 @@ private fun HomeAnimatedEntryRow(
     subtitle: String,
     icon: ImageVector,
     enabled: Boolean,
-    flowerStyle: Int,
     onClick: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(ZenDimens.roundedLg)
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val contentAlpha = if (enabled) 1f else 0.45f
@@ -432,43 +432,17 @@ private fun HomeAnimatedEntryRow(
         animationSpec = spring(dampingRatio = 0.7f, stiffness = 500f),
         label = "entry_press"
     )
-    val infinite = rememberInfiniteTransition(label = "entry_$title")
-    val idleBreath by infinite.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.012f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2400 + flowerStyle * 300, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "entry_breath"
-    )
-    val iconFloat by infinite.animateFloat(
-        initialValue = -1.5f,
-        targetValue = 1.5f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1800 + flowerStyle * 200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "icon_float"
-    )
-    val chevronNudge by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 4f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1400, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "chevron"
-    )
 
-    val scale = if (enabled) pressScale * idleBreath else 1f
-
-    HomeFlowerCard(
-        style = flowerStyle,
-        sizeScale = 1.3f,
-        flowerAlpha = if (enabled) 0.85f else 0.5f,
+    Box(
         modifier = Modifier
-            .scale(scale)
+            .fillMaxWidth()
+            .scale(if (enabled) pressScale else 1f)
+            .clip(shape)
+            .zenGlassBackground(
+                shape = shape,
+                fill = scheme.surfaceContainerLow.copy(alpha = 0.90f),
+                borderColor = scheme.outlineVariant.copy(alpha = 0.42f)
+            )
             .clickable(
                 enabled = enabled,
                 interactionSource = interactionSource,
@@ -486,7 +460,6 @@ private fun HomeAnimatedEntryRow(
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .graphicsLayer { translationY = if (enabled) iconFloat else 0f }
                     .clip(RoundedCornerShape(14.dp))
                     .background(scheme.primary.copy(alpha = 0.12f * contentAlpha)),
                 contentAlignment = Alignment.Center
@@ -515,11 +488,7 @@ private fun HomeAnimatedEntryRow(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
                 tint = scheme.onSurfaceVariant.copy(alpha = contentAlpha),
-                modifier = Modifier
-                    .size(22.dp)
-                    .graphicsLayer {
-                        translationX = if (enabled) chevronNudge else 0f
-                    }
+                modifier = Modifier.size(22.dp)
             )
         }
     }
@@ -590,16 +559,6 @@ fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
         animationSpec = spring(dampingRatio = 0.7f, stiffness = 450f),
         label = "banner_press"
     )
-    val infinite = rememberInfiniteTransition(label = "banner_cta")
-    val ctaNudge by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 5f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "cta_nudge"
-    )
 
     Box(
         modifier = Modifier
@@ -621,12 +580,6 @@ fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
                 onClick = onConnectClick
             )
     ) {
-        HomeCardFlowerDecor(
-            modifier = Modifier.matchParentSize(),
-            style = 1,
-            sizeScale = 1.35f,
-            alphaScale = 0.8f
-        )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -671,9 +624,7 @@ fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
                     tint = scheme.primary,
-                    modifier = Modifier
-                        .size(16.dp)
-                        .graphicsLayer { translationX = ctaNudge }
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
@@ -713,26 +664,6 @@ fun UnifiedResultCard(
     val statusAccent = if (isBlockedResult) scheme.secondary else scheme.primary
     val cardShape = RoundedCornerShape(32.dp)
 
-    val infinite = rememberInfiniteTransition(label = "result_card")
-    val idleBreath by infinite.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.01f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2600, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "result_breath"
-    )
-    val iconBob by infinite.animateFloat(
-        initialValue = -2f,
-        targetValue = 2f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1700, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "result_icon"
-    )
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -755,9 +686,8 @@ fun UnifiedResultCard(
                 shape = cardShape
             )
             .graphicsLayer {
-                val s = scale * idleBreath
-                scaleX = s
-                scaleY = s
+                scaleX = scale
+                scaleY = scale
             }
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
     ) {
@@ -780,9 +710,7 @@ fun UnifiedResultCard(
                         imageVector = if (isBlockedResult) Icons.Filled.Warning else Icons.Filled.CheckCircle,
                         contentDescription = null,
                         tint = statusAccent,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .graphicsLayer { translationY = iconBob }
+                        modifier = Modifier.size(28.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
