@@ -98,13 +98,6 @@ fun PebbleButton(
                     onClick = onClick
                 )
         ) {
-            HomeCardFlowerDecor(
-                style = 2,
-                sizeScale = 1.4f,
-                alphaScale = 0.75f,
-                modifier = Modifier.fillMaxSize()
-            )
-
             Row(
                 modifier = Modifier
                     .fillMaxSize()

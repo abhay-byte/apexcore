@@ -130,7 +130,7 @@ fun SettingsScreen(
         )
         Spacer(modifier = Modifier.height(10.dp))
 
-        GlassCard(organicStyle = 1, organicSizeScale = 1.2f, organicAlpha = 0.75f) {
+        GlassCard {
             Text(
                 text = "Theme",
                 color = scheme.onSurface,
@@ -152,7 +152,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        GlassCard(organicStyle = 5, organicSizeScale = 1.1f, organicAlpha = 0.7f) {
+        GlassCard {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -224,10 +224,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(10.dp))
 
         GlassCard(
-            onClick = { openPrivacyPolicy(context) },
-            organicStyle = 7,
-            organicSizeScale = 1.05f,
-            organicAlpha = 0.65f
+            onClick = { openPrivacyPolicy(context) }
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -269,7 +266,7 @@ fun SettingsScreen(
         )
         Spacer(modifier = Modifier.height(10.dp))
 
-        GlassCard(organicStyle = 3, organicSizeScale = 1.05f, organicAlpha = 0.65f) {
+        GlassCard {
             Text(
                 text = "Apex Core",
                 color = scheme.onSurface,
@@ -335,7 +332,7 @@ private fun ActiveModeCard(
         }
     }
 
-    GlassCard(onClick = onSetupClick, organicStyle = 2, organicSizeScale = 1.2f, organicAlpha = 0.7f) {
+    GlassCard(onClick = onSetupClick) {
         // Header: title + live status chip
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -500,7 +497,7 @@ private fun SystemDiagnosticsCard(
         }
     }
 
-    GlassCard(onClick = onSetupClick, organicStyle = 6, organicSizeScale = 1.15f, organicAlpha = 0.7f) {
+    GlassCard(onClick = onSetupClick) {
         Text(
             text = "ACCESS DIAGNOSTICS",
             color = MaterialTheme.colorScheme.onSurfaceVariant,

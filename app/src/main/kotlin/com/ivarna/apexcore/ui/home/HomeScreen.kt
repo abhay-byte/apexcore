@@ -171,9 +171,6 @@ fun HomeScreen(
                     center = Offset(size.width * 0.88f, size.height * 0.72f)
                 )
             }
-
-            // Organic vines + blooms — Home only, behind content, decorative
-            HomeNatureBackground(dimmed = state == State.BOOSTING)
         }
 
         // Foreground UI — not inside cardHaze source; card uses hazeChild as sibling
@@ -691,14 +688,6 @@ fun UnifiedResultCard(
             }
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
     ) {
-        HomeCardFlowerDecor(
-            style = 0,
-            sizeScale = 1.35f,
-            alphaScale = 0.8f,
-            modifier = Modifier
-                .matchParentSize()
-                .clip(cardShape)
-        )
         Column(modifier = Modifier.padding(24.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
