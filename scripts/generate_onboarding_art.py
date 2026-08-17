@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Generate 4 high-resolution, high-DPI Zen Organic onboarding illustrations for ApexCore.
-Canvas size: 1080x1080 with crisp, large TrueType typography and vector glyphs.
+Canvas size: 1080x1080 with crisp TrueType typography and pure vector glyphs (no emojis/ascii icons).
 Assets are saved to app/src/main/res/drawable/
 """
 from __future__ import annotations
@@ -51,10 +51,9 @@ def get_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
                 return ImageFont.truetype(p, size)
             except Exception:
                 continue
-    # Fallback to default truetype
     return ImageFont.truetype("/usr/share/fonts/TTF/DejaVuSans.ttf", size)
 
-def radial_glow(w, h, cx, cy, radius, color, peak_alpha=140):
+def radial_glow(w, h, cx, cy, radius, color, peak_alpha=150):
     scale = 2
     ys = np.arange(h // scale, dtype=np.float32)
     xs = np.arange(w // scale, dtype=np.float32)
@@ -77,16 +76,14 @@ def draw_text_center(d, text, cx, cy, font, fill=TEXT_WHITE):
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
     d.text((cx - tw / 2, cy - th / 2), text, font=font, fill=fill)
 
-# Vector glyph helpers
+# Pure Vector Glyph Helpers
 def draw_gamepad(d, cx, cy, size=32, color=TEXT_WHITE):
     w, h = size * 1.5, size * 0.9
     x0, y0 = cx - w / 2, cy - h / 2
     d.rounded_rectangle([x0, y0, x0 + w, y0 + h], radius=int(h * 0.45), fill=color)
-    # D-pad cross on left
     dpad_x, dpad_y = cx - size * 0.4, cy
     d.line([(dpad_x - 7, dpad_y), (dpad_x + 7, dpad_y)], fill=SURFACE, width=3)
     d.line([(dpad_x, dpad_y - 7), (dpad_x, dpad_y + 7)], fill=SURFACE, width=3)
-    # Action buttons on right
     btn_x, btn_y = cx + size * 0.4, cy
     d.ellipse([btn_x + 3, btn_y - 4, btn_x + 9, btn_y + 2], fill=SURFACE)
     d.ellipse([btn_x - 7, btn_y + 1, btn_x - 1, btn_y + 7], fill=SURFACE)
@@ -102,22 +99,24 @@ def draw_lightning(d, cx, cy, size=34, color=TEAL_BRIGHT):
     ]
     d.polygon(pts, fill=color)
 
+def draw_pin_badge(d, cx, cy, radius=32, color=GOLD_ACCENT):
+    d.ellipse([cx - radius, cy - radius, cx + radius, cy + radius], fill=color)
+    d.ellipse([cx - radius * 0.45, cy - radius * 0.6, cx + radius * 0.45, cy - radius * 0.1], fill=(0x3D, 0x2E, 0x00, 255))
+    d.polygon([(cx - radius * 0.2, cy - radius * 0.15), (cx + radius * 0.2, cy - radius * 0.15), (cx, cy + radius * 0.55)], fill=(0x3D, 0x2E, 0x00, 255))
+
 # ── 1. PURGE ENGINE ────────────────────────────────────────────────────────
 def generate_purge_art() -> Image.Image:
     im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     cx, cy = W // 2, H // 2 - 40
 
-    # Ambient glow
-    im.alpha_composite(radial_glow(W, H, cx, cy, 460, TEAL_PRIMARY, 110))
-    im.alpha_composite(radial_glow(W, H, cx, cy - 30, 260, TEAL_BRIGHT, 160))
+    im.alpha_composite(radial_glow(W, H, cx, cy, 480, TEAL_PRIMARY, 120))
+    im.alpha_composite(radial_glow(W, H, cx, cy - 30, 280, TEAL_BRIGHT, 170))
 
     d = ImageDraw.Draw(im)
 
-    # Concentric orbital rings (high-contrast)
     for r, width, alpha in [(360, 4, 60), (280, 5, 110), (200, 6, 180), (130, 7, 240)]:
         d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=(*TEAL_PRIMARY[:3], alpha), width=width)
 
-    # Orbital nodes
     for angle, r, size, col in [
         (0.5, 280, 18, GOLD_ACCENT),
         (2.0, 280, 16, TEAL_BRIGHT),
@@ -131,15 +130,11 @@ def generate_purge_art() -> Image.Image:
         im.alpha_composite(radial_glow(W, H, nx, ny, 70, col, 200))
         d.ellipse([nx - size, ny - size, nx + size, ny + size], fill=col)
 
-    # Central Core Orb
     core_r = 96
     d.ellipse([cx - core_r, cy - core_r, cx + core_r, cy + core_r], fill=SURFACE_LIGHT, outline=TEAL_BRIGHT, width=6)
-    
-    # Core inner glow layers
     d.ellipse([cx - 62, cy - 62, cx + 62, cy + 62], fill=TEAL_PRIMARY)
     d.ellipse([cx - 36, cy - 36, cx + 36, cy + 36], fill=TEAL_BRIGHT)
 
-    # Large Free Memory Badge at bottom
     badge_w, badge_h = 560, 108
     bx, by = cx - badge_w // 2, cy + 280
     badge = rounded_glass_card(badge_w, badge_h, fill=(0x11, 0x22, 0x2B, 250), border=TEAL_PRIMARY, radius=54, border_width=4)
@@ -158,18 +153,16 @@ def generate_hud_art() -> Image.Image:
     im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     cx, cy = W // 2, H // 2
 
-    im.alpha_composite(radial_glow(W, H, cx, cy - 50, 460, TEAL_PRIMARY, 95))
-    im.alpha_composite(radial_glow(W, H, cx + 200, cy + 160, 320, GOLD_ACCENT, 80))
+    im.alpha_composite(radial_glow(W, H, cx, cy - 50, 480, TEAL_PRIMARY, 100))
+    im.alpha_composite(radial_glow(W, H, cx + 200, cy + 160, 320, GOLD_ACCENT, 85))
 
-    # Large Main Floating HUD Glass Card
-    card_w, card_h = 820, 540
+    card_w, card_h = 840, 560
     card_x, card_y = cx - card_w // 2, cy - card_h // 2 - 40
     card = rounded_glass_card(card_w, card_h, fill=(0x10, 0x1E, 0x25, 252), border=TEAL_PRIMARY, radius=56, border_width=4)
     im.alpha_composite(card, (card_x, card_y))
 
     d = ImageDraw.Draw(im)
 
-    # Top Header Pill in HUD
     pill_w, pill_h = 220, 60
     px, py = card_x + 50, card_y + 44
     d.rounded_rectangle([px, py, px + pill_w, py + pill_h], radius=30, fill=(*TEAL_PRIMARY[:3], 50), outline=TEAL_PRIMARY, width=2)
@@ -177,13 +170,11 @@ def generate_hud_art() -> Image.Image:
     f_chip = get_font(26, bold=True)
     d.text((px + 48, py + 16), "LIVE HUD", font=f_chip, fill=TEAL_BRIGHT)
 
-    # FPS Large Metric
     f_fps_num = get_font(110, bold=True)
     f_fps_unit = get_font(38, bold=True)
     d.text((card_x + 50, card_y + 130), "120", font=f_fps_num, fill=TEXT_WHITE)
     d.text((card_x + 280, card_y + 192), "FPS", font=f_fps_unit, fill=TEAL_PRIMARY)
 
-    # Live telemetry waveform
     wave_pts = []
     start_x = card_x + 400
     end_x = card_x + card_w - 50
@@ -195,14 +186,11 @@ def generate_hud_art() -> Image.Image:
     for i in range(len(wave_pts) - 1):
         d.line([wave_pts[i], wave_pts[i+1]], fill=TEAL_BRIGHT, width=6)
 
-    # Divider line
     d.line([(card_x + 50, card_y + 290), (card_x + card_w - 50, card_y + 290)], fill=BORDER_COLOR, width=2)
 
-    # Metrics row (RAM & CPU)
     f_lbl = get_font(24, bold=True)
     f_val = get_font(34, bold=True)
     
-    # RAM Meter
     d.text((card_x + 50, card_y + 320), "RAM PRESSURE", font=f_lbl, fill=TEXT_MUTED)
     d.text((card_x + 50, card_y + 365), "38% Normal", font=f_val, fill=TEAL_BRIGHT)
     
@@ -211,14 +199,12 @@ def generate_hud_art() -> Image.Image:
     d.rounded_rectangle([card_x + 50, card_y + 435, card_x + 50 + bar_w, card_y + 435 + bar_h], radius=9, fill=SURFACE_LIGHT)
     d.rounded_rectangle([card_x + 50, card_y + 435, card_x + 50 + int(bar_w * 0.38), card_y + 435 + bar_h], radius=9, fill=TEAL_PRIMARY)
 
-    # CPU Load
     d.text((card_x + 440, card_y + 320), "CPU FREQ / LOAD", font=f_lbl, fill=TEXT_MUTED)
     d.text((card_x + 440, card_y + 365), "2.8 GHz · 24%", font=f_val, fill=GOLD_ACCENT)
     
     d.rounded_rectangle([card_x + 440, card_y + 435, card_x + 440 + bar_w, card_y + 435 + bar_h], radius=9, fill=SURFACE_LIGHT)
     d.rounded_rectangle([card_x + 440, card_y + 435, card_x + 440 + int(bar_w * 0.24), card_y + 435 + bar_h], radius=9, fill=GOLD_ACCENT)
 
-    # Bottom floating satellite badge
     sat_w, sat_h = 420, 80
     sx, sy = cx - sat_w // 2, card_y + card_h + 35
     sat = rounded_glass_card(sat_w, sat_h, fill=(0x15, 0x2A, 0x33, 245), border=GOLD_ACCENT, radius=40, border_width=3)
@@ -233,26 +219,24 @@ def generate_library_art() -> Image.Image:
     im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     cx, cy = W // 2, H // 2 - 20
 
-    im.alpha_composite(radial_glow(W, H, cx, cy - 30, 440, TEAL_PRIMARY, 90))
-    im.alpha_composite(radial_glow(W, H, cx - 160, cy + 190, 300, GOLD_ACCENT, 80))
+    im.alpha_composite(radial_glow(W, H, cx, cy - 30, 460, TEAL_PRIMARY, 95))
+    im.alpha_composite(radial_glow(W, H, cx - 160, cy + 190, 300, GOLD_ACCENT, 85))
 
     d = ImageDraw.Draw(im)
 
-    # Two large staggered game cards
     card_w, card_h = 360, 430
     
-    # Card 1 (Left, slightly back)
+    # Card 1 (Left)
     c1_x, c1_y = cx - card_w - 24, cy - card_h // 2 - 40
     c1 = rounded_glass_card(card_w, card_h, fill=(0x11, 0x21, 0x29, 245), border=BORDER_COLOR, radius=46, border_width=3)
     im.alpha_composite(c1, (c1_x, c1_y))
     
-    # Game icon placeholder 1
     d.rounded_rectangle([c1_x + 45, c1_y + 45, c1_x + 165, c1_y + 165], radius=32, fill=(*GOLD_ACCENT[:3], 65), outline=GOLD_ACCENT, width=3)
     draw_gamepad(d, c1_x + 105, c1_y + 105, size=46, color=TEXT_WHITE)
     draw_text_center(d, "Cyber RPG", c1_x + card_w // 2, c1_y + 225, get_font(32, bold=True), TEXT_WHITE)
     draw_text_center(d, "Pinned · Safe", c1_x + card_w // 2, c1_y + 275, get_font(24, bold=True), TEAL_PRIMARY)
     
-    # Card 2 (Right, front focus)
+    # Card 2 (Right)
     c2_x, c2_y = cx + 24, cy - card_h // 2 + 20
     c2 = rounded_glass_card(card_w, card_h, fill=(0x16, 0x2B, 0x35, 252), border=TEAL_PRIMARY, radius=46, border_width=4)
     im.alpha_composite(c2, (c2_x, c2_y))
@@ -262,12 +246,7 @@ def generate_library_art() -> Image.Image:
     draw_text_center(d, "Speed Racer", c2_x + card_w // 2, c2_y + 225, get_font(32, bold=True), TEXT_WHITE)
     draw_text_center(d, "Boost Ready", c2_x + card_w // 2, c2_y + 275, get_font(24, bold=True), TEAL_BRIGHT)
 
-    # Pin Badge on top of Card 2
-    pin_size = 64
-    px, py = c2_x + card_w - 76, c2_y + 24
-    d.ellipse([px, py, px + pin_size, py + pin_size], fill=GOLD_ACCENT)
-    d.ellipse([px + 18, py + 18, px + 46, py + 46], fill=(0x3D, 0x2E, 0x00, 255))
-    d.ellipse([px + 26, py + 26, px + 38, py + 38], fill=GOLD_ACCENT)
+    draw_pin_badge(d, c2_x + card_w - 44, c2_y + 54, radius=32, color=GOLD_ACCENT)
 
     # Bottom Reclaim status card
     rc_w, rc_h = 760, 114
@@ -284,67 +263,71 @@ def generate_library_art() -> Image.Image:
 # ── 4. SYSTEM ACCESS & ELEVATION ──────────────────────────────────────────
 def generate_access_art() -> Image.Image:
     im = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    cx, cy = W // 2, H // 2 - 20
+    cx, cy = W // 2, H // 2
 
-    im.alpha_composite(radial_glow(W, H, cx, cy - 40, 460, TEAL_PRIMARY, 100))
-    im.alpha_composite(radial_glow(W, H, cx, cy - 40, 240, GOLD_ACCENT, 110))
+    # Huge, radiant energy halos
+    im.alpha_composite(radial_glow(W, H, cx, cy - 20, 520, TEAL_PRIMARY, 130))
+    im.alpha_composite(radial_glow(W, H, cx, cy - 20, 320, TEAL_BRIGHT, 180))
+    im.alpha_composite(radial_glow(W, H, cx, cy + 100, 260, GOLD_ACCENT, 110))
 
     d = ImageDraw.Draw(im)
 
-    # Large Central Shield shape
-    sw, sh = 340, 390
-    sx, sy = cx - sw // 2, cy - sh // 2 - 40
+    # Concentric orbital shield energy rings
+    for r, width, alpha in [(480, 3, 50), (400, 4, 80), (320, 5, 120)]:
+        d.ellipse([cx - r, cy - 20 - r, cx + r, cy - 20 + r], outline=(*TEAL_PRIMARY[:3], alpha), width=width)
+
+    # Large Grand Shield (Dominates the canvas — 680w x 780h)
+    sw, sh = 640, 740
+    sx, sy = cx - sw // 2, cy - sh // 2 - 10
     
-    # Outer shield border
+    # Outer shield polygon
     d.polygon([
         (cx, sy),
-        (cx + sw // 2, sy + 65),
-        (cx + sw // 2, sy + 250),
+        (cx + sw // 2, sy + 130),
+        (cx + sw // 2, sy + 480),
         (cx, sy + sh),
-        (cx - sw // 2, sy + 250),
-        (cx - sw // 2, sy + 65),
-    ], fill=(0x13, 0x24, 0x2D, 248), outline=TEAL_BRIGHT, width=6)
+        (cx - sw // 2, sy + 480),
+        (cx - sw // 2, sy + 130),
+    ], fill=(0x11, 0x22, 0x2A, 250), outline=TEAL_BRIGHT, width=8)
 
-    # Inner shield accent
+    # Mid shield border
     d.polygon([
-        (cx, sy + 42),
-        (cx + sw // 2 - 42, sy + 90),
-        (cx + sw // 2 - 42, sy + 230),
-        (cx, sy + sh - 42),
-        (cx - sw // 2 + 42, sy + 230),
-        (cx - sw // 2 + 42, sy + 90),
-    ], fill=(0x1A, 0x31, 0x3B, 252), outline=TEAL_PRIMARY, width=4)
+        (cx, sy + 30),
+        (cx + sw // 2 - 30, sy + 145),
+        (cx + sw // 2 - 30, sy + 460),
+        (cx, sy + sh - 30),
+        (cx - sw // 2 + 30, sy + 460),
+        (cx - sw // 2 + 30, sy + 145),
+    ], fill=(0x16, 0x2B, 0x35, 252), outline=TEAL_PRIMARY, width=5)
 
-    # Shield Keyhole / Emblem
-    d.ellipse([cx - 40, sy + 115, cx + 40, sy + 195], fill=TEAL_BRIGHT)
-    d.polygon([(cx - 28, sy + 170), (cx + 28, sy + 170), (cx + 18, sy + 245), (cx - 18, sy + 245)], fill=TEAL_BRIGHT)
+    # Inner shield cavity
+    d.polygon([
+        (cx, sy + 75),
+        (cx + sw // 2 - 75, sy + 170),
+        (cx + sw // 2 - 75, sy + 430),
+        (cx, sy + sh - 75),
+        (cx - sw // 2 + 75, sy + 430),
+        (cx - sw // 2 + 75, sy + 170),
+    ], fill=(0x1C, 0x36, 0x42, 255), outline=(*BORDER_COLOR[:3], 240), width=4)
 
-    # Dual elevation chips below
-    chip_w, chip_h = 350, 88
+    # Central Lotus Keyhole / Core Emblem
+    # Outer core ring
+    emblem_r = 90
+    emblem_cy = cy - 20
+    d.ellipse([cx - emblem_r, emblem_cy - emblem_r, cx + emblem_r, emblem_cy + emblem_r], fill=(0x10, 0x22, 0x2B, 255), outline=TEAL_BRIGHT, width=6)
     
-    # Shizuku chip
-    c1_x, c1_y = cx - chip_w - 20, cy + 220
-    c1 = rounded_glass_card(chip_w, chip_h, fill=(0x11, 0x22, 0x2A, 250), border=TEAL_PRIMARY, radius=44, border_width=3)
-    im.alpha_composite(c1, (c1_x, c1_y))
-    cd1 = ImageDraw.Draw(im)
-    draw_lightning(cd1, c1_x + 50, c1_y + 44, size=30, color=TEAL_BRIGHT)
-    cd1.text((c1_x + 80, c1_y + 26), "Shizuku API", font=get_font(28, bold=True), fill=TEAL_BRIGHT)
+    # Inner glowing keyhole emblem
+    d.ellipse([cx - 48, emblem_cy - 60, cx + 48, emblem_cy + 20], fill=TEAL_BRIGHT)
+    d.polygon([(cx - 32, emblem_cy - 10), (cx + 32, emblem_cy - 10), (cx + 20, emblem_cy + 85), (cx - 20, emblem_cy + 85)], fill=TEAL_BRIGHT)
     
-    # Root chip
-    c2_x, c2_y = cx + 20, cy + 220
-    c2 = rounded_glass_card(chip_w, chip_h, fill=(0x11, 0x22, 0x2A, 250), border=BORDER_COLOR, radius=44, border_width=3)
-    im.alpha_composite(c2, (c2_x, c2_y))
-    cd2 = ImageDraw.Draw(im)
-    cd2.text((c2_x + 40, c2_y + 26), "# Root su", font=get_font(28, bold=True), fill=GOLD_ACCENT)
-
-    # Footer note
-    f_sub = get_font(22, bold=False)
-    draw_text_center(d, "On-device security · Zero telemetry", cx, cy + 345, f_sub, TEXT_MUTED)
+    # Gold core accent center
+    d.ellipse([cx - 18, emblem_cy - 30, cx + 18, emblem_cy + 6], fill=(0x10, 0x22, 0x2B, 255))
+    d.ellipse([cx - 10, emblem_cy - 22, cx + 10, emblem_cy - 2], fill=GOLD_ACCENT)
 
     return im
 
 def main():
-    print("Generating high-visibility TrueType Onboarding illustration assets (1080x1080)...")
+    print("Generating large, high-DPI Onboarding illustration assets (1080x1080)...")
     
     purge_img = generate_purge_art()
     purge_path = RES_DRAWABLE / "ic_onboard_purge.png"
@@ -366,7 +349,7 @@ def main():
     access_img.save(access_path, "PNG", optimize=True)
     print(f"  ✓ {access_path.name} ({access_img.size})")
 
-    print("All TrueType high-DPI onboarding art generated successfully!")
+    print("All large high-DPI onboarding art generated successfully!")
 
 if __name__ == "__main__":
     main()

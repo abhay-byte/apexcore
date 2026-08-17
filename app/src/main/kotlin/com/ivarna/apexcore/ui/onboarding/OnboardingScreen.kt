@@ -525,11 +525,11 @@ private fun ElevationSetupPage(
     ) {
         Spacer(modifier = Modifier.height(6.dp))
 
-        // Compact Access Art
+        // Large Access Shield Art
         Box(
             modifier = Modifier
-                .size(160.dp)
-                .clip(RoundedCornerShape(24.dp)),
+                .size(230.dp)
+                .clip(RoundedCornerShape(32.dp)),
             contentAlignment = Alignment.Center
         ) {
             Image(
@@ -539,7 +539,7 @@ private fun ElevationSetupPage(
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Kicker Badge
         Box(
