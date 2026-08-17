@@ -266,6 +266,11 @@ fun HomeScreen(
                 onClick = onPinClick
             )
 
+            Spacer(modifier = Modifier.height(ZenDimens.elementGap))
+
+            // Real-time Battery & CPU Thermal Telemetry Card
+            DeviceThermalCard()
+
             if (isElevatedBackend) {
                 Spacer(modifier = Modifier.height(ZenDimens.elementGap))
 
