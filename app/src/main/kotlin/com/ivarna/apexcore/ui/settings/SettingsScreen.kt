@@ -66,6 +66,7 @@ fun SettingsScreen(
     activeBackendName: String = "Detecting…",
     preferredBackend: String? = null,
     onSetupClick: () -> Unit,
+    onShowOnboarding: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -279,6 +280,49 @@ fun SettingsScreen(
                 color = scheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium
             )
+        }
+
+        Spacer(modifier = Modifier.height(28.dp))
+
+        // ── App Tour ────────────────────────────────────────────────
+        Text(
+            text = "APP TOUR",
+            color = scheme.onSurfaceVariant,
+            fontSize = 11.sp,
+            fontFamily = PlusJakartaSans,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.sp
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+
+        GlassCard(
+            onClick = onShowOnboarding
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Show Onboarding",
+                        color = scheme.onSurface,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Replay feature tour & access configuration",
+                        color = scheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = scheme.onSurfaceVariant
+                )
+            }
         }
 
         Spacer(modifier = Modifier.height(ZenDimens.bottomNavClearance))

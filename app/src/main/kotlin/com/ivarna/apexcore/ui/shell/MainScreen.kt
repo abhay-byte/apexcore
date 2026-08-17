@@ -31,6 +31,7 @@ import com.ivarna.apexcore.games.GameManager
 import com.ivarna.apexcore.games.WhitelistPickerDialog
 import com.ivarna.apexcore.ram.RamFreeScreen
 import com.ivarna.apexcore.ui.home.HomeScreen
+import com.ivarna.apexcore.ui.onboarding.OnboardingScreen
 import com.ivarna.apexcore.ui.overlay.OverlayScreen
 import com.ivarna.apexcore.ui.settings.SettingsScreen
 import com.ivarna.apexcore.ui.theme.*
@@ -55,6 +56,7 @@ fun MainScreen(
     var backendName by remember { mutableStateOf("Detecting…") }
     var showSetupDialog by remember { mutableStateOf(false) }
     var showPinPicker by remember { mutableStateOf(false) }
+    var showOnboardingReplay by remember { mutableStateOf(false) }
     var lastResult by remember { mutableStateOf<FreezeResult?>(null) }
     var showRamFree by remember { mutableStateOf(false) }
     var globalBackendPref by remember {
@@ -194,7 +196,8 @@ fun MainScreen(
                             onLightTankBgChange = onLightTankBgChange,
                             activeBackendName = backendName,
                             preferredBackend = globalBackendPref,
-                            onSetupClick = { showSetupDialog = true }
+                            onSetupClick = { showSetupDialog = true },
+                            onShowOnboarding = { showOnboardingReplay = true }
                         )
                     }
                 }
@@ -263,6 +266,13 @@ fun MainScreen(
             WhitelistPickerDialog(
                 gameManager = gameManager,
                 onDismiss = { showPinPicker = false }
+            )
+        }
+
+        if (showOnboardingReplay) {
+            OnboardingScreen(
+                onFinish = { showOnboardingReplay = false },
+                isReplay = true
             )
         }
     }
