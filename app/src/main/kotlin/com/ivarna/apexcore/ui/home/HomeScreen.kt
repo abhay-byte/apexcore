@@ -266,13 +266,14 @@ fun HomeScreen(
                 onClick = onPinClick
             )
 
-            Spacer(modifier = Modifier.height(ZenDimens.elementGap))
+            if (isElevatedBackend) {
+                Spacer(modifier = Modifier.height(ZenDimens.elementGap))
 
-            // Dummy game-tuning toggles — UI only; gated on Shizuku / Root
-            GameOptimisationToggles(
-                enabled = isElevatedBackend && state != State.BOOSTING,
-                elevated = isElevatedBackend
-            )
+                // Game-tuning toggles — shown only when Shizuku or Root is active
+                GameOptimisationToggles(
+                    enabled = state != State.BOOSTING
+                )
+            }
 
             // Clearance for floating bottom-nav island (true overlay)
             Spacer(modifier = Modifier.height(ZenDimens.bottomNavClearance))
@@ -293,8 +294,7 @@ private const val KEY_KERNEL = "dummy_opt_kernel"
  */
 @Composable
 private fun GameOptimisationToggles(
-    enabled: Boolean,
-    elevated: Boolean
+    enabled: Boolean
 ) {
     val context = LocalContext.current
     val scheme = MaterialTheme.colorScheme
@@ -350,17 +350,6 @@ private fun GameOptimisationToggles(
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                if (!elevated) {
-                    Text(
-                        text = "Connect Shizuku or Root to unlock",
-                        color = scheme.secondary,
-                        fontSize = 11.sp,
-                        fontFamily = PlusJakartaSans,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                }
-
                 DummyOptToggleRow(
                     title = "GPU render optimisation",
                     subtitle = "Prioritise frame composition for games",
