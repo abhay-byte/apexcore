@@ -1,1 +1,1 @@
-Deep-freeze background apps to optimize device memory for smooth gameplay
+Optimise games: purge bloat, RAM Free, live HUD, pin apps. On-device, no ads.

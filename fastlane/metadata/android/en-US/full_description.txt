@@ -1,5 +1,27 @@
-ApexCore optimizes your device's memory for gaming by deep-freezing resource-heavy background processes. Using elevated privileges via Shizuku or Root, it completely stops background processes to ensure maximum hardware resources are allocated to your games.
+ApexCore is a local game-performance toolkit for Android. It optimises game sessions by freeing memory, deep-freezing background bloat, and showing a live performance HUD — all on device, with no account and no ads.
 
-Features:
-- Advanced Freeze Framework: Pluggable backends supporting Shizuku and Root access.
-- Performance HUD: A draggable overlay service displaying real-time FPS, RAM pressure, and CPU load.
+What you can do
+
+• Purge Engine — optimise your game: deep-freeze background apps on demand so more RAM stays available for the game you are about to launch. Requires Shizuku (recommended) or Root; without elevation, freeze stays blocked and the app tells you honestly.
+
+• RAM Free — force a system memory reclaim from the app itself, no elevated freeze required. Uses a safe fill-and-release path with a 90% cap; it does not force-stop other apps.
+
+• Game optimisations — browse installed games and apps, add titles to your library, and tune game options for a smoother session.
+
+• Games library — browse, pin, and launch your games with an allocate-and-play flow.
+
+• Pin Apps — mark packages that must never be frozen during a purge.
+
+• Performance HUD — optional floating overlay (draw-over permission) for live FPS, RAM pressure, and CPU load while you play. Start and stop it from the overlay tab; it runs only while you leave it on.
+
+How freeze works
+
+Deep freeze uses elevated backends only: Shizuku (recommended) or Root. ApexCore does not claim a working deep-freeze on stock, unprivileged devices. Setup and the Home status line explain when elevation is missing.
+
+Privacy & design
+
+• Fully on-device — no account, no ads, no analytics SDKs, no INTERNET permission for telemetry.
+• Preferences (backend choice, pins, theme) stay on your device.
+• Open source — inspect permissions and freeze paths in the public repository.
+
+ApexCore is a utility for advanced users who understand optional Shizuku/Root access. It does not disable Google Play Protect or install other apps.

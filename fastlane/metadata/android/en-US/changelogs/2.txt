@@ -1,0 +1,7 @@
+Organic Zen UI overhaul:
+- Soft organic flowers and nature vines on cards and Home screen.
+- Per-tab ambient backgrounds with frosted Haze glass tint.
+- Larger leaf tanks, MemoryLeafPair and PebbleButton components.
+- Game-optimization toggles on Home and BOOST protect.
+- Accurate FPS/CPU overlay with theme-aware dialog blur.
+- Enhanced Settings and Privacy controls.

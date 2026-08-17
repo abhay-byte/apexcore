@@ -2,55 +2,91 @@
 
 **Last Updated: August 3, 2026**
 
-ApexCore ("we", "our", or "us") is dedicated to protecting your privacy. This Privacy Policy explains our practices regarding data collection and usage in the **ApexCore** Android application.
+**Developer:** zenithblue (package `com.ivarna.apexcore`). Source and issue tracker: [github.com/abhay-byte/apexcore](https://github.com/abhay-byte/apexcore).
+
+zenithblue ("we", "our", or "us") explains how the **ApexCore** Android application handles information. This policy is meant to match the Play Store listing developer name and the in-app Privacy Policy link.
 
 ## 1. No Data Collection
 
 ApexCore is designed to run **completely locally** on your device.
+
 * **No Telemetry or Analytics**: We do not track how you use the app.
-* **No Network Transmissions**: The application does not collect, store, or transmit any personal data, device information, or library details to external servers.
-* **No Third-Party SDKs**: We do not integrate any advertising, tracking, or analytics libraries (such as Google Analytics or Firebase) that could harvest your info.
-* **Local-only storage**: App preferences (such as your selected freeze backend and pinned apps list) are stored only on your device and are never transmitted anywhere.
+* **No Network Transmissions**: The application does not collect, store, or transmit personal data, device identifiers, or installed-app lists to external servers. The app does not request the `INTERNET` permission for product features.
+* **No Third-Party SDKs**: We do not integrate advertising, tracking, or analytics libraries (such as Google Analytics or Firebase) that harvest your info.
+* **No Accounts**: ApexCore does not create user accounts or sign-in.
 
-## 2. Permissions Utilized & Purpose
+## 2. Local Storage Only
 
-ApexCore requests several system permissions to provide its features. Here is exactly what they are used for:
+App preferences are stored only on your device (Android SharedPreferences / local app storage), for example:
+
+* Preferred freeze backend (Shizuku / Root)
+* Pinned apps list
+* Theme and display preferences
+* One-time setup dialog flags
+
+**Retention:** Local preferences remain until you clear them or uninstall the app. There is **no cloud copy** and no server-side retention.
+
+**How to delete local data:**
+
+1. Android **Settings → Apps → ApexCore → Storage → Clear data** (or Clear storage), or  
+2. **Uninstall** ApexCore.
+
+Because we do not run accounts or remote profiles, there is no separate web account-deletion URL.
+
+## 3. Permissions Utilized & Purpose
+
+ApexCore requests system permissions only for on-device features:
 
 ### A. System Alert Window (Draw Over Other Apps)
-* **Purpose**: Used solely to display the real-time gameplay performance HUD overlay (FPS & memory usage telemetry) on top of games.
-* **Security**: This overlay runs entirely locally and displays transient system stats; it does not record your screen or log touch inputs.
+
+* **Purpose**: Display the real-time gameplay performance HUD overlay (FPS, memory, CPU) on top of games.
+* **Security**: The overlay runs locally and shows transient system stats; it does not record your screen or log touch inputs.
 
 ### B. Foreground Service (Performance HUD)
-* **Purpose**: Runs the draggable performance HUD as a foreground service (type `specialUse`) so it can keep showing live game stats while you play.
-* **Security**: The service runs only while the HUD is active, is user-triggered, and can be stopped by the user at any time.
+
+* **Purpose**: Runs the draggable performance HUD as a foreground service (type `specialUse`) so live game stats can remain visible while you play.
+* **Security**: User-triggered; stoppable at any time; runs only while the HUD is active.
 
 ### C. Superuser (Root Access - Optional)
-* **Purpose**: Used to run shell commands (like `am force-stop`) directly to freeze background apps.
-* **Security**: Root commands are run locally via the system `su` binary and are strictly limited to process management.
+
+* **Purpose**: Run shell commands (such as `am force-stop`) locally to freeze background apps when you choose Root.
+* **Security**: Commands run on-device via `su` and are limited to process management you initiate.
 
 ### D. Shizuku API (Optional - Recommended)
-* **Purpose**: Accesses local Android framework APIs to securely manage process states and execute deep freezing without requiring root credentials.
-* **Security**: Communication occurs locally via binder transactions with the Shizuku system manager.
+
+* **Purpose**: Access local Android framework APIs to freeze background processes without full root credentials.
+* **Security**: Communication is local binder traffic with the Shizuku manager you install and authorize separately.
 
 ### E. Package Visibility (Installed Apps List)
-* **Purpose**: Used to list installed apps for the games library picker and to determine which background apps are safe freeze targets.
-* **Security**: The list of installed packages is used locally only and never leaves your device.
+
+* **Purpose**: List installed apps for the games library picker and to choose freeze targets.
+* **Security**: Package lists are used only on-device and never leave the device.
 
 ### F. Kill Background Processes
-* **Purpose**: Requested for best-effort cache clearing on devices without elevation; it is not used to claim a working deep-freeze on unprivileged devices.
 
-## 3. No Accessibility Service
+* **Purpose**: Best-effort cache clearing on devices without elevation; not used to claim a working deep-freeze without Shizuku or Root.
 
-ApexCore does **not** declare, request, or use an Accessibility service in this release. The accessibility-based freeze path that appeared in earlier development versions is **not included** — it is not implemented, not advertised, and cannot be enabled.
+## 4. No Accessibility Service
 
-## 4. Open Source Verification
+ApexCore does **not** declare, request, or use an Accessibility service in this release. Accessibility-based freeze from earlier development is **not** included — not implemented as a product path, not advertised, and cannot be enabled.
 
-As an open-source project, our code is fully auditable. You can review our implementation, check our permission handlers, and build the app from source to verify that no tracking or telemetry code exists.
+## 5. Security Practices
 
-## 5. Changes to This Policy
+* Freeze and memory tools run only after **you** start them (no silent background freeze of other apps).
+* No sale of personal data (we do not collect personal data for sale or sharing).
+* Prefer reviewing the open-source code and building from source if you want independent verification.
 
-We may update this Privacy Policy from time to time. Any changes will be posted within this document and committed directly to the project repository.
+## 6. Open Source Verification
 
-## 6. Contact Information
+As an open-source project, the code is auditable. You can review permission usage, freeze backends, and storage handling in the repository and build the app yourself.
 
-If you have any questions or concerns about this policy or the application, please reach out via our GitHub repository.
+## 7. Changes to This Policy
+
+We may update this Privacy Policy from time to time. Changes are posted in this document in the project repository (and at the same public URL linked from the app and Play listing when published).
+
+## 8. Contact
+
+Questions about this policy or the app (developer: **zenithblue**):
+
+* **GitHub Issues:** [https://github.com/abhay-byte/apexcore/issues](https://github.com/abhay-byte/apexcore/issues)
+* **Repository:** [https://github.com/abhay-byte/apexcore](https://github.com/abhay-byte/apexcore)
