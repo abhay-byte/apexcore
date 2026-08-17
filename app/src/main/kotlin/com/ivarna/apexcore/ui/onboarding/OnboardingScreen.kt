@@ -380,54 +380,15 @@ private fun WelcomePage() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Ambient Glowing Container with Big Center Logo
-        Box(
-            modifier = Modifier.size(260.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            // Radial Glow
-            Box(
-                modifier = Modifier
-                    .size(240.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                scheme.primary.copy(alpha = 0.35f),
-                                scheme.primaryContainer.copy(alpha = 0.12f),
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
+        // Clean standalone ApexCore Logo (no surrounding effects/borders)
+        Image(
+            painter = painterResource(id = R.drawable.ic_logo_no_bg),
+            contentDescription = "ApexCore Logo",
+            modifier = Modifier
+                .size(180.dp)
+        )
 
-            // Centered Glass Plate with Logo
-            Box(
-                modifier = Modifier
-                    .size(160.dp)
-                    .clip(RoundedCornerShape(44.dp))
-                    .background(scheme.surfaceContainerLow.copy(alpha = 0.95f))
-                    .border(
-                        2.dp,
-                        Brush.verticalGradient(
-                            listOf(
-                                scheme.primary.copy(alpha = 0.7f),
-                                scheme.outlineVariant.copy(alpha = 0.3f)
-                            )
-                        ),
-                        RoundedCornerShape(44.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_app_logo),
-                    contentDescription = "ApexCore Logo",
-                    modifier = Modifier.size(110.dp)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Title
         Text(

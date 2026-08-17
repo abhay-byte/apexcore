@@ -96,19 +96,11 @@ fun SplashScreen(
                 .scale(logoScale)
                 .alpha(contentAlpha)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(112.dp)
-                    .clip(CircleShape)
-                    .background(scheme.surfaceContainerLow.copy(alpha = 0.92f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_app_logo),
-                    contentDescription = "ApexCore Logo",
-                    modifier = Modifier.size(80.dp)
-                )
-            }
+            Image(
+                painter = painterResource(id = R.drawable.ic_logo_no_bg),
+                contentDescription = "ApexCore Logo",
+                modifier = Modifier.size(110.dp)
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
