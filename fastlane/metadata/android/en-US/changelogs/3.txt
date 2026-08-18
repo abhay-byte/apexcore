@@ -1,0 +1,6 @@
+Real Game Optimisation Engine (v1.2):
+• 36 capability-gated tuning options across 10 categories (GPU, CPU, Memory, Display, Input, and more).
+• Hardware-safe probing: only options verified on your kernel are enabled.
+• Automatic session restore: all kernel tweaks cleanly revert when your game closes.
+• Dual watchdog ensures reliable restoration even without overlay permissions.
+• Enhanced Shizuku connection stability on Android 14–16.
