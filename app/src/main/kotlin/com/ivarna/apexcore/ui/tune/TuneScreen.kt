@@ -21,9 +21,9 @@ import androidx.compose.ui.unit.sp
 import com.ivarna.apexcore.tune.*
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenDimens
+import com.ivarna.apexcore.ui.components.zenFrostChild
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
-import dev.chrisbanes.haze.hazeChild
 
 @Composable
 fun TuneScreen(
@@ -65,7 +65,7 @@ fun TuneScreen(
                 .haze(hazeState)
                 .padding(horizontal = 16.dp),
             contentPadding = PaddingValues(
-                top = 80.dp,
+                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 64.dp,
                 bottom = ZenDimens.bottomNavClearance + 24.dp
             ),
             verticalArrangement = Arrangement.spacedBy(ZenDimens.elementGap)
@@ -165,10 +165,10 @@ fun TuneScreen(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .height(64.dp)
-                .hazeChild(hazeState)
+                .zenFrostChild(hazeState, scheme.surface)
                 .background(scheme.surface.copy(alpha = 0.85f))
-                .padding(horizontal = 8.dp),
+                .statusBarsPadding()
+                .padding(horizontal = 8.dp, vertical = 6.dp),
             contentAlignment = Alignment.CenterStart
         ) {
             Row(

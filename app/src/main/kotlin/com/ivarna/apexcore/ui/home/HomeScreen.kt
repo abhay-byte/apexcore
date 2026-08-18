@@ -250,6 +250,32 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(ZenDimens.elementGap))
 
+            val tuneManager = remember { com.ivarna.apexcore.tune.TuneManager.get(context) }
+            val capabilities by tuneManager.capabilities.collectAsState()
+            val isProbing by tuneManager.probe.isProbing.collectAsState()
+
+            LaunchedEffect(Unit) {
+                tuneManager.deleteDummyKeysIfNeeded()
+            }
+
+            val availableCount = remember(capabilities) { capabilities.values.count { it.available } }
+            val tuneSubtitle = when {
+                !isElevatedBackend -> "Elevation required to tune kernel"
+                isProbing -> "Checking this kernel…"
+                availableCount > 0 -> "$availableCount available on this kernel"
+                else -> "None on this kernel"
+            }
+
+            HomeAnimatedEntryRow(
+                title = "Game optimisation",
+                subtitle = tuneSubtitle,
+                icon = ZenIcons.Tune,
+                enabled = state != State.BOOSTING,
+                onClick = onTuneClick
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             HomeAnimatedEntryRow(
                 title = "RAM Free",
                 subtitle = "Force system reclaim",
@@ -272,33 +298,6 @@ fun HomeScreen(
 
             // Real-time Battery & CPU Thermal Telemetry Card
             DeviceThermalCard()
-
-            if (isElevatedBackend) {
-                Spacer(modifier = Modifier.height(12.dp))
-
-                val tuneManager = remember { com.ivarna.apexcore.tune.TuneManager.get(context) }
-                val capabilities by tuneManager.capabilities.collectAsState()
-                val isProbing by tuneManager.probe.isProbing.collectAsState()
-
-                LaunchedEffect(Unit) {
-                    tuneManager.deleteDummyKeysIfNeeded()
-                }
-
-                val availableCount = remember(capabilities) { capabilities.values.count { it.available } }
-                val tuneSubtitle = when {
-                    isProbing -> "Checking this kernel…"
-                    availableCount > 0 -> "$availableCount available on this kernel"
-                    else -> "None on this kernel"
-                }
-
-                HomeAnimatedEntryRow(
-                    title = "Game optimisation",
-                    subtitle = tuneSubtitle,
-                    icon = ZenIcons.Tune,
-                    enabled = state != State.BOOSTING,
-                    onClick = onTuneClick
-                )
-            }
 
             // Clearance for floating bottom-nav island (true overlay)
             Spacer(modifier = Modifier.height(ZenDimens.bottomNavClearance))

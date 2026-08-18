@@ -12,6 +12,7 @@ class FakeTuneShell : TuneShell {
     var sleepOnReadMs: Long = 0L
     var sleepOnWriteMs: Long = 0L
 
+    @Synchronized
     override fun read(path: String, timeoutMs: Long): String? {
         if (sleepOnReadMs > 0) {
             Thread.sleep(sleepOnReadMs)
@@ -23,6 +24,7 @@ class FakeTuneShell : TuneShell {
         }
     }
 
+    @Synchronized
     override fun write(path: String, value: String, tier: PrivilegeTier, timeoutMs: Long): WriteResult {
         if (sleepOnWriteMs > 0) {
             Thread.sleep(sleepOnWriteMs)
@@ -49,6 +51,7 @@ class FakeTuneShell : TuneShell {
         )
     }
 
+    @Synchronized
     override fun exists(path: String, timeoutMs: Long): Boolean {
         return existingPaths.contains(path) || pathValues.containsKey(path)
     }
