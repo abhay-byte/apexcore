@@ -45,6 +45,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,7 +89,8 @@ fun HomeScreen(
     onBoostClick: () -> Unit,
     onSetupClick: () -> Unit,
     onRamFreeClick: () -> Unit,
-    onPinClick: () -> Unit
+    onPinClick: () -> Unit,
+    onTuneClick: () -> Unit
 ) {
     val context = LocalContext.current
     var memStats by remember { mutableStateOf(getSystemMemStats(context)) }
@@ -272,130 +274,34 @@ fun HomeScreen(
             DeviceThermalCard()
 
             if (isElevatedBackend) {
-                Spacer(modifier = Modifier.height(ZenDimens.elementGap))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                // Game-tuning toggles — shown only when Shizuku or Root is active
-                GameOptimisationToggles(
-                    enabled = state != State.BOOSTING
+                val tuneManager = remember { com.ivarna.apexcore.tune.TuneManager.get(context) }
+                val capabilities by tuneManager.capabilities.collectAsState()
+                val isProbing by tuneManager.probe.isProbing.collectAsState()
+
+                LaunchedEffect(Unit) {
+                    tuneManager.deleteDummyKeysIfNeeded()
+                }
+
+                val availableCount = remember(capabilities) { capabilities.values.count { it.available } }
+                val tuneSubtitle = when {
+                    isProbing -> "Checking this kernel…"
+                    availableCount > 0 -> "$availableCount available on this kernel"
+                    else -> "None on this kernel"
+                }
+
+                HomeAnimatedEntryRow(
+                    title = "Game optimisation",
+                    subtitle = tuneSubtitle,
+                    icon = ZenIcons.Tune,
+                    enabled = state != State.BOOSTING,
+                    onClick = onTuneClick
                 )
             }
 
             // Clearance for floating bottom-nav island (true overlay)
             Spacer(modifier = Modifier.height(ZenDimens.bottomNavClearance))
-        }
-    }
-}
-
-private const val GAME_OPT_PREFS = "apexcore"
-private const val KEY_GPU_RENDER = "dummy_opt_gpu_render"
-private const val KEY_CPU_THREAD = "dummy_opt_cpu_thread"
-private const val KEY_OPENGL = "dummy_opt_opengl"
-private const val KEY_KERNEL = "dummy_opt_kernel"
-
-/**
- * Home-only dummy game optimisation toggles.
- * Interactive only when Shizuku or Root is the active elevated backend.
- * Values persist in prefs for UI continuity; no system side effects yet.
- */
-@Composable
-private fun GameOptimisationToggles(
-    enabled: Boolean
-) {
-    val context = LocalContext.current
-    val scheme = MaterialTheme.colorScheme
-    val prefs = remember {
-        context.getSharedPreferences(GAME_OPT_PREFS, Context.MODE_PRIVATE)
-    }
-
-    var gpuRender by remember {
-        mutableStateOf(prefs.getBoolean(KEY_GPU_RENDER, false))
-    }
-    var cpuThread by remember {
-        mutableStateOf(prefs.getBoolean(KEY_CPU_THREAD, false))
-    }
-    var openGl by remember {
-        mutableStateOf(prefs.getBoolean(KEY_OPENGL, false))
-    }
-    var kernel by remember {
-        mutableStateOf(prefs.getBoolean(KEY_KERNEL, false))
-    }
-
-    fun persist(key: String, value: Boolean) {
-        prefs.edit().putBoolean(key, value).apply()
-    }
-
-    val contentAlpha = if (enabled) 1f else 0.5f
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "GAME OPTIMISATION",
-            color = scheme.onSurfaceVariant.copy(alpha = contentAlpha),
-            fontSize = 11.sp,
-            fontFamily = PlusJakartaSans,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 4.dp, bottom = 10.dp)
-        )
-
-        val shape = RoundedCornerShape(ZenDimens.roundedLg)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .zenGlassBackground(
-                    shape = shape,
-                    fill = scheme.surfaceContainerLow.copy(alpha = 0.90f),
-                    borderColor = scheme.outlineVariant.copy(alpha = 0.42f)
-                )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                DummyOptToggleRow(
-                    title = "GPU render optimisation",
-                    subtitle = "Prioritise frame composition for games",
-                    checked = gpuRender,
-                    enabled = enabled,
-                    onCheckedChange = {
-                        gpuRender = it
-                        persist(KEY_GPU_RENDER, it)
-                    }
-                )
-                DummyOptToggleRow(
-                    title = "CPU game threading priority",
-                    subtitle = "Boost game-thread scheduling",
-                    checked = cpuThread,
-                    enabled = enabled,
-                    onCheckedChange = {
-                        cpuThread = it
-                        persist(KEY_CPU_THREAD, it)
-                    }
-                )
-                DummyOptToggleRow(
-                    title = "OpenGL GPU optimisation",
-                    subtitle = "Tune GL driver hints for games",
-                    checked = openGl,
-                    enabled = enabled,
-                    onCheckedChange = {
-                        openGl = it
-                        persist(KEY_OPENGL, it)
-                    }
-                )
-                DummyOptToggleRow(
-                    title = "Kernel game optimisation",
-                    subtitle = "Kernel-level game performance hints",
-                    checked = kernel,
-                    enabled = enabled,
-                    onCheckedChange = {
-                        kernel = it
-                        persist(KEY_KERNEL, it)
-                    }
-                )
-            }
         }
     }
 }
@@ -485,55 +391,6 @@ private fun HomeAnimatedEntryRow(
     }
 }
 
-@Composable
-private fun DummyOptToggleRow(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    enabled: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    val scheme = MaterialTheme.colorScheme
-    val contentAlpha = if (enabled) 1f else 0.55f
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-            Text(
-                text = title,
-                color = scheme.onSurface.copy(alpha = contentAlpha),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = subtitle,
-                color = scheme.onSurfaceVariant.copy(alpha = contentAlpha),
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            enabled = enabled,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = scheme.onPrimary,
-                checkedTrackColor = scheme.primary,
-                uncheckedThumbColor = scheme.outline,
-                uncheckedTrackColor = scheme.surfaceContainerHighest,
-                disabledCheckedThumbColor = scheme.onPrimary.copy(alpha = 0.7f),
-                disabledCheckedTrackColor = scheme.primary.copy(alpha = 0.35f),
-                disabledUncheckedThumbColor = scheme.outline.copy(alpha = 0.5f),
-                disabledUncheckedTrackColor = scheme.surfaceContainerHighest.copy(alpha = 0.5f)
-            )
-        )
-    }
-}
 
 /**
  * Shown when no elevated backend (Shizuku / Root) is ready.

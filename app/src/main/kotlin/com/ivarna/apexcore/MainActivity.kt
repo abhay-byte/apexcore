@@ -36,6 +36,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         FreezeFramework.init(this)
+        try {
+            rikka.shizuku.Shizuku.addBinderReceivedListenerSticky {
+                FreezeFramework.resolver()?.invalidate()
+                lifecycleScope.launch {
+                    try {
+                        FreezeFramework.detect()
+                    } catch (_: Throwable) {}
+                }
+            }
+        } catch (_: Throwable) {}
         WindowCompat.setDecorFitsSystemWindows(window, false)
         setContent {
             var appStage by remember { mutableStateOf(AppStage.SPLASH) }

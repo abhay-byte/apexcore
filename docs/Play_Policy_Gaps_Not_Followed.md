@@ -18,7 +18,7 @@ Items that already pass (no restricted content, no ads/billing, targetSdk 36, 64
 
 | Priority | Count | Theme |
 |----------|------:|-------|
-| **P0 — Ship-blocking (code)** | 1 | Deceptive UI: dummy “Game Optimisation” toggles |
+| **P0 — Ship-blocking (code)** | 0 | **RESOLVED via T12** (Replaced dummy toggles with 36 real, capability-gated, session-scoped reversible sysfs/settings options) |
 | **P1 — Listing honesty** | 2 | Stale store screenshots; thin listing copy |
 | **P1 — Privacy policy quality** | 3 | Developer identity, contact, retention language |
 | **P2 — Play Console (not done)** | 10+ | Data safety, IARC, QAP, FGS, Financial Features, etc. |
@@ -31,35 +31,11 @@ Items that already pass (no restricted content, no ads/billing, targetSdk 36, 64
 
 ### 1. §5.1 Deceptive Behavior — Misleading claims (dummy Game Optimisation)
 
-**Guide rule:** No false functionality claims; no hidden/dormant features that misrepresent what the app does; app must behave as claimed for reviewers and users.
-
-**What the app does today**
-
-In `app/src/main/kotlin/com/ivarna/apexcore/ui/home/HomeScreen.kt`, `GameOptimisationToggles` presents four switches:
-
-| UI label | Subtitle (as shown) | Actual behavior |
-|----------|---------------------|-----------------|
-| GPU render optimisation | Prioritise frame composition for games | Prefs only (`dummy_opt_*`) — **no system effect** |
-| CPU game threading priority | Boost game-thread scheduling | Prefs only — **no system effect** |
-| OpenGL GPU optimisation | Tune GL driver hints for games | Prefs only — **no system effect** |
-| Kernel game optimisation | Kernel-level game performance hints | Prefs only — **no system effect** |
-
-Code comment admits this: *“Dummy game optimisation toggles… no system side effects yet.”*  
-Keys: `dummy_opt_gpu_render`, `dummy_opt_cpu_thread`, `dummy_opt_opengl`, `dummy_opt_kernel`.
-
-**Why it fails**
-
-- Users (and Play reviewers) reasonably believe toggles change GPU/CPU/kernel behavior.
-- Elevating unlock (“Connect Shizuku or Root to unlock”) implies the toggles become **real** once elevated — they do not.
-- This maps directly to **Misleading Claims** and **Behavior Transparency** under Deceptive Behavior.
-
-**Required fix (pick one)**
-
-1. **Remove** the section entirely until features exist, **or**
-2. Relabel as non-functional (e.g. “Coming soon — not applied yet”) with no working switch affordance, **or**
-3. Implement real, user-disclosed, reversible effects and document them in privacy + listing.
-
-**Status:** ❌ Does not follow
+**Status:** ✅ **RESOLVED (T12)**
+- Removed deceptive dummy toggles (`dummy_opt_*`) and implemented 36 real, capability-probed, write-verified sysfs/settings options across 10 categories.
+- Tuning is strictly session-scoped (applied on game launch, restored on exit).
+- Does not disable thermal protection or perform dangerous operations.
+- Full honest UI displaying available kernel nodes or truthful disabled explanations.
 
 ---
 

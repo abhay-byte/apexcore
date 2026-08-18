@@ -14,11 +14,19 @@ class ShizukuFreezeBackend : FreezeBackend {
 
     override suspend fun isReady(): Boolean = withContext(Dispatchers.IO) {
         try {
-            if (!Shizuku.pingBinder()) return@withContext false
+            val ping = Shizuku.pingBinder()
+            Log.i(TAG, "Shizuku.isReady check: ping=$ping, binder=${Shizuku.getBinder()}")
+            if (!ping) {
+                kotlinx.coroutines.delay(200)
+                val ping2 = Shizuku.pingBinder()
+                Log.i(TAG, "Shizuku.isReady retry: ping2=$ping2")
+                if (!ping2) return@withContext false
+            }
             val check = Shizuku.checkSelfPermission()
+            Log.i(TAG, "Shizuku.isReady: checkSelfPermission=$check (granted=${check == PackageManager.PERMISSION_GRANTED})")
             check == PackageManager.PERMISSION_GRANTED
         } catch (t: Throwable) {
-            Log.d(TAG, "Shizuku not ready: ${t.message}")
+            Log.e(TAG, "Shizuku not ready exception: ${t.message}", t)
             false
         }
     }

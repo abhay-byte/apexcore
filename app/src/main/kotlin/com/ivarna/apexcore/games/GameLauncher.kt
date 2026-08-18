@@ -34,8 +34,29 @@ object GameLauncher {
             // force-stopped the game right after launch (and could kill ApexCore).
             context.startActivity(intent)
             Log.i(TAG, "Launched $gamePkg after freezing ${result.killed} apps")
-            // Start game overlay (silently if overlay permission not granted)
-            try { GameOverlayService.start(context, gamePkg) } catch (_: Throwable) {}
+
+            // Determine overlay vs watchdog restore ownership
+            val overlayStarted = try {
+                GameOverlayService.start(context, gamePkg)
+            } catch (_: Throwable) {
+                false
+            }
+
+            val tuneManager = com.ivarna.apexcore.tune.TuneManager.get(context)
+            if (overlayStarted) {
+                tuneManager.setOwner(com.ivarna.apexcore.tune.TuneSessionOwner.OVERLAY)
+            } else {
+                tuneManager.setOwner(com.ivarna.apexcore.tune.TuneSessionOwner.WATCHDOG)
+                com.ivarna.apexcore.tune.TuneSessionWatchdog.arm(context, gamePkg)
+            }
+
+            // Apply session tune on IO (1500ms normal / 2500ms if >4 intents enabled)
+            try {
+                tuneManager.applyForSession(gamePkg)
+            } catch (t: Throwable) {
+                Log.w(TAG, "Tune apply failed for $gamePkg: ${t.message}")
+            }
+
             return@withContext LaunchResult(true, null, gamePkg, result)
         } catch (t: Throwable) {
             Log.e(TAG, "Launch failed for $gamePkg: ${t.message}")

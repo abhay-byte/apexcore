@@ -17,6 +17,12 @@ data class BoostResult(
     val afterLoadAvg: Float
 )
 
+/**
+ * Legacy RAM/load kick using standard ActivityManager.killBackgroundProcesses and /proc/meminfo.
+ *
+ * NOTE: This is NOT kernel tuning and NOT part of the session-scoped Game Optimisation system.
+ * For kernel, sysfs, and game-session tuning, see [com.ivarna.apexcore.tune.TuneManager].
+ */
 object BoostManager {
 
     private const val TAG = "ApexCore"

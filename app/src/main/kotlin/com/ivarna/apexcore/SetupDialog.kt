@@ -407,8 +407,14 @@ fun OptionCard(
 }
 
 private fun openShizuku(context: Context) {
+    if (try { rikka.shizuku.Shizuku.pingBinder() } catch (_: Throwable) { false }) {
+        try {
+            rikka.shizuku.Shizuku.requestPermission(101)
+            return
+        } catch (_: Throwable) {}
+    }
     val pm = context.packageManager
-    val candidates = listOf("moe.shizuku.manager", "moe.shizuku.api")
+    val candidates = listOf("moe.shizuku.privileged.api", "moe.shizuku.manager", "moe.shizuku.api")
     for (pkg in candidates) {
         val intent = pm.getLeanbackLaunchIntentForPackage(pkg) ?: pm.getLaunchIntentForPackage(pkg)
         if (intent != null) {

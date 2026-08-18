@@ -59,6 +59,7 @@ fun MainScreen(
     var showOnboardingReplay by remember { mutableStateOf(false) }
     var lastResult by remember { mutableStateOf<FreezeResult?>(null) }
     var showRamFree by remember { mutableStateOf(false) }
+    var showTuneScreen by remember { mutableStateOf(false) }
     var globalBackendPref by remember {
         mutableStateOf(
             context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
@@ -92,6 +93,10 @@ fun MainScreen(
         val backend = FreezeFramework.detect()
         detectionDone = true
         backendName = backend?.name ?: "SETUP REQUIRED"
+
+        // Initialize TuneManager so recovery runs if launched from Home
+        com.ivarna.apexcore.tune.TuneManager.get(context)
+
         val setupPrefs = context.getSharedPreferences(SetupDialogHelper.PREFS, Context.MODE_PRIVATE)
         if (!setupPrefs.getBoolean(SetupDialogHelper.KEY_SHOWN, false) && backend == null) {
             showSetupDialog = true
@@ -103,9 +108,10 @@ fun MainScreen(
         // Elevated→null mid-session (revoke / grant loss) must flip the chip back to
         // setup; before the first probe settles, keep "Detecting…" (no flash).
         val backend = activeBackend
-        when {
-            backend != null -> backendName = backend.name
-            detectionDone -> backendName = "SETUP REQUIRED"
+        if (backend != null) {
+            backendName = backend.name
+        } else if (detectionDone) {
+            backendName = "SETUP REQUIRED"
         }
     }
 
@@ -127,6 +133,11 @@ fun MainScreen(
             if (showRamFree) {
                 RamFreeScreen(
                     onBack = { showRamFree = false },
+                    modifier = Modifier.weight(1f)
+                )
+            } else if (showTuneScreen) {
+                com.ivarna.apexcore.ui.tune.TuneScreen(
+                    onBack = { showTuneScreen = false },
                     modifier = Modifier.weight(1f)
                 )
             } else {
@@ -185,7 +196,8 @@ fun MainScreen(
                             },
                             onSetupClick = { showSetupDialog = true },
                             onRamFreeClick = { showRamFree = true },
-                            onPinClick = { showPinPicker = true }
+                            onPinClick = { showPinPicker = true },
+                            onTuneClick = { showTuneScreen = true }
                         )
                         Tab.GAMES -> GamesScreen(gameManager = gameManager)
                         Tab.OVERLAY -> OverlayScreen()
@@ -206,7 +218,7 @@ fun MainScreen(
 
         // Frosted top bar + status bar — absolute top, full-bleed haze strip
         AnimatedVisibility(
-            visible = !showRamFree,
+            visible = !showRamFree && !showTuneScreen,
             modifier = Modifier.align(Alignment.TopCenter),
             enter = fadeIn() + slideInVertically { -it / 2 },
             exit = fadeOut() + slideOutVertically { -it / 2 }
@@ -246,7 +258,7 @@ fun MainScreen(
 
         // Frosted bottom island — overlays content; screens reserve bottomNavClearance
         AnimatedVisibility(
-            visible = !showRamFree,
+            visible = !showRamFree && !showTuneScreen,
             modifier = Modifier.align(Alignment.BottomCenter),
             enter = fadeIn() + slideInVertically { it / 2 },
             exit = fadeOut() + slideOutVertically { it / 2 }

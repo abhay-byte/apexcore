@@ -10,6 +10,7 @@ import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
 import android.os.SystemClock
+import android.util.Log
 import android.util.TypedValue
 import android.view.Choreographer
 import android.view.Gravity
@@ -107,6 +108,7 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
 
     override fun onCreate() {
         super.onCreate()
+        isRunning = true
         savedStateRegistryController.performRestore(null)
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
 
@@ -118,6 +120,7 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        exitWatcher?.cancel()
         gamePkg = intent?.getStringExtra(EXTRA_PKG)
         startForeground(NOTIF_ID, buildNotification())
 
@@ -125,6 +128,24 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
             wm.addView(overlayView, createLayoutParams())
         }
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_START)
+
+        val pkg = gamePkg
+        val isRealGame = !pkg.isNullOrBlank() && pkg != packageName
+        val tuneManager = com.ivarna.apexcore.tune.TuneManager.get(applicationContext)
+
+        scope.launch(Dispatchers.IO) {
+            if (FreezeFramework.activeBackend.value == null) {
+                try { FreezeFramework.detect() } catch (_: Throwable) {}
+            }
+            if (isRealGame) {
+                tuneManager.setOwner(com.ivarna.apexcore.tune.TuneSessionOwner.OVERLAY)
+                try {
+                    tuneManager.applyForSession(pkg)
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Overlay apply tune failed: ${t.message}")
+                }
+            }
+        }
 
         fpsStack.repository.setTargetPackage(gamePkg)
         fpsStack.repository.ensureDaemonStarted()
@@ -150,6 +171,17 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
             if (overlayView.parent != null) wm.removeView(overlayView)
         } catch (_: Throwable) {}
         store.clear()
+        val tuneManager = com.ivarna.apexcore.tune.TuneManager.get(applicationContext)
+        if (tuneManager.sessionActive.value && tuneManager.owner == com.ivarna.apexcore.tune.TuneSessionOwner.OVERLAY) {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    tuneManager.restoreSession()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "onDestroy restore failed: ${t.message}")
+                }
+            }
+        }
+        isRunning = false
         super.onDestroy()
     }
 
@@ -279,11 +311,24 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
     private fun startExitWatcher() {
         val pkg = gamePkg ?: return
         if (pkg == packageName) return // Don't self-terminate on test overlay
+        exitWatcher?.cancel()
         exitWatcher = scope.launch {
             while (isActive) {
                 delay(5000L)
                 val running = isPackageOnTop(pkg)
                 if (!running) break
+            }
+            val tuneManager = com.ivarna.apexcore.tune.TuneManager.get(applicationContext)
+            if (tuneManager.owner == com.ivarna.apexcore.tune.TuneSessionOwner.OVERLAY) {
+                withContext(Dispatchers.IO) {
+                    withTimeoutOrNull(1500L) {
+                        try {
+                            tuneManager.restoreSession()
+                        } catch (t: Throwable) {
+                            Log.w(TAG, "Restore on overlay exit failed: ${t.message}")
+                        }
+                    }
+                }
             }
             shutdown()
         }
@@ -544,15 +589,23 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
         private const val HISTORY_POINTS = 48
         const val EXTRA_PKG = "game_pkg"
 
-        fun start(context: Context, pkg: String) {
-            if (!android.provider.Settings.canDrawOverlays(context)) return
-            val intent = Intent(context, GameOverlayService::class.java).apply {
-                putExtra(EXTRA_PKG, pkg)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+        @Volatile
+        var isRunning: Boolean = false
+
+        fun start(context: Context, pkg: String): Boolean {
+            if (!android.provider.Settings.canDrawOverlays(context)) return false
+            return try {
+                val intent = Intent(context, GameOverlayService::class.java).apply {
+                    putExtra(EXTRA_PKG, pkg)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+                true
+            } catch (_: Throwable) {
+                false
             }
         }
 

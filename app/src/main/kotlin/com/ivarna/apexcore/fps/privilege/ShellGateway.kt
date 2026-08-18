@@ -4,10 +4,20 @@ import android.content.pm.PackageManager
 import android.util.Log
 import com.ivarna.apexcore.fps.util.ShellExecutor
 import com.ivarna.apexcore.fps.util.ShellResult
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import rikka.shizuku.Shizuku
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
+
+data class WriteResult(
+    val ok: Boolean,
+    val verified: Boolean,
+    val readback: String?,
+    val tier: PrivilegeTier?,
+    val error: String? = null
+)
 
 /**
  * Tier-aware shell gateway (ported from factualstats).
@@ -24,12 +34,14 @@ class ShellGateway(
     private val shellExecutor: ShellExecutor,
     private val store: PrivilegeModeStore
 ) {
+    val mutex = Mutex()
+
     fun canRoot(): Boolean = shellExecutor.isSuAvailable()
 
     fun canShizuku(): Boolean {
         return try {
-            if (!Shizuku.pingBinder()) return false
-            Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+            if (!rikka.shizuku.Shizuku.pingBinder()) return false
+            rikka.shizuku.Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
         } catch (_: Throwable) {
             false
         }
@@ -39,22 +51,22 @@ class ShellGateway(
 
     fun currentPolicy(): PrivilegePolicy = PrivilegePolicy(store.mode.value)
 
-    fun execute(command: String, tier: PrivilegeTier): ShellResult {
+    fun execute(command: String, tier: PrivilegeTier, timeoutMs: Long = 8_000L): ShellResult {
         return when (tier) {
             PrivilegeTier.ROOT -> {
                 if (!canRoot()) {
                     return ShellResult("", exitCode = -1).also { markBlocked(it, "no_su") }
                 }
-                shellExecutor.execute(command, useRoot = true)
+                shellExecutor.execute(command, useRoot = true, timeoutMs = timeoutMs)
             }
             PrivilegeTier.SHIZUKU -> {
                 if (!canShizuku()) {
                     return ShellResult("", exitCode = -1).also { markBlocked(it, "no_shizuku") }
                 }
-                executeViaShizuku(command)
+                executeViaShizuku(command, timeoutMs = timeoutMs)
             }
             PrivilegeTier.STANDARD -> {
-                shellExecutor.execute(command, useRoot = false)
+                shellExecutor.execute(command, useRoot = false, timeoutMs = timeoutMs)
             }
         }
     }
@@ -104,16 +116,124 @@ class ShellGateway(
         defaultChain: List<PrivilegeTier> = PrivilegePolicy.DEFAULT_CHAIN
     ): String? = readPath(path, defaultChain).first
 
+    fun readPathDirect(path: String, tier: PrivilegeTier, timeoutMs: Long = 120L): String? {
+        if (tier == PrivilegeTier.STANDARD) {
+            return try {
+                val f = File(path)
+                if (f.canRead()) f.readText().trim().takeIf { it.isNotEmpty() } else null
+            } catch (_: Throwable) {
+                null
+            }
+        }
+        val result = execute("cat \"$path\" 2>/dev/null", tier, timeoutMs)
+        return if (result.isSuccess && result.output.isNotBlank()) {
+            result.output.trim()
+        } else {
+            null
+        }
+    }
+
+    fun exists(path: String, tier: PrivilegeTier, timeoutMs: Long = 120L): Boolean {
+        if (tier == PrivilegeTier.STANDARD) {
+            return try {
+                File(path).exists()
+            } catch (_: Throwable) {
+                false
+            }
+        }
+        val res = execute("[ -e \"$path\" ] && echo 1 || echo 0", tier, timeoutMs)
+        return res.isSuccess && res.output.trim() == "1"
+    }
+
+    fun writePath(path: String, value: String, tier: PrivilegeTier, timeoutMs: Long = 400L): WriteResult {
+        if (!PATH_REGEX.matches(path)) {
+            return WriteResult(
+                ok = false,
+                verified = false,
+                readback = null,
+                tier = tier,
+                error = "Path rejected by security policy"
+            )
+        }
+        if (!VALUE_REGEX.matches(value)) {
+            return WriteResult(
+                ok = false,
+                verified = false,
+                readback = null,
+                tier = tier,
+                error = "Value rejected by security policy"
+            )
+        }
+
+        return when (tier) {
+            PrivilegeTier.STANDARD -> {
+                WriteResult(
+                    ok = false,
+                    verified = false,
+                    readback = null,
+                    tier = tier,
+                    error = "Standard tier cannot write kernel paths"
+                )
+            }
+            PrivilegeTier.ROOT -> {
+                val cmd = "mode=$(stat -c '%a' '$path' 2>/dev/null || echo \"\"); " +
+                        "chmod 644 '$path' 2>/dev/null; " +
+                        "printf '%s\\n' '$value' > '$path'; " +
+                        "rc=\$?; " +
+                        "readback=\$(cat '$path' 2>/dev/null | tr -d '\\n'); " +
+                        "[ -n \"\$mode\" ] && chmod \"\$mode\" '$path' 2>/dev/null; " +
+                        "printf 'RC=%s READBACK=%s\\n' \"\$rc\" \"\$readback\""
+                val res = execute(cmd, tier, timeoutMs)
+                parseWriteOutput(res, value, tier)
+            }
+            PrivilegeTier.SHIZUKU -> {
+                val cmd = "printf '%s\\n' '$value' > '$path'; " +
+                        "rc=\$?; " +
+                        "readback=\$(cat '$path' 2>/dev/null | tr -d '\\n'); " +
+                        "printf 'RC=%s READBACK=%s\\n' \"\$rc\" \"\$readback\""
+                val res = execute(cmd, tier, timeoutMs)
+                parseWriteOutput(res, value, tier)
+            }
+        }
+    }
+
+    private fun parseWriteOutput(res: ShellResult, expectedValue: String, tier: PrivilegeTier): WriteResult {
+        if (!res.isSuccess) {
+            return WriteResult(
+                ok = false,
+                verified = false,
+                readback = null,
+                tier = tier,
+                error = res.output.ifBlank { "Command failed with code ${res.exitCode}" }
+            )
+        }
+        val out = res.output.trim()
+        val rcMatch = Regex("""RC=(\d+)""").find(out)
+        val rc = rcMatch?.groupValues?.get(1)?.toIntOrNull() ?: -1
+        val readbackMatch = Regex("""READBACK=(.*)""").find(out)
+        val readback = readbackMatch?.groupValues?.get(1)?.trim()
+
+        val ok = (rc == 0)
+        val verified = ok && (readback == expectedValue || (readback != null && readback.contains(expectedValue)))
+        return WriteResult(
+            ok = ok,
+            verified = verified,
+            readback = readback,
+            tier = tier,
+            error = if (!ok) "Exit code $rc" else null
+        )
+    }
+
     fun clearCache() {}
 
-    private fun executeViaShizuku(command: String): ShellResult {
+    private fun executeViaShizuku(command: String, timeoutMs: Long = 8_000L): ShellResult {
         return try {
             val proc = newShizukuProcess(arrayOf("sh", "-c", command))
                 ?: return ShellResult("error: newProcess=null", -1)
             val output = BufferedReader(InputStreamReader(proc.inputStream))
                 .readText()
                 .trim()
-            val exit = waitExit(proc, 8000L) ?: -1
+            val exit = waitExit(proc, timeoutMs) ?: -1
             ShellResult(output, exit)
         } catch (e: Exception) {
             Log.w(TAG, "Shizuku shell failed: ${e.message}")
@@ -167,7 +287,7 @@ class ShellGateway(
             } catch (_: IllegalThreadStateException) {
             }
             try {
-                Thread.sleep(40)
+                Thread.sleep(20)
             } catch (_: InterruptedException) {
                 return null
             }
@@ -181,6 +301,8 @@ class ShellGateway(
 
     companion object {
         private const val TAG = "ApexCore.ShellGateway"
+        private val PATH_REGEX = Regex("""^/(sys|dev|proc)/[A-Za-z0-9/_.:=-]+$""")
+        private val VALUE_REGEX = Regex("""^[A-Za-z0-9_.:-]+$""")
         private val blockedReasons = mutableMapOf<ShellResult, String>()
 
         internal fun markBlocked(result: ShellResult, reason: String) {
@@ -190,3 +312,4 @@ class ShellGateway(
         fun blockReason(result: ShellResult): String? = blockedReasons[result]
     }
 }
+

@@ -25,4 +25,6 @@ object ZenIcons {
         @Composable get() = ImageVector.vectorResource(R.drawable.ic_push_pin)
     val CleanHands: ImageVector
         @Composable get() = ImageVector.vectorResource(R.drawable.ic_clean_hands)
+    val Tune: ImageVector
+        @Composable get() = ImageVector.vectorResource(R.drawable.ic_tune)
 }
