@@ -34,5 +34,14 @@ class TuneEmptyCategoryHiddenTest {
         val cpuSpecs = TuneSpecs.byCategory[TuneCategory.CPU].orEmpty()
         val cpuSupported = cpuSpecs.count { caps[it.id]?.available == true }
         assertEquals(0, cpuSupported)
+
+        // Supported categories appear first at the top
+        val sortedCategories = TuneCategory.values().sortedWith(
+            compareByDescending<TuneCategory> { cat ->
+                val specs = TuneSpecs.byCategory[cat].orEmpty()
+                specs.count { caps[it.id]?.available == true }
+            }.thenBy { it.ordinal }
+        )
+        assertEquals(TuneCategory.GPU, sortedCategories.first())
     }
 }

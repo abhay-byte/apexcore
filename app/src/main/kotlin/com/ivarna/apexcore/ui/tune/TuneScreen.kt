@@ -46,7 +46,14 @@ fun TuneScreen(
     val scheme = MaterialTheme.colorScheme
     val hazeState = remember { HazeState() }
 
-    val allCategories = remember { TuneCategory.values().toList() }
+    val sortedCategories = remember(capabilities) {
+        TuneCategory.values().sortedWith(
+            compareByDescending<TuneCategory> { cat ->
+                val specs = TuneSpecs.byCategory[cat].orEmpty()
+                specs.count { capabilities[it.id]?.available == true }
+            }.thenBy { it.ordinal }
+        )
+    }
 
     Box(
         modifier = modifier
@@ -102,7 +109,7 @@ fun TuneScreen(
                 }
             }
 
-            items(allCategories, key = { it.name }) { category ->
+            items(sortedCategories, key = { it.name }) { category ->
                 val specs = TuneSpecs.byCategory[category].orEmpty()
                 TuneCategorySection(
                     category = category,
