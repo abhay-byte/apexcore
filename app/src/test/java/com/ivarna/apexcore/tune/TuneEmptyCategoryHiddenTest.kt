@@ -6,7 +6,7 @@ import org.junit.Test
 class TuneEmptyCategoryHiddenTest {
 
     @Test
-    fun testEmptyCategoryHiddenFromVisibleList() {
+    fun testAllCategoriesDisplayedWithSupportStatus() {
         val caps = mutableMapOf<TuneId, TuneCapability>()
         for (spec in TuneSpecs.all) {
             val isGpu = spec.category == TuneCategory.GPU && spec.id == TuneId.GPU_FLOOR
@@ -15,18 +15,24 @@ class TuneEmptyCategoryHiddenTest {
                 available = isGpu,
                 needsRoot = false,
                 writablePaths = if (isGpu) listOf("/sys/class/kgsl/kgsl-3d0/devfreq/min_freq") else emptyList(),
-                subtitle = "Test"
+                subtitle = if (isGpu) "Available on this kernel" else "Not supported on this kernel"
             )
         }
 
-        val visibleCategories = TuneCategory.values().filter { cat ->
-            val specs = TuneSpecs.byCategory[cat].orEmpty()
-            specs.any { spec -> caps[spec.id]?.available == true }
-        }
+        val allCategories = TuneCategory.values().toList()
+        assertEquals(10, allCategories.size)
+        assertTrue(allCategories.contains(TuneCategory.GPU))
+        assertTrue(allCategories.contains(TuneCategory.CPU))
+        assertTrue(allCategories.contains(TuneCategory.NETWORK))
 
-        assertEquals(1, visibleCategories.size)
-        assertEquals(TuneCategory.GPU, visibleCategories.first())
-        assertFalse("CPU category must be hidden if 0 options available", visibleCategories.contains(TuneCategory.CPU))
-        assertFalse("Network category must be hidden if 0 options available", visibleCategories.contains(TuneCategory.NETWORK))
+        // GPU category has 1 supported option
+        val gpuSpecs = TuneSpecs.byCategory[TuneCategory.GPU].orEmpty()
+        val gpuSupported = gpuSpecs.count { caps[it.id]?.available == true }
+        assertEquals(1, gpuSupported)
+
+        // CPU category has 0 supported options
+        val cpuSpecs = TuneSpecs.byCategory[TuneCategory.CPU].orEmpty()
+        val cpuSupported = cpuSpecs.count { caps[it.id]?.available == true }
+        assertEquals(0, cpuSupported)
     }
 }

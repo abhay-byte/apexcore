@@ -46,13 +46,7 @@ fun TuneScreen(
     val scheme = MaterialTheme.colorScheme
     val hazeState = remember { HazeState() }
 
-    // Categories with at least one available spec (Empty categories hidden)
-    val visibleCategories = remember(capabilities) {
-        TuneCategory.values().filter { cat ->
-            val specs = TuneSpecs.byCategory[cat].orEmpty()
-            specs.any { spec -> capabilities[spec.id]?.available == true }
-        }
-    }
+    val allCategories = remember { TuneCategory.values().toList() }
 
     Box(
         modifier = modifier
@@ -108,26 +102,7 @@ fun TuneScreen(
                 }
             }
 
-            if (visibleCategories.isEmpty() && !isProbing) {
-                item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 32.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "No supported kernel nodes found on this device.",
-                            color = scheme.onSurfaceVariant,
-                            fontSize = 13.sp,
-                            fontFamily = PlusJakartaSans,
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            }
-
-            items(visibleCategories, key = { it.name }) { category ->
+            items(allCategories, key = { it.name }) { category ->
                 val specs = TuneSpecs.byCategory[category].orEmpty()
                 TuneCategorySection(
                     category = category,

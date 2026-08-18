@@ -48,20 +48,48 @@ fun TuneOptionRow(
             Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                 Text(
                     text = spec.title,
-                    color = scheme.onSurface,
+                    color = if (isAvailable) scheme.onSurface else scheme.onSurface.copy(alpha = 0.8f),
                     fontSize = 14.sp,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.SemiBold
                 )
-                val subtitleText = capability?.subtitle ?: spec.description
                 Text(
-                    text = subtitleText,
-                    color = scheme.onSurfaceVariant,
+                    text = spec.description,
+                    color = scheme.onSurfaceVariant.copy(alpha = if (isAvailable) 1f else 0.7f),
                     fontSize = 11.sp,
                     fontFamily = PlusJakartaSans,
                     lineHeight = 14.sp,
                     modifier = Modifier.padding(top = 2.dp)
                 )
+                if (!isAvailable) {
+                    val notSupportedReason = when {
+                        !enabled -> "Checking kernel node…"
+                        capability?.needsRoot == true -> "Not supported (Needs Root backend)"
+                        capability?.subtitle != null &&
+                            capability.subtitle.isNotBlank() &&
+                            capability.subtitle != "Available on this kernel" &&
+                            capability.subtitle != "Capability unavailable on this kernel" &&
+                            !capability.subtitle.startsWith("Checking") -> "Not supported (${capability.subtitle})"
+                        else -> "Not supported on this kernel"
+                    }
+                    Text(
+                        text = notSupportedReason,
+                        color = scheme.error.copy(alpha = 0.85f),
+                        fontSize = 10.sp,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                } else if (capability?.subtitle != null && capability.subtitle != spec.description) {
+                    Text(
+                        text = capability.subtitle,
+                        color = scheme.primary.copy(alpha = 0.9f),
+                        fontSize = 10.sp,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
             }
 
             when (spec.kind) {

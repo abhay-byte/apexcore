@@ -6,6 +6,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
@@ -40,15 +41,31 @@ fun TuneCategorySection(
             )
             .padding(16.dp)
     ) {
-        Text(
-            text = category.displayName.uppercase(),
-            color = scheme.primary,
-            fontSize = 11.sp,
-            fontFamily = PlusJakartaSans,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = category.displayName.uppercase(),
+                color = scheme.primary,
+                fontSize = 11.sp,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+            val availableCount = specs.count { capabilities[it.id]?.available == true }
+            val countText = if (availableCount > 0) "$availableCount/${specs.size} supported" else "Not supported"
+            Text(
+                text = countText,
+                color = if (availableCount > 0) scheme.onSurfaceVariant else scheme.error.copy(alpha = 0.8f),
+                fontSize = 10.sp,
+                fontFamily = PlusJakartaSans,
+                fontWeight = FontWeight.Medium
+            )
+        }
 
         specs.forEachIndexed { index, spec ->
             if (index > 0) {
