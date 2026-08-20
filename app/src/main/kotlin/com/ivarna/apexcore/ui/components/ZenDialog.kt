@@ -1,5 +1,6 @@
 package com.ivarna.apexcore.ui.components
 
+import android.content.Context
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.view.WindowManager
@@ -15,11 +16,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import com.ivarna.apexcore.ui.theme.LocalZenSemantics
+import kotlin.math.roundToInt
 
 /**
  * Zen modal shell: true window backdrop blur (API 31+) + soft theme scrim.
@@ -45,17 +49,32 @@ fun ZenDialog(
         )
     ) {
         val view = LocalView.current
+        val density = LocalDensity.current
         SideEffect {
             val window = (view.parent as? DialogWindowProvider)?.window ?: return@SideEffect
             window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
             // We own dim + blur; kill the default heavy black platform dim.
             window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             window.setDimAmount(0f)
-            if (supportsBlur) {
-                window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
-                val attrs = window.attributes
-                attrs.blurBehindRadius = BLUR_BEHIND_RADIUS_PX
-                window.attributes = attrs
+            // Dialog width = 0.92 × screen, capped at 560dp (mandatory width fix).
+            // Window height stays full so the ink scrim still covers the screen column.
+            val wm = view.context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            val screenWidthPx = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                wm.currentWindowMetrics.bounds.width()
+            } else {
+                @Suppress("DEPRECATION")
+                wm.defaultDisplay.let { display ->
+                    android.util.DisplayMetrics().also { display.getRealMetrics(it) }
+                }.widthPixels
+            }
+            val maxWidthPx = with(density) { 560.dp.roundToPx() }
+            val targetWidthPx = (screenWidthPx * 0.92f).toInt().coerceAtMost(maxWidthPx)
+            window.attributes = window.attributes.apply {
+                width = targetWidthPx
+                if (supportsBlur) {
+                    window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
+                    blurBehindRadius = BLUR_BEHIND_RADIUS_PX
+                }
             }
         }
 
@@ -96,4 +115,5 @@ fun Modifier.zenDialogSheet(): Modifier {
     )
 }
 
-private const val BLUR_BEHIND_RADIUS_PX = 48
+// 24dp veil × 3.0 density — aligns with ZenFrost.blurRadius (24dp) for chrome.
+private const val BLUR_BEHIND_RADIUS_PX = 72

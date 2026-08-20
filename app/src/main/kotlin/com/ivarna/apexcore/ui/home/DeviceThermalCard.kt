@@ -35,6 +35,7 @@ import com.ivarna.apexcore.ui.components.zenGlassBackground
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenColors
 import com.ivarna.apexcore.ui.theme.ZenDimens
+import com.ivarna.apexcore.ui.theme.ZenType
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -78,7 +79,7 @@ fun DeviceThermalCard(
             Text(
                 text = "THERMAL TELEMETRY",
                 color = scheme.onSurfaceVariant,
-                fontSize = 11.sp,
+                style = ZenType.label,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp
@@ -100,7 +101,7 @@ fun DeviceThermalCard(
                     Text(
                         text = batteryTier.label.uppercase(Locale.US),
                         color = tierColor,
-                        fontSize = 9.sp,
+                        style = ZenType.caption,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp
@@ -180,7 +181,7 @@ fun DeviceThermalCard(
                         Text(
                             text = "Thermal Thresholds & CPU Hotspots",
                             color = scheme.onSurfaceVariant,
-                            fontSize = 11.sp,
+                            style = ZenType.label,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -218,7 +219,7 @@ fun DeviceThermalCard(
                         Text(
                             text = "Note: CPU hotspot peaks surge rapidly up to 90°C+ during gaming spikes; battery temperature tracks persistent chassis heat.",
                             color = scheme.onSurfaceVariant.copy(alpha = 0.85f),
-                            fontSize = 10.sp,
+                            style = ZenType.overline,
                             fontFamily = PlusJakartaSans,
                             lineHeight = 14.sp
                         )
@@ -255,7 +256,7 @@ private fun ThermalMetricPod(
         Text(
             text = label,
             color = scheme.onSurfaceVariant,
-            fontSize = 9.sp,
+            style = ZenType.caption,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
@@ -270,14 +271,14 @@ private fun ThermalMetricPod(
             Text(
                 text = String.format(Locale.US, "%.1f", temperature),
                 color = accentColor,
-                fontSize = 24.sp,
+                style = MaterialTheme.typography.headlineMedium,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold
             )
             Text(
                 text = "°C",
                 color = accentColor.copy(alpha = 0.8f),
-                fontSize = 14.sp,
+                style = ZenType.body,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(bottom = 2.dp)
@@ -308,7 +309,7 @@ private fun ThermalMetricPod(
         Text(
             text = subText,
             color = scheme.onSurfaceVariant,
-            fontSize = 10.sp,
+            style = ZenType.overline,
             fontFamily = PlusJakartaSans,
             maxLines = 1
         )
@@ -332,7 +333,7 @@ private fun ThermalTierRow(
         Text(
             text = range,
             color = color,
-            fontSize = 10.sp,
+            style = ZenType.overline,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.width(52.dp)
@@ -340,7 +341,7 @@ private fun ThermalTierRow(
         Text(
             text = label,
             color = scheme.onSurface,
-            fontSize = 10.sp,
+            style = ZenType.overline,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.width(60.dp)
@@ -348,7 +349,7 @@ private fun ThermalTierRow(
         Text(
             text = detail,
             color = scheme.onSurfaceVariant,
-            fontSize = 10.sp,
+            style = ZenType.overline,
             fontFamily = PlusJakartaSans,
             modifier = Modifier.weight(1f)
         )

@@ -27,6 +27,7 @@ import com.ivarna.apexcore.ui.components.GlassCard
 import com.ivarna.apexcore.ui.components.StatusPebble
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenDimens
+import com.ivarna.apexcore.ui.theme.ZenType
 import kotlinx.coroutines.delay
 
 /** Deprecated but valid for own-package service on API 34+; used only as prefs truth check. */
@@ -104,7 +105,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                 Text(
                     text = if (hasPermission) "PERMISSION GRANTED" else "ACTION REQUIRED",
                     color = if (hasPermission) scheme.primary else scheme.secondary,
-                    fontSize = 10.sp,
+                    style = ZenType.overline,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
@@ -152,7 +153,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "GRANT PERMISSION",
-                        fontSize = 11.sp,
+                        style = ZenType.label,
                         fontWeight = FontWeight.Bold,
                         fontFamily = PlusJakartaSans
                     )
@@ -165,7 +166,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
         Text(
             text = "HUD OVERLAY",
             color = scheme.onSurface,
-            fontSize = 14.sp,
+            style = ZenType.body,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp,
             fontFamily = PlusJakartaSans
@@ -207,7 +208,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "START",
-                        fontSize = 11.sp,
+                        style = ZenType.label,
                         fontWeight = FontWeight.Bold,
                         fontFamily = PlusJakartaSans
                     )
@@ -233,7 +234,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "STOP",
-                        fontSize = 11.sp,
+                        style = ZenType.label,
                         fontWeight = FontWeight.Bold,
                         fontFamily = PlusJakartaSans
                     )

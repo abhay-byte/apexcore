@@ -23,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -39,6 +40,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -49,6 +51,7 @@ import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenColors
 import com.ivarna.apexcore.ui.theme.ZenDimens
 import com.ivarna.apexcore.ui.theme.ZenIcons
+import com.ivarna.apexcore.ui.theme.ZenType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -64,11 +67,11 @@ fun GamesScreen(
     val coroutineScope = rememberCoroutineScope()
     val view = LocalView.current
     
-    // Toggle tab state
-    var showAllApps by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
-    var showAddPicker by remember { mutableStateOf(false) }
-    var showPinPicker by remember { mutableStateOf(false) }
+    // Toggle tab state — Saveable so process death / config restore keeps the filter
+    var showAllApps by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var showAddPicker by rememberSaveable { mutableStateOf(false) }
+    var showPinPicker by rememberSaveable { mutableStateOf(false) }
     
     // App loading states
     var customGames by remember { mutableStateOf(gameManager.load()) }
@@ -101,11 +104,16 @@ fun GamesScreen(
         }
     }
 
-    // Horizontal Pager State
+    // Horizontal Pager State — PagerState is not Saveable, so persist the index
+    // and seed initialPage from it (restores after process death / rotation).
+    var pagerIndex by rememberSaveable { mutableIntStateOf(0) }
     val pagerState = rememberPagerState(
-        initialPage = 0,
+        initialPage = pagerIndex.coerceAtLeast(0),
         pageCount = { currentList.size }
     )
+    LaunchedEffect(pagerState.currentPage) {
+        if (pagerState.currentPage != pagerIndex) pagerIndex = pagerState.currentPage
+    }
 
     // Trigger haptic CLOCK_TICK on page changes
     var lastSignaledPage by remember { mutableStateOf(-1) }
@@ -232,7 +240,7 @@ fun GamesScreen(
                         Text(
                             text = "GAMES",
                             color = if (!showAllApps) scheme.primary else scheme.onSurfaceVariant,
-                            fontSize = 11.sp,
+                            style = ZenType.label,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold
                         )
@@ -254,7 +262,7 @@ fun GamesScreen(
                         Text(
                             text = "ALL APPS",
                             color = if (showAllApps) scheme.primary else scheme.onSurfaceVariant,
-                            fontSize = 11.sp,
+                            style = ZenType.label,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold
                         )
@@ -283,7 +291,7 @@ fun GamesScreen(
                             text = "NO ITEMS FOUND",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontFamily = PlusJakartaSans,
-                            fontSize = 12.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             letterSpacing = 1.sp
                         )
                         if (!showAllApps) {
@@ -300,7 +308,7 @@ fun GamesScreen(
                                 Text(
                                     text = "ADD GAMES",
                                     color = MaterialTheme.colorScheme.onPrimary,
-                                    fontSize = 11.sp,
+                                    style = ZenType.label,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = PlusJakartaSans
                                 )
@@ -332,7 +340,7 @@ fun GamesScreen(
                                 Text(
                                     text = "SCAN FOR GAMES",
                                     color = MaterialTheme.colorScheme.primary,
-                                    fontSize = 11.sp,
+                                    style = ZenType.label,
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = PlusJakartaSans
                                 )
@@ -446,7 +454,7 @@ fun GamesScreen(
                                 Text(
                                     text = game.name,
                                     color = scheme.onSurface,
-                                    fontSize = 18.sp,
+                                    style = MaterialTheme.typography.bodyLarge,
                                     fontFamily = PlusJakartaSans,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = TextAlign.Center,
@@ -459,7 +467,7 @@ fun GamesScreen(
                                 Text(
                                     text = game.pkg,
                                     color = scheme.onSurfaceVariant,
-                                    fontSize = 11.sp,
+                                    style = ZenType.label,
                                     fontFamily = PlusJakartaSans,
                                     textAlign = TextAlign.Center,
                                     maxLines = 1
@@ -479,24 +487,34 @@ fun GamesScreen(
                                     Text(
                                         text = "RESOURCE DEMAND",
                                         color = scheme.onSurfaceVariant,
-                                        fontSize = 8.sp,
+                                        style = ZenType.micro,
                                         fontFamily = PlusJakartaSans,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.8.sp,
+                                        textAlign = TextAlign.Center
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
+                                    // Pill badge: 1.3x fontScale must not clip — Ellipsis + width/height floors.
+                                    // Contrast: alpha lifted 0.15→0.18 on radial so text passes on light bg.
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(ZenDimens.roundedSm))
-                                            .background(demandColor.copy(alpha = 0.15f))
-                                            .border(1.dp, demandColor.copy(alpha = 0.4f), RoundedCornerShape(ZenDimens.roundedSm))
-                                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                                            .clip(RoundedCornerShape(50))
+                                            .background(demandColor.copy(alpha = 0.18f))
+                                            .border(1.dp, demandColor.copy(alpha = 0.45f), RoundedCornerShape(50))
+                                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                                            .heightIn(min = 22.dp)
+                                            .widthIn(min = 48.dp, max = 160.dp)
                                     ) {
                                         Text(
                                             text = demand,
                                             color = demandColor,
-                                            fontSize = 9.sp,
+                                            style = ZenType.caption,
                                             fontFamily = PlusJakartaSans,
-                                            fontWeight = FontWeight.Bold
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            softWrap = false,
+                                            textAlign = TextAlign.Center
                                         )
                                     }
                                 }
@@ -543,7 +561,7 @@ fun GamesScreen(
                     } else {
                         scheme.onPrimary
                     },
-                    fontSize = 13.sp,
+                    style = ZenType.bodySm,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp

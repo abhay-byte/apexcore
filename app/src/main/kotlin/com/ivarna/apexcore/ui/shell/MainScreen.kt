@@ -12,6 +12,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,23 +54,24 @@ fun MainScreen(
     val coroutineScope = rememberCoroutineScope()
 
     var state by remember { mutableStateOf(State.IDLE) }
-    var currentTab by remember { mutableStateOf(Tab.HOME) }
+    var currentTabOrdinal by rememberSaveable { mutableIntStateOf(Tab.HOME.ordinal) }
+    val currentTab = Tab.entries[currentTabOrdinal]
     var backendName by remember { mutableStateOf("Detecting…") }
-    var showSetupDialog by remember { mutableStateOf(false) }
-    var showPinPicker by remember { mutableStateOf(false) }
-    var showOnboardingReplay by remember { mutableStateOf(false) }
+    var showSetupDialog by rememberSaveable { mutableStateOf(false) }
+    var showPinPicker by rememberSaveable { mutableStateOf(false) }
+    var showOnboardingReplay by rememberSaveable { mutableStateOf(false) }
     var lastResult by remember { mutableStateOf<FreezeResult?>(null) }
-    var showRamFree by remember { mutableStateOf(false) }
-    var showTuneScreen by remember { mutableStateOf(false) }
-    var showPrivacyPolicy by remember { mutableStateOf(false) }
-    var globalBackendPref by remember {
+    var showRamFree by rememberSaveable { mutableStateOf(false) }
+    var showTuneScreen by rememberSaveable { mutableStateOf(false) }
+    var showPrivacyPolicy by rememberSaveable { mutableStateOf(false) }
+    var globalBackendPref by rememberSaveable {
         mutableStateOf(
             context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
                 .getString("preferred_backend", null)?.takeIf { it == "shizuku" || it == "root" }
         )
     }
     var showGlobalDropdown by remember { mutableStateOf(false) }
-    var detectionDone by remember { mutableStateOf(false) }
+    var detectionDone by rememberSaveable { mutableStateOf(false) }
 
     // Purge animation states
     var isPurgeAnimActive by remember { mutableStateOf(false) }
@@ -273,7 +275,7 @@ fun MainScreen(
         ) {
             ZenBottomNav(
                 currentTab = currentTab,
-                onTabSelected = { currentTab = it },
+                onTabSelected = { currentTabOrdinal = it.ordinal },
                 hazeState = hazeState
             )
         }
@@ -342,7 +344,7 @@ fun GlobalBackendDropdown(
             Text(
                 text = displayName,
                 color = if (isElevated) scheme.onPrimaryContainer else scheme.onSecondaryContainer,
-                fontSize = 9.sp,
+                style = ZenType.caption,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold
             )
@@ -371,7 +373,7 @@ fun GlobalBackendDropdown(
                         Text(
                             "Shizuku",
                             color = if (currentPref == "shizuku") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            fontSize = 13.sp,
+                            style = ZenType.bodySm,
                             fontFamily = PlusJakartaSans,
                             fontWeight = if (currentPref == "shizuku") FontWeight.Bold else FontWeight.Normal
                         )
@@ -386,7 +388,7 @@ fun GlobalBackendDropdown(
                                 false -> MaterialTheme.colorScheme.secondary
                                 else -> MaterialTheme.colorScheme.onSurfaceVariant
                             },
-                            fontSize = 10.sp,
+                            style = ZenType.overline,
                             fontFamily = PlusJakartaSans
                         )
                     }
@@ -407,7 +409,7 @@ fun GlobalBackendDropdown(
                         Text(
                             "Root",
                             color = if (currentPref == "root") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            fontSize = 13.sp,
+                            style = ZenType.bodySm,
                             fontFamily = PlusJakartaSans,
                             fontWeight = if (currentPref == "root") FontWeight.Bold else FontWeight.Normal
                         )
@@ -422,7 +424,7 @@ fun GlobalBackendDropdown(
                                 false -> MaterialTheme.colorScheme.secondary
                                 else -> MaterialTheme.colorScheme.onSurfaceVariant
                             },
-                            fontSize = 10.sp,
+                            style = ZenType.overline,
                             fontFamily = PlusJakartaSans
                         )
                     }
@@ -435,4 +437,3 @@ fun GlobalBackendDropdown(
         }
     }
 }
-

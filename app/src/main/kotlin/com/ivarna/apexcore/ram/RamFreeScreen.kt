@@ -46,6 +46,7 @@ import com.ivarna.apexcore.ui.components.StatusPebble
 import com.ivarna.apexcore.ui.components.zenGlassBackground
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenDimens
+import com.ivarna.apexcore.ui.theme.ZenType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -167,11 +168,7 @@ fun RamFreeScreen(
             Text(
                 text = "Ram Free",
                 color = scheme.onSurface,
-                style = MaterialTheme.typography.titleLarge.copy(
-                    fontFamily = PlusJakartaSans,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 20.sp
-                )
+                style = ZenType.display.copy(fontWeight = FontWeight.SemiBold)
             )
 
             if (mode != RamFillMode.STANDARD && !isRunning) {
@@ -188,7 +185,7 @@ fun RamFreeScreen(
                     Text(
                         text = mode.displayName,
                         color = scheme.primary,
-                        fontSize = 10.sp,
+                        style = ZenType.overline,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -240,7 +237,7 @@ fun RamFreeScreen(
             Text(
                 "Mode: fill is always Standard. Extras coming for Shizuku/Root.",
                 color = scheme.onSurfaceVariant,
-                fontSize = 11.sp,
+                style = ZenType.label,
                 fontFamily = PlusJakartaSans,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
             )
@@ -272,7 +269,7 @@ fun RamFreeScreen(
                                 Text(
                                     "MODE",
                                     color = scheme.onSurfaceVariant,
-                                    fontSize = 9.sp,
+                                    style = ZenType.caption,
                                     fontFamily = PlusJakartaSans,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 1.sp
@@ -281,7 +278,7 @@ fun RamFreeScreen(
                                 Text(
                                     mode.displayName,
                                     color = scheme.onSurface,
-                                    fontSize = 13.sp,
+                                    style = ZenType.bodySm,
                                     fontWeight = FontWeight.SemiBold,
                                     fontFamily = PlusJakartaSans
                                 )
@@ -315,7 +312,7 @@ fun RamFreeScreen(
                                             color = if (m == mode) scheme.primary
                                             else if (available) scheme.onSurface
                                             else scheme.onSurfaceVariant,
-                                            fontSize = 13.sp,
+                                            style = ZenType.bodySm,
                                             fontWeight = if (m == mode) FontWeight.Bold else FontWeight.Normal,
                                             fontFamily = PlusJakartaSans
                                         )
@@ -332,7 +329,7 @@ fun RamFreeScreen(
                                                 ready == null -> scheme.onSurfaceVariant
                                                 else -> scheme.secondary
                                             },
-                                            fontSize = 10.sp,
+                                            style = ZenType.overline,
                                             fontFamily = PlusJakartaSans
                                         )
                                     }
@@ -362,7 +359,7 @@ fun RamFreeScreen(
                         Text(
                             "PRE-PURGE",
                             color = scheme.onSurfaceVariant,
-                            fontSize = 9.sp,
+                            style = ZenType.caption,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
@@ -371,7 +368,7 @@ fun RamFreeScreen(
                         Text(
                             if (preFreeze) "ON" else "OFF",
                             color = if (preFreeze) scheme.primary else scheme.onSurfaceVariant,
-                            fontSize = 13.sp,
+                            style = ZenType.bodySm,
                             fontWeight = FontWeight.SemiBold,
                             fontFamily = PlusJakartaSans
                         )
@@ -403,7 +400,7 @@ fun RamFreeScreen(
             Text(
                 text = "Force system reclaim · 90% safe cap · no system kills",
                 color = scheme.onSurfaceVariant,
-                fontSize = 11.sp,
+                style = ZenType.label,
                 fontFamily = PlusJakartaSans,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
@@ -525,7 +522,7 @@ private fun RamPressureGauge(
                 Text(
                     text = "%.0f%%".format(currentRamFraction * 100),
                     color = if (currentRamFraction >= 0.85f) scheme.secondary else scheme.onSurface,
-                    fontSize = 32.sp,
+                    style = ZenType.hero,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold
                 )
@@ -539,7 +536,7 @@ private fun RamPressureGauge(
                     },
                     color = if (isRunning) scheme.secondary.copy(alpha = pulseAlpha)
                     else scheme.onSurfaceVariant,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Medium
                 )
@@ -595,7 +592,7 @@ private fun ReadoutChip(
             Text(
                 label,
                 color = scheme.onSurfaceVariant,
-                fontSize = 10.sp,
+                style = ZenType.overline,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 0.5.sp
@@ -604,7 +601,7 @@ private fun ReadoutChip(
             Text(
                 value,
                 color = accent,
-                fontSize = 13.sp,
+                style = ZenType.bodySm,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold
             )
@@ -654,7 +651,7 @@ private fun RamFillProgressSection(
                         Text(
                             "Pre-freezing",
                             color = scheme.secondary,
-                            fontSize = 14.sp,
+                            style = ZenType.body,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -663,7 +660,7 @@ private fun RamFillProgressSection(
                     Text(
                         "Purging background apps…",
                         color = scheme.onSurfaceVariant,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         fontFamily = PlusJakartaSans
                     )
                 }
@@ -674,7 +671,7 @@ private fun RamFillProgressSection(
                     Text(
                         "Allocating memory",
                         color = scheme.secondary,
-                        fontSize = 14.sp,
+                        style = ZenType.body,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -682,14 +679,14 @@ private fun RamFillProgressSection(
                     Text(
                         "${progress.allocatedMb} MB · RAM ${"%.0f".format(progress.ramUsagePercent * 100)}%",
                         color = scheme.onSurfaceVariant,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         fontFamily = PlusJakartaSans
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         "Chunks: ${progress.chunkCount}",
                         color = scheme.onSurfaceVariant,
-                        fontSize = 11.sp,
+                        style = ZenType.label,
                         fontFamily = PlusJakartaSans
                     )
                 }
@@ -700,7 +697,7 @@ private fun RamFillProgressSection(
                     Text(
                         "Holding peak",
                         color = scheme.secondary,
-                        fontSize = 14.sp,
+                        style = ZenType.body,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -708,7 +705,7 @@ private fun RamFillProgressSection(
                     Text(
                         "${progress.remainingMs}ms",
                         color = scheme.onSurfaceVariant,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         fontFamily = PlusJakartaSans
                     )
                 }
@@ -719,7 +716,7 @@ private fun RamFillProgressSection(
                     Text(
                         "Releasing buffers",
                         color = scheme.primary,
-                        fontSize = 14.sp,
+                        style = ZenType.body,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -727,7 +724,7 @@ private fun RamFillProgressSection(
                     Text(
                         "Returning memory to system…",
                         color = scheme.onSurfaceVariant,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         fontFamily = PlusJakartaSans
                     )
                 }
@@ -742,7 +739,7 @@ private fun RamFillProgressSection(
                         Text(
                             "Cancelled",
                             color = scheme.onSurfaceVariant,
-                            fontSize = 14.sp,
+                            style = ZenType.body,
                             fontFamily = PlusJakartaSans
                         )
                     }
@@ -751,14 +748,14 @@ private fun RamFillProgressSection(
                         Text(
                             "Already at 90% safe cap",
                             color = scheme.onSurfaceVariant.copy(alpha = 0.85f),
-                            fontSize = 14.sp,
+                            style = ZenType.body,
                             fontFamily = PlusJakartaSans
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             "System memory already near ceiling",
                             color = scheme.onSurfaceVariant,
-                            fontSize = 11.sp,
+                            style = ZenType.label,
                             fontFamily = PlusJakartaSans
                         )
                     }
@@ -767,7 +764,7 @@ private fun RamFillProgressSection(
                         Text(
                             "Pressure limited",
                             color = scheme.secondary,
-                            fontSize = 14.sp,
+                            style = ZenType.body,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -775,14 +772,14 @@ private fun RamFillProgressSection(
                         Text(
                             "Process budget · peak ${result.peakAllocatedMb}MB alloc",
                             color = scheme.onSurfaceVariant,
-                            fontSize = 12.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             fontFamily = PlusJakartaSans
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             "heapMax: ${result.heapMaxMb}MB · ${result.chunkCount} chunks",
                             color = scheme.onSurfaceVariant,
-                            fontSize = 11.sp,
+                            style = ZenType.label,
                             fontFamily = PlusJakartaSans
                         )
                         if (totalFreedMb > 0) {
@@ -800,7 +797,7 @@ private fun RamFillProgressSection(
                                 Text(
                                     "Freed %d MB".format(totalFreedMb),
                                     color = scheme.primary,
-                                    fontSize = 14.sp,
+                                    style = ZenType.body,
                                     fontFamily = PlusJakartaSans,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -812,14 +809,14 @@ private fun RamFillProgressSection(
                         Text(
                             "No reclaim detected",
                             color = scheme.onSurfaceVariant.copy(alpha = 0.85f),
-                            fontSize = 14.sp,
+                            style = ZenType.body,
                             fontFamily = PlusJakartaSans
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             "${result.stopReason} · %d MB · %ds".format(result.peakAllocatedMb, result.totalDurationMs / 1000),
                             color = scheme.onSurfaceVariant,
-                            fontSize = 11.sp,
+                            style = ZenType.label,
                             fontFamily = PlusJakartaSans
                         )
                     }
@@ -854,7 +851,7 @@ private fun RamFillProgressSection(
                         Text(
                             "+%d MB".format(totalFreedMb),
                             color = scheme.primary,
-                            fontSize = 32.sp,
+                            style = ZenType.hero,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold
                         )
@@ -862,7 +859,7 @@ private fun RamFillProgressSection(
                         Text(
                             noteText,
                             color = scheme.onSurfaceVariant,
-                            fontSize = 12.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             fontFamily = PlusJakartaSans
                         )
                     }
@@ -927,7 +924,7 @@ private fun RamFillActionButton(
             Text(
                 text = if (isRunning) "Cancel" else "Free RAM",
                 color = if (isRunning) scheme.secondary.copy(alpha = pulseAlpha) else scheme.onPrimary,
-                fontSize = 16.sp,
+                style = MaterialTheme.typography.bodyMedium,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.5.sp

@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ivarna.apexcore.fps.FpsStack
@@ -38,6 +39,7 @@ import com.ivarna.apexcore.ui.components.zenDialogSheet
 import com.ivarna.apexcore.ui.components.zenGlassBackground
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenDimens
+import com.ivarna.apexcore.ui.theme.ZenType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -46,7 +48,9 @@ object SetupDialogHelper {
     const val PREFS = "apexcore"
 }
 
-const val PRIVACY_POLICY_URL = "https://github.com/abhay-byte/apexcore/blob/main/docs/privacy-policy.md"
+// Privacy policy is in-app only (private repo — no public hosting URL).
+// ponytail: point at private doc hosting if Play Console ever requires an https URL.
+const val PRIVACY_POLICY_URL = ""
 
 @Composable
 fun SetupDialog(
@@ -112,8 +116,12 @@ fun SetupDialog(
     ZenDialog(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier
-                .padding(horizontal = ZenDimens.containerPadding)
+                // Window is already sized 0.92×/max 560dp by ZenDialog; no horizontal
+                // padding so the glass card fills that width exactly, inner 24dp keeps inset.
+                .padding(vertical = 24.dp)
+                .widthIn(max = 560.dp)
                 .fillMaxWidth()
+                .fillMaxHeight(0.86f)
                 .zenGlassBackground(
                     shape = dialogShape,
                     fill = scheme.surfaceContainerLowest.copy(alpha = 0.96f),
@@ -127,7 +135,7 @@ fun SetupDialog(
             Text(
                 text = "SYSTEM ACCESS CONFIG",
                 color = scheme.onSurfaceVariant,
-                fontSize = 10.sp,
+                style = ZenType.overline,
                 fontFamily = PlusJakartaSans,
                 letterSpacing = 2.sp
             )
@@ -135,7 +143,7 @@ fun SetupDialog(
             Text(
                 text = "Deep freeze (BOOST) requires Shizuku or Root access.",
                 color = scheme.onSurfaceVariant,
-                fontSize = 13.sp,
+                style = ZenType.bodySm,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(28.dp))
@@ -235,7 +243,7 @@ fun SetupDialog(
                 Text(
                     text = "NOT NOW",
                     color = scheme.onSurfaceVariant,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PlusJakartaSans,
                     letterSpacing = 1.sp
@@ -323,7 +331,7 @@ fun OptionCard(
                 Text(
                     text = title,
                     color = scheme.onSurface,
-                    fontSize = 15.sp,
+                    style = ZenType.titleSm,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -336,13 +344,18 @@ fun OptionCard(
                             else scheme.primary.copy(alpha = 0.2f)
                         )
                         .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .heightIn(min = 20.dp)
+                        .widthIn(max = 120.dp)
                 ) {
                     Text(
                         text = badge,
                         color = scheme.primary,
-                        fontSize = 8.sp,
+                        style = ZenType.micro,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = PlusJakartaSans
+                        fontFamily = PlusJakartaSans,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false
                     )
                 }
             }
@@ -351,7 +364,7 @@ fun OptionCard(
         Text(
             text = sub,
             color = scheme.onSurfaceVariant,
-            fontSize = 11.sp,
+            style = ZenType.label,
             lineHeight = 15.sp
         )
         Spacer(modifier = Modifier.height(18.dp))
@@ -370,7 +383,7 @@ fun OptionCard(
             Text(
                 text = cta,
                 color = if (isRecommended || isReady) scheme.primary else scheme.onSurface,
-                fontSize = 11.sp,
+                style = ZenType.label,
                 fontWeight = FontWeight.Bold,
                 fontFamily = PlusJakartaSans
             )
@@ -414,9 +427,10 @@ private fun openShizuku(context: Context) {
     } catch (_: Throwable) {}
 }
 
-/** Opens the public privacy policy in the browser (Play User Data — must be always reachable). */
+/** Opens the privacy policy in the browser. No-op — the repo is private; use in-app PrivacyPolicyScreen. */
 @Deprecated("Use in-app PrivacyPolicyScreen; kept for Settings fallback")
 fun openPrivacyPolicy(context: Context) {
+    if (PRIVACY_POLICY_URL.isBlank()) return
     try {
         val intent = Intent(Intent.ACTION_VIEW).apply {
             data = android.net.Uri.parse(PRIVACY_POLICY_URL)

@@ -52,6 +52,7 @@ import com.ivarna.apexcore.ui.theme.LocalZenSemantics
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ThemeMode
 import com.ivarna.apexcore.ui.theme.ZenDimens
+import com.ivarna.apexcore.ui.theme.ZenType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -124,7 +125,7 @@ fun SettingsScreen(
         Text(
             text = "APPEARANCE",
             color = scheme.onSurfaceVariant,
-            fontSize = 11.sp,
+            style = ZenType.label,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
@@ -192,7 +193,7 @@ fun SettingsScreen(
         Text(
             text = "ACCESS",
             color = scheme.onSurfaceVariant,
-            fontSize = 11.sp,
+            style = ZenType.label,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
@@ -217,7 +218,7 @@ fun SettingsScreen(
         Text(
             text = "LEGAL",
             color = scheme.onSurfaceVariant,
-            fontSize = 11.sp,
+            style = ZenType.label,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
@@ -260,7 +261,7 @@ fun SettingsScreen(
         Text(
             text = "ABOUT",
             color = scheme.onSurfaceVariant,
-            fontSize = 11.sp,
+            style = ZenType.label,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
@@ -288,7 +289,7 @@ fun SettingsScreen(
         Text(
             text = "APP TOUR",
             color = scheme.onSurfaceVariant,
-            fontSize = 11.sp,
+            style = ZenType.label,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
@@ -386,7 +387,7 @@ private fun ActiveModeCard(
             Text(
                 text = "RUNNING MODE",
                 color = scheme.onSurfaceVariant,
-                fontSize = 10.sp,
+                style = ZenType.overline,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.2.sp
@@ -452,7 +453,7 @@ private fun ActiveModeCard(
             Text(
                 text = "FPS",
                 color = scheme.primary,
-                fontSize = 10.sp,
+                style = ZenType.overline,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold
             )
@@ -460,7 +461,7 @@ private fun ActiveModeCard(
             Text(
                 text = fpsPathShort,
                 color = scheme.onSurfaceVariant,
-                fontSize = 11.sp,
+                style = ZenType.label,
                 fontFamily = PlusJakartaSans,
                 maxLines = 1
             )
@@ -484,7 +485,7 @@ private fun CompactMetric(
         Text(
             text = label,
             color = scheme.onSurfaceVariant,
-            fontSize = 10.sp,
+            style = ZenType.overline,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Medium
         )
@@ -492,7 +493,7 @@ private fun CompactMetric(
         Text(
             text = value,
             color = scheme.onSurface,
-            fontSize = 13.sp,
+            style = ZenType.bodySm,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1
@@ -519,7 +520,7 @@ private fun ModeChip(
         Text(
             text = text,
             color = if (emphasized) scheme.onPrimaryContainer else scheme.onSecondaryContainer,
-            fontSize = 10.sp,
+            style = ZenType.overline,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold
         )
@@ -545,7 +546,7 @@ private fun SystemDiagnosticsCard(
         Text(
             text = "ACCESS DIAGNOSTICS",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 10.sp,
+            style = ZenType.overline,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.5.sp
@@ -590,19 +591,19 @@ private fun DiagnosticRow(
             Text(
                 text = label,
                 color = scheme.onSurface,
-                fontSize = 13.sp,
+                style = ZenType.bodySm,
                 fontWeight = FontWeight.Bold
             )
             Text(
                 text = description,
                 color = scheme.onSurfaceVariant,
-                fontSize = 11.sp
+                style = ZenType.label
             )
         }
         Text(
             text = statusText,
             color = statusColor,
-            fontSize = 10.sp,
+            style = ZenType.overline,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold
         )
@@ -648,7 +649,7 @@ private fun ThemeSegmentedControl(
                 Text(
                     text = label,
                     color = if (active) scheme.onPrimary else scheme.onSurfaceVariant,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     fontFamily = PlusJakartaSans,
                     fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium
                 )

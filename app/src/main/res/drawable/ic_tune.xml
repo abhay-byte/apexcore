@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Material Symbols Rounded "tune" — verified 24x24 export (matches Icons.Filled.Tune pathData).
+     fillColor stays black so Icon(tint = scheme.primary) recolors in light/dark. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="960"
-    android:viewportHeight="960">
+    android:viewportWidth="24"
+    android:viewportHeight="24">
   <path
       android:fillColor="#FF000000"
-      android:pathData="M440,840L440,680L120,680L120,600L440,600L440,440L520,440L520,840L440,840ZM600,840L600,760L840,760L840,680L600,680L600,600L600,440L680,440L680,840L600,840ZM280,520L120,520L120,440L280,440L280,280L360,280L360,680L280,680L280,520ZM440,360L440,280L840,280L840,200L440,200L440,120L360,120L360,520L440,520L440,360ZM600,200L600,120L840,120L840,200L600,200Z"/>
+      android:pathData="M3,17v2h6v-2H3zM3,5v2h10V5H3zM13,21v-2h8v-2h-8v-2h-2v6h2zM7,9v2H3v2h4v2h2V9H7zM21,13v-2H11v2h10zM15,9h2V7h4V5h-4V3h-2v6z"/>
 </vector>

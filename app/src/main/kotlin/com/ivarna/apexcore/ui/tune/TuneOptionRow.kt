@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import com.ivarna.apexcore.tune.*
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenDimens
+import com.ivarna.apexcore.ui.theme.ZenType
 
 @Composable
 fun TuneOptionRow(
@@ -51,14 +52,14 @@ fun TuneOptionRow(
                 Text(
                     text = spec.title,
                     color = if (isAvailable && !isOverridden) scheme.onSurface else scheme.onSurface.copy(alpha = 0.8f),
-                    fontSize = 14.sp,
+                    style = ZenType.body,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
                     text = spec.description,
                     color = scheme.onSurfaceVariant.copy(alpha = if (isAvailable && !isOverridden) 1f else 0.7f),
-                    fontSize = 11.sp,
+                    style = ZenType.label,
                     fontFamily = PlusJakartaSans,
                     lineHeight = 14.sp,
                     modifier = Modifier.padding(top = 2.dp)
@@ -67,7 +68,7 @@ fun TuneOptionRow(
                     Text(
                         text = overrideSubtitle ?: "Covered by CPU frequency floor",
                         color = scheme.primary.copy(alpha = 0.85f),
-                        fontSize = 10.sp,
+                        style = ZenType.overline,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(top = 2.dp)
@@ -86,7 +87,7 @@ fun TuneOptionRow(
                     Text(
                         text = notSupportedReason,
                         color = scheme.error.copy(alpha = 0.85f),
-                        fontSize = 10.sp,
+                        style = ZenType.overline,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(top = 2.dp)
@@ -95,7 +96,7 @@ fun TuneOptionRow(
                     Text(
                         text = capability.subtitle,
                         color = scheme.primary.copy(alpha = 0.9f),
-                        fontSize = 10.sp,
+                        style = ZenType.overline,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.padding(top = 2.dp)
@@ -171,14 +172,14 @@ fun TuneOptionRow(
                     Text(
                         text = "Value: $currentVal",
                         color = scheme.primary,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = "Range: ${range.first} – ${range.last}",
                         color = scheme.onSurfaceVariant,
-                        fontSize = 10.sp,
+                        style = ZenType.overline,
                         fontFamily = PlusJakartaSans
                     )
                 }
@@ -226,7 +227,7 @@ fun TuneOptionRow(
                         Text(
                             text = selectedOption,
                             color = scheme.primary,
-                            fontSize = 12.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -249,7 +250,7 @@ fun TuneOptionRow(
                                 Text(
                                     text = opt,
                                     color = if (opt == selectedOption) scheme.primary else scheme.onSurface,
-                                    fontSize = 12.sp,
+                                    style = MaterialTheme.typography.labelSmall,
                                     fontFamily = PlusJakartaSans,
                                     fontWeight = if (opt == selectedOption) FontWeight.Bold else FontWeight.Normal
                                 )

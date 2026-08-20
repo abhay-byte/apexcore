@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import com.ivarna.apexcore.R
 import com.ivarna.apexcore.ui.onboarding.OnboardingPreferences
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
+import com.ivarna.apexcore.ui.theme.ZenType
 import kotlinx.coroutines.delay
 
 @Composable
@@ -106,7 +107,7 @@ fun SplashScreen(
 
             Text(
                 text = "ApexCore",
-                fontSize = 32.sp,
+                style = ZenType.hero,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold,
                 color = scheme.onSurface,
@@ -117,7 +118,7 @@ fun SplashScreen(
 
             Text(
                 text = "ZEN PERFORMANCE ENGINE",
-                fontSize = 11.sp,
+                style = ZenType.label,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.SemiBold,
                 color = scheme.primary,

@@ -50,6 +50,7 @@ import com.ivarna.apexcore.freeze.RootFreezeBackend
 import com.ivarna.apexcore.freeze.ShizukuFreezeBackend
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenDimens
+import com.ivarna.apexcore.ui.theme.ZenType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -243,7 +244,7 @@ fun OnboardingScreen(
                         Text(
                             text = "Skip",
                             color = scheme.onSurfaceVariant,
-                            fontSize = 13.sp,
+                            style = ZenType.bodySm,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -350,7 +351,7 @@ fun OnboardingScreen(
                         Text(
                             text = if (isLastPage) "Enter ApexCore" else if (pagerState.currentPage == 0) "Get Started" else "Continue",
                             color = scheme.onPrimary,
-                            fontSize = 16.sp,
+                            style = MaterialTheme.typography.bodyMedium,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp
@@ -394,7 +395,7 @@ private fun WelcomePage() {
         Text(
             text = "ApexCore",
             color = scheme.onSurface,
-            fontSize = 36.sp,
+            style = ZenType.heroLg,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.5.sp,
@@ -407,7 +408,7 @@ private fun WelcomePage() {
         Text(
             text = "ZEN PERFORMANCE ENGINE",
             color = scheme.primary,
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.labelSmall,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             letterSpacing = 2.5.sp,
@@ -420,7 +421,7 @@ private fun WelcomePage() {
         Text(
             text = "Harmonious device optimization. Deep-freeze background bloat, track real-time telemetry HUD, and unlock smooth, lag-free mobile gaming.",
             color = scheme.onSurfaceVariant,
-            fontSize = 14.sp,
+            style = ZenType.body,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Normal,
             textAlign = TextAlign.Center,
@@ -467,7 +468,7 @@ private fun StandardShowcasePage(page: OnboardingPageData) {
             Text(
                 text = page.kicker,
                 color = scheme.primary,
-                fontSize = 11.sp,
+                style = ZenType.label,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.5.sp
@@ -480,7 +481,7 @@ private fun StandardShowcasePage(page: OnboardingPageData) {
         Text(
             text = page.title,
             color = scheme.onSurface,
-            fontSize = 24.sp,
+            style = MaterialTheme.typography.headlineMedium,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
@@ -493,7 +494,7 @@ private fun StandardShowcasePage(page: OnboardingPageData) {
         Text(
             text = page.description,
             color = scheme.onSurfaceVariant,
-            fontSize = 14.sp,
+            style = ZenType.body,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Normal,
             textAlign = TextAlign.Center,
@@ -535,7 +536,7 @@ private fun ElevationSetupPage(
             Text(
                 text = page.kicker,
                 color = scheme.primary,
-                fontSize = 11.sp,
+                style = ZenType.label,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.5.sp
@@ -547,7 +548,7 @@ private fun ElevationSetupPage(
         Text(
             text = page.title,
             color = scheme.onSurface,
-            fontSize = 24.sp,
+            style = MaterialTheme.typography.headlineMedium,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
@@ -558,7 +559,7 @@ private fun ElevationSetupPage(
         Text(
             text = "Select an elevated backend for deep freeze optimization.",
             color = scheme.onSurfaceVariant,
-            fontSize = 13.sp,
+            style = ZenType.bodySm,
             fontFamily = PlusJakartaSans,
             textAlign = TextAlign.Center,
             lineHeight = 18.sp
@@ -631,7 +632,7 @@ private fun ElevationSetupPage(
         Text(
             text = "You can always change backend or connect later in Settings.",
             color = scheme.onSurfaceVariant.copy(alpha = 0.7f),
-            fontSize = 11.sp,
+            style = ZenType.label,
             fontFamily = PlusJakartaSans,
             textAlign = TextAlign.Center
         )

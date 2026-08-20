@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.sp
 import com.ivarna.apexcore.ui.theme.LocalZenSemantics
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenColors
+import com.ivarna.apexcore.ui.theme.ZenType
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.sin
@@ -305,7 +306,7 @@ private fun LeafMetricLabels(
         Text(
             text = label,
             color = fillColor,
-            fontSize = 12.sp,
+            style = MaterialTheme.typography.labelSmall,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.sp
@@ -313,7 +314,7 @@ private fun LeafMetricLabels(
         Text(
             text = "%.0f MB".format(usedMb),
             color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 16.sp,
+            style = MaterialTheme.typography.bodyMedium,
             fontFamily = PlusJakartaSans,
             fontWeight = FontWeight.Bold
         )
@@ -463,7 +464,7 @@ fun MemoryLeafPair(
                     Text(
                         text = "OPTIMIZING MEMORY…",
                         color = scheme.primary.copy(alpha = 0.85f),
-                        fontSize = 13.sp,
+                        style = ZenType.bodySm,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp
@@ -487,7 +488,7 @@ fun MemoryLeafPair(
                         Text(
                             text = "Freed $freedRamText",
                             color = scheme.primary,
-                            fontSize = 14.sp,
+                            style = ZenType.body,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold
                         )

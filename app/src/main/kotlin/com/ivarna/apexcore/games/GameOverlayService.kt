@@ -736,7 +736,7 @@ fun OverlayContent(
                 Text(
                     text = "FPS",
                     color = labelMuted,
-                    fontSize = 9.sp,
+                    style = ZenType.caption,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.2.sp
@@ -748,7 +748,7 @@ fun OverlayContent(
                         fps >= 45 -> scheme.secondary
                         else -> scheme.tertiary
                     },
-                    fontSize = 28.sp,
+                    style = MaterialTheme.typography.headlineLarge,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.ExtraBold,
                     modifier = Modifier.padding(top = 2.dp)
@@ -760,7 +760,7 @@ fun OverlayContent(
                 Text(
                     text = "FPS GRAPH",
                     color = labelMuted,
-                    fontSize = 8.sp,
+                    style = ZenType.micro,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.6.sp
@@ -811,7 +811,7 @@ fun OverlayContent(
                         "CPU LOAD"
                     },
                     color = labelMuted,
-                    fontSize = 8.sp,
+                    style = ZenType.micro,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.6.sp
@@ -855,7 +855,7 @@ fun OverlayContent(
                 Text(
                     text = "BOOST",
                     color = if (isBoosting) scheme.tertiary else labelMuted,
-                    fontSize = 8.sp,
+                    style = ZenType.micro,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp

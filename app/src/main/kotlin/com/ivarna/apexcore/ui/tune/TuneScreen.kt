@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import com.ivarna.apexcore.tune.*
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenDimens
+import com.ivarna.apexcore.ui.theme.ZenType
 import com.ivarna.apexcore.ui.components.zenFrostChild
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
@@ -77,14 +78,14 @@ fun TuneScreen(
                     Text(
                         text = "Real Kernel & Session Tuning",
                         color = scheme.onSurface,
-                        fontSize = 18.sp,
+                        style = MaterialTheme.typography.bodyLarge,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
                         text = "Capability-gated parameters safely applied during game sessions and restored on exit.",
                         color = scheme.onSurfaceVariant,
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         fontFamily = PlusJakartaSans,
                         lineHeight = 16.sp,
                         modifier = Modifier.padding(top = 4.dp)
@@ -99,7 +100,7 @@ fun TuneScreen(
                             Text(
                                 text = "SESSION ACTIVE",
                                 color = scheme.onPrimaryContainer,
-                                fontSize = 10.sp,
+                                style = ZenType.overline,
                                 fontFamily = PlusJakartaSans,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -131,7 +132,7 @@ fun TuneScreen(
                 Text(
                     text = "Applies when you launch a game from ApexCore. Restored when the session ends. Does not disable thermal protections.",
                     color = scheme.onSurfaceVariant.copy(alpha = 0.8f),
-                    fontSize = 11.sp,
+                    style = ZenType.label,
                     fontFamily = PlusJakartaSans,
                     textAlign = TextAlign.Center,
                     lineHeight = 15.sp,
@@ -170,7 +171,7 @@ fun TuneScreen(
                     Text(
                         text = "Game optimisation",
                         color = scheme.onSurface,
-                        fontSize = 17.sp,
+                        style = ZenType.title,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Bold
                     )

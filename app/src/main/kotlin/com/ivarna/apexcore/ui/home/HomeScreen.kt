@@ -25,11 +25,13 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsTopHeight
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -61,6 +63,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ivarna.apexcore.freeze.FreezeResult
@@ -73,6 +76,7 @@ import com.ivarna.apexcore.ui.shell.State
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenDimens
 import com.ivarna.apexcore.ui.theme.ZenIcons
+import com.ivarna.apexcore.ui.theme.ZenType
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.delay
@@ -212,7 +216,7 @@ fun HomeScreen(
                 Text(
                     text = statusText.uppercase(),
                     color = statusColor,
-                    fontSize = 10.sp,
+                    style = ZenType.overline,
                     fontFamily = PlusJakartaSans,
                     letterSpacing = 1.sp
                 )
@@ -428,7 +432,7 @@ fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
             Text(
                 text = "ELEVATION REQUIRED",
                 color = scheme.secondary,
-                fontSize = 10.sp,
+                style = ZenType.overline,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp
@@ -437,7 +441,7 @@ fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
             Text(
                 text = "Connect Shizuku or Root for deep freeze",
                 color = scheme.onSurface,
-                fontSize = 14.sp,
+                style = ZenType.body,
                 fontFamily = PlusJakartaSans,
                 fontWeight = FontWeight.Bold
             )
@@ -445,7 +449,7 @@ fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
             Text(
                 text = "BOOST freeze is gated until Shizuku or Root is ready. No elevation means apps cannot be force-stopped on modern Android.",
                 color = scheme.onSurfaceVariant,
-                fontSize = 11.sp,
+                style = ZenType.label,
                 fontFamily = PlusJakartaSans,
                 lineHeight = 15.sp
             )
@@ -454,7 +458,7 @@ fun ShizukuConnectBanner(onConnectClick: () -> Unit) {
                 Text(
                     text = "CONNECT SHIZUKU / ROOT",
                     color = scheme.primary,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
@@ -549,7 +553,7 @@ fun UnifiedResultCard(
                         Text(
                             text = resultTitle,
                             color = scheme.onSurface,
-                            fontSize = 14.sp,
+                            style = ZenType.body,
                             fontFamily = PlusJakartaSans,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
@@ -559,7 +563,7 @@ fun UnifiedResultCard(
                             text = resultSubtitle,
                             color = scheme.onSurfaceVariant,
                             fontFamily = PlusJakartaSans,
-                            fontSize = 12.sp
+                            style = MaterialTheme.typography.labelSmall
                         )
                     }
                 }
@@ -570,13 +574,18 @@ fun UnifiedResultCard(
                         .background(scheme.primary.copy(alpha = 0.12f))
                         .border(1.dp, scheme.primary.copy(alpha = 0.3f), RoundedCornerShape(50))
                         .padding(horizontal = 10.dp, vertical = 5.dp)
+                        .heightIn(min = 22.dp)
+                        .widthIn(max = 160.dp)
                 ) {
                     Text(
                         text = "PURGE AGAIN",
                         color = scheme.primary,
-                        fontSize = 9.sp,
+                        style = ZenType.caption,
                         fontFamily = PlusJakartaSans,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false
                     )
                 }
             }
@@ -698,7 +707,7 @@ fun StatItem(
             Text(
                 text = title,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 10.sp,
+                style = ZenType.overline,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.sp
             )
@@ -706,17 +715,16 @@ fun StatItem(
             Text(
                 text = value,
                 color = valueColor,
-                fontSize = 20.sp,
+                style = ZenType.display,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(1.dp))
             Text(
                 text = subtitle,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 11.sp
+                style = ZenType.label
             )
         }
     }
 }
-
 

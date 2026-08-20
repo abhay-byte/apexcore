@@ -84,8 +84,8 @@ It omits real features: RAM Free, Games library, Pin Apps, and (currently) does 
 
 ## P1 — Privacy Policy quality (§4.1)
 
-Public URL works (HTTP 200):  
-`https://github.com/abhay-byte/apexcore/blob/main/docs/privacy-policy.md`  
+**2026-08-20 update:** repo is private; public URL removed. In-app Privacy Policy is the canonical route (bundled asset, offline, no INTERNET).
+
 In-app links exist (Settings → Privacy Policy; Setup dialog chip).
 
 Still **not fully meeting** the guide’s privacy checklist:

@@ -56,6 +56,15 @@ android {
     }
 }
 
+// Keep the bundled privacy policy in lock-step with the canonical docs copy —
+// ponytail: replace with a symlink/generated resource once the docs tree formalizes.
+tasks.register<Copy>("syncPrivacyPolicy") {
+    from("${rootProject.projectDir}/docs/privacy-policy.md")
+    into("${projectDir}/src/main/assets")
+    rename { "privacy_policy.md" }
+}
+tasks.named("preBuild") { dependsOn("syncPrivacyPolicy") }
+
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-ktx:1.9.3")

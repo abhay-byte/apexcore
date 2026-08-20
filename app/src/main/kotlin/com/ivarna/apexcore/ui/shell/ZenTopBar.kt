@@ -26,6 +26,7 @@ import androidx.compose.ui.unit.sp
 import com.ivarna.apexcore.R
 import com.ivarna.apexcore.ui.components.zenFrostChild
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
+import com.ivarna.apexcore.ui.theme.ZenType
 import dev.chrisbanes.haze.HazeState
 
 /**
@@ -69,7 +70,7 @@ fun ZenTopBar(
                 Text(
                     text = "Apex Core",
                     color = MaterialTheme.colorScheme.primary,
-                    fontSize = 18.sp,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Light
                 )

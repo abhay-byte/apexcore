@@ -26,6 +26,7 @@ import com.ivarna.apexcore.ui.components.zenDialogSheet
 import com.ivarna.apexcore.ui.components.zenGlassBackground
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenDimens
+import com.ivarna.apexcore.ui.theme.ZenType
 
 @Composable
 fun AddGamePickerDialog(
@@ -65,9 +66,12 @@ fun AddGamePickerDialog(
     ZenDialog(onDismissRequest = onDismiss) {
             Column(
                 modifier = Modifier
-                    .padding(horizontal = 24.dp, vertical = 40.dp)
+                    // Window is already sized 0.92×/max 560dp by ZenDialog; no horizontal
+                    // padding so the glass card fills that width exactly, inner 24dp keeps inset.
+                    .padding(vertical = 24.dp)
+                    .widthIn(max = 560.dp)
                     .fillMaxWidth()
-                    .fillMaxHeight(0.85f)
+                    .fillMaxHeight(0.86f)
                     .zenGlassBackground(
                         shape = dialogShape,
                         fill = scheme.surfaceContainerLowest.copy(alpha = 0.96f),
@@ -81,7 +85,7 @@ fun AddGamePickerDialog(
                 Text(
                     text = "ADD TO LIBRARY",
                     color = scheme.onSurface,
-                    fontSize = 14.sp,
+                    style = ZenType.body,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 2.sp
@@ -90,7 +94,7 @@ fun AddGamePickerDialog(
                 Text(
                     text = "Select apps to register in library",
                     color = scheme.onSurfaceVariant,
-                    fontSize = 11.sp,
+                    style = ZenType.label,
                     fontFamily = PlusJakartaSans
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -118,7 +122,7 @@ fun AddGamePickerDialog(
                             text = "NO APPS FOUND",
                             color = scheme.onSurfaceVariant,
                             fontFamily = PlusJakartaSans,
-                            fontSize = 12.sp,
+                            style = MaterialTheme.typography.labelSmall,
                             letterSpacing = 1.sp
                         )
                     } else {
@@ -174,7 +178,7 @@ fun AddGamePickerDialog(
                                         Text(
                                             text = app.name,
                                             color = scheme.onSurface,
-                                            fontSize = 14.sp,
+                                            style = ZenType.body,
                                             fontFamily = PlusJakartaSans,
                                             fontWeight = FontWeight.Bold,
                                             maxLines = 1
@@ -182,7 +186,7 @@ fun AddGamePickerDialog(
                                         Text(
                                             text = app.pkg,
                                             color = scheme.onSurfaceVariant,
-                                            fontSize = 10.sp,
+                                            style = ZenType.overline,
                                             fontFamily = PlusJakartaSans,
                                             maxLines = 1
                                         )
@@ -228,7 +232,7 @@ fun AddGamePickerDialog(
                         Text(
                             text = "CANCEL",
                             color = scheme.onSurface,
-                            fontSize = 11.sp,
+                            style = ZenType.label,
                             fontWeight = FontWeight.Bold,
                             fontFamily = PlusJakartaSans
                         )
@@ -255,7 +259,7 @@ fun AddGamePickerDialog(
                         Text(
                             text = "ADD${if (selectedCount > 0) " $selectedCount" else ""}",
                             color = if (isAddEnabled) scheme.onPrimary else scheme.onSurfaceVariant,
-                            fontSize = 11.sp,
+                            style = ZenType.label,
                             fontWeight = FontWeight.Bold,
                             fontFamily = PlusJakartaSans
                         )

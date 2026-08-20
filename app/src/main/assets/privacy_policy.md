@@ -1,10 +1,10 @@
 # Privacy Policy
 
-**Last Updated: August 3, 2026**
+**Last Updated: August 20, 2026**
 
-**Developer:** zenithblue (package `com.ivarna.apexcore`). Source and issue tracker: [github.com/abhay-byte/apexcore](https://github.com/abhay-byte/apexcore).
+**Developer:** ApexCore (private repository). Contact via in-app support or the store listing.
 
-zenithblue ("we", "our", or "us") explains how the **ApexCore** Android application handles information. This policy is meant to match the Play Store listing developer name and the in-app Privacy Policy link.
+ApexCore ("we", "our", or "us") explains how the **ApexCore** Android application handles information. This policy is meant to match the Play Store listing developer name and the in-app Privacy Policy link.
 
 ## 1. No Data Collection
 
@@ -74,19 +74,19 @@ ApexCore does **not** declare, request, or use an Accessibility service in this 
 
 * Freeze and memory tools run only after **you** start them (no silent background freeze of other apps).
 * No sale of personal data (we do not collect personal data for sale or sharing).
-* Prefer reviewing the open-source code and building from source if you want independent verification.
+* Source is private; no public build artifacts are published.
 
-## 6. Open Source Verification
+## 6. Verification
 
-As an open-source project, the code is auditable. You can review permission usage, freeze backends, and storage handling in the repository and build the app yourself.
+Builds are reproducible from private source; no public repository is advertised.
 
 ## 7. Changes to This Policy
 
-We may update this Privacy Policy from time to time. Changes are posted in this document in the project repository (and at the same public URL linked from the app and Play listing when published).
+We may update this Privacy Policy from time to time. Changes are posted in this document and shipped with the app.
 
 ## 8. Contact
 
-Questions about this policy or the app (developer: **zenithblue**):
+Questions about this policy or the app:
 
-* **GitHub Issues:** [https://github.com/abhay-byte/apexcore/issues](https://github.com/abhay-byte/apexcore/issues)
-* **Repository:** [https://github.com/abhay-byte/apexcore](https://github.com/abhay-byte/apexcore)
+* In-app support / Settings
+* App store listing contact

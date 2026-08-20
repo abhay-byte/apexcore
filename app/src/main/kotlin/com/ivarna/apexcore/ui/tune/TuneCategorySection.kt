@@ -24,6 +24,7 @@ import com.ivarna.apexcore.tune.*
 import com.ivarna.apexcore.ui.components.zenGlassBackground
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenDimens
+import com.ivarna.apexcore.ui.theme.ZenType
 
 @Composable
 fun TuneCategorySection(
@@ -81,7 +82,7 @@ fun TuneCategorySection(
                 Text(
                     text = category.displayName.uppercase(),
                     color = scheme.primary,
-                    fontSize = 12.sp,
+                    style = MaterialTheme.typography.labelSmall,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
@@ -90,7 +91,7 @@ fun TuneCategorySection(
                 Text(
                     text = countText,
                     color = if (availableCount > 0) scheme.primary.copy(alpha = 0.85f) else scheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    fontSize = 10.sp,
+                    style = ZenType.overline,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.Medium
                 )

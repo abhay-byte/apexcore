@@ -10,8 +10,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
@@ -48,9 +50,15 @@ class MainActivity : ComponentActivity() {
         } catch (_: Throwable) {}
         WindowCompat.setDecorFitsSystemWindows(window, false)
         setContent {
-            var appStage by remember { mutableStateOf(AppStage.SPLASH) }
-            var themeMode by remember { mutableStateOf(ThemePreferences.get(this@MainActivity)) }
-            var lightTankBg by remember {
+            // Config-change survives without recreate, but process death still needs
+            // Saveable. Enums are stored as ordinals (no custom Saver needed).
+            var appStageOrdinal by rememberSaveable { mutableIntStateOf(AppStage.SPLASH.ordinal) }
+            val appStage = AppStage.entries[appStageOrdinal]
+            var themeModeOrdinal by rememberSaveable {
+                mutableIntStateOf(ThemePreferences.get(this@MainActivity).ordinal)
+            }
+            val themeMode = ThemeMode.entries[themeModeOrdinal]
+            var lightTankBg by rememberSaveable {
                 mutableStateOf(ThemePreferences.getLightTankBg(this@MainActivity))
             }
             val systemDark = isSystemInDarkTheme()
@@ -68,14 +76,14 @@ class MainActivity : ComponentActivity() {
                         AppStage.SPLASH -> {
                             SplashScreen(
                                 onSplashFinished = { showOnboarding ->
-                                    appStage = if (showOnboarding) AppStage.ONBOARDING else AppStage.MAIN
+                                    appStageOrdinal = if (showOnboarding) AppStage.ONBOARDING.ordinal else AppStage.MAIN.ordinal
                                 }
                             )
                         }
                         AppStage.ONBOARDING -> {
                             OnboardingScreen(
                                 onFinish = {
-                                    appStage = AppStage.MAIN
+                                    appStageOrdinal = AppStage.MAIN.ordinal
                                 }
                             )
                         }
@@ -84,7 +92,7 @@ class MainActivity : ComponentActivity() {
                                 gameManager = gameManager,
                                 themeMode = themeMode,
                                 onThemeModeChange = { mode ->
-                                    themeMode = mode
+                                    themeModeOrdinal = mode.ordinal
                                     ThemePreferences.set(this@MainActivity, mode)
                                 },
                                 lightTankBg = lightTankBg,

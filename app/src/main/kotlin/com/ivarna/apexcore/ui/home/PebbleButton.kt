@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import com.ivarna.apexcore.ui.shell.State
 import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenIcons
+import com.ivarna.apexcore.ui.theme.ZenType
 
 /**
  * River-pebble Purge Engine CTA.
@@ -109,7 +110,7 @@ fun PebbleButton(
                     Text(
                         text = displayTitle,
                         color = scheme.onPrimary,
-                        fontSize = 20.sp,
+                        style = ZenType.display,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp
@@ -118,7 +119,7 @@ fun PebbleButton(
                     Text(
                         text = displaySubtitle,
                         color = scheme.onPrimary.copy(alpha = 0.85f),
-                        fontSize = 12.sp,
+                        style = MaterialTheme.typography.labelSmall,
                         fontFamily = PlusJakartaSans,
                         fontWeight = FontWeight.Normal
                     )
