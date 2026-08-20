@@ -20,20 +20,30 @@ object TuneSessionWatchdog {
     private var watchdogJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    @Volatile
+    var topPackageProvider: ((Context) -> String?)? = null
+    @Volatile
+    var gracePeriodOverrideMs: Long? = null
+    @Volatile
+    var pollIntervalOverrideMs: Long? = null
+
     fun arm(context: Context, gamePkg: String) {
         val appCtx = context.applicationContext
         val tuneManager = TuneManager.get(appCtx)
         tuneManager.setOwner(TuneSessionOwner.WATCHDOG)
 
+        val graceMs = gracePeriodOverrideMs ?: GRACE_PERIOD_MS
+        val pollMs = pollIntervalOverrideMs ?: POLL_INTERVAL_MS
+
         watchdogJob?.cancel()
         watchdogJob = scope.launch {
-            Log.i(TAG, "Watchdog armed for $gamePkg with ${GRACE_PERIOD_MS}ms grace period")
-            delay(GRACE_PERIOD_MS)
+            Log.i(TAG, "Watchdog armed for $gamePkg with ${graceMs}ms grace period")
+            delay(graceMs)
 
             var unknownStreak = 0
             while (isActive && tuneManager.sessionActive.value && tuneManager.owner == TuneSessionOwner.WATCHDOG) {
-                delay(POLL_INTERVAL_MS)
-                val top = queryUsageStatsTop(appCtx)
+                delay(pollMs)
+                val top = topPackageProvider?.invoke(appCtx) ?: queryUsageStatsTop(appCtx)
                 Log.d(TAG, "Watchdog poll: top=$top, game=$gamePkg, streak=$unknownStreak")
 
                 when {

@@ -7,8 +7,8 @@
 | **Type** | feature |
 | **Priority** | P0 (Play policy — deceptive UI) |
 | **Author** | TBD |
-| **Date** | 2026-08-17 |
-| **Status** | Draft (rev 4 — 36 options / 10 categories; see `T12-tune-options.md`) |
+| **Date** | 2026-08-17 (rev 5 status 2026-08-18) |
+| **Status** | **Implemented, incomplete** (rev 5). Spec KDs unchanged. Landed on `main` (`f593dd0`…`0550c6f`). Remaining work: [Implementation status](#implementation-status-rev-5--2026-08-18-review) and [`T12-real-game-optimisation-results.md`](T12-real-game-optimisation-results.md). |
 | **Package** | `com.ivarna.apexcore` |
 | **Workspace** | `/home/abhaybyte/repos/apexcore` |
 | **Target** | Android 16 / compileSdk 36 / targetSdk 36 / minSdk 24 |
@@ -1117,9 +1117,60 @@ No new manifest permissions. No new services. No `lifecycle-process` unless a la
 
 ---
 
+## Implementation status (rev 5 — 2026-08-18 review)
+
+Source of truth for *what to build* remains this spec + [`T12-tune-options.md`](T12-tune-options.md). Source of truth for *what landed* is [`T12-real-game-optimisation-results.md`](T12-real-game-optimisation-results.md). Do **not** treat an older results draft as evidence.
+
+**Shipped and matching the spec**
+
+- `TuneId` / `TuneSpecs` = the 36 rev-4 IDs in 10 categories. No `MEM_DROP_CACHES`, no `THERMAL_CORE_CONTROL`, no `NET_WIFI_PM`.
+- Dummy `dummy_opt_*` deleted, never migrated (KD-14).
+- Rejected sysfs paths absent from catalog/applier (`drop_caches`, `msm_thermal`, `throttling`, `sched_util_clamp_min`, `/dev/mali0`, `/proc/ged`, GED force-max).
+- Session hooks present: `startActivity` then apply on IO; `GameOverlayService.start(): Boolean`; companion `isRunning`; overlay-less `TuneSessionWatchdog`; self-pkg apply no-op; `writeTier()` from `FreezeFramework.activeBackend.name`.
+- Snapshot uses `Settings.Global.BOOT_COUNT` + `/proc/sys/kernel/random/boot_id`. No `BOOT_COMPLETED` receiver (KD-2).
+- There is **no** `TuneSessionManager`, `TuneRestoreReceiver`, or `TuneWatchdog` class. Facade is `TuneManager`; watchdog is `TuneSessionWatchdog`.
+
+**Not shipped / not matching — blocking Play P0 close**
+
+These are still required by KD-7, KD-8, KD-3, KD-9 restore-fail, and the Display/Focus Settings contract. Until they land, **do not** mark [`docs/Play_Policy_Gaps_Not_Followed.md`](../Play_Policy_Gaps_Not_Followed.md) §1 resolved.
+
+| # | Gap | Spec | Evidence |
+|---|-----|------|----------|
+| B1 | Display/Focus Settings apply is stubbed (`FOCUS_HEADSUP`, `FOCUS_IMMERSIVE`, `DISPLAY_PEAK`, `DISPLAY_MIUI` return success without `settings put`). Probe lights them on elevation. New no-op ON switches. | Options spec §7–8; KD-7 | `TuneApplier.kt` `applyFocusHeadsUp` / display stubs; `TuneProbe.kt` elevation-only available |
+| B2 | Live last-option OFF deadlocks: `setIntent` holds `mutex` then `restoreSession()` takes the same non-reentrant `Mutex`. | KD-3 | `TuneManager.kt` `setIntent` → `restoreSession` |
+| B3 | Failed restore always `snapshotStore.clear()` + `tune_applied=false`. Charge-bypass cannot retry. | KD-9; `CHARGE_BYPASS` restore mandatory | `TuneManager.restoreSession` / `recoverSession` |
+| B4 | `refreshCapabilities()` is only the TuneScreen refresh button. Home never probes. Cold start shows “None on this kernel”; `applyForSession` skips persisted intents. | KD-8 `LaunchedEffect` on Home | `HomeScreen.kt`; `TuneScreen.kt` refresh |
+
+**Should-fix before a Play cut (same PR 6 or PR 7)**
+
+| # | Gap | Spec |
+|---|-----|------|
+| S1 | `ShellGateway.mutex` is declared and never acquired | KD-10 |
+| S2 | No 1500 / 2500 ms apply wall budget | KD-17 |
+| S3 | Home Game-optimisation row always visible | KD-7 |
+| S4 | Empty categories still rendered | Options spec: hide empty categories |
+| S5 | `CPU_FLOOR` UI does not disable little/big/prime rows | KD-20 / options spec |
+| S6 | Policy dirs hardcoded `policy0/4/6/7`; no `discoverPolicies()`; mali instance hardcoded | Probe algorithm |
+| S7 | `IO_SCHEDULER` has no `availablePath`; bracketed scheduler line fails value regex | Options spec §6 |
+| S8 | Several required tests exist by name but do not drive the real seam (watchdog, `start()`, live `setIntent`, 3500 ms probe, apply throw, empty-category hide) | Test plan |
+| S9 | Fastlane `full_description.txt` L9 still “tune game options”; no draw-over-denied restore proof | PR 5 |
+| S10 | Extra `/dev/cpuctl/cpu.uclamp.min` (root cgroup) in `uclamp_top` | KD-18 |
+| S11 | `FOCUS_DND` available on elevation even without policy access | Options spec §8 |
+| S12 | No re-arm to WATCHDOG when `start()==true` but `!isRunning` | KD-11 |
+| S13 | Mid-session backend drop does not restore | Interaction table |
+
+**Explicitly not in the tree (do not add unless this spec changes)**
+
+- `TuneRestoreReceiver` / `ACTION_BOOT_COMPLETED` apply-on-boot
+- `MEM_DROP_CACHES`, `THERMAL_CORE_CONTROL`, `THERMAL_VDD_RESTRICTION`, `NET_WIFI_PM`, `CPU_INTERACTIVE_HISPEED`
+
+---
+
 ## Open Questions
 
-None blocking v1. Deferred:
+Blocking v1 close (rev 5): B1–B4 above. Do not ship a Play cut that claims kernel/settings tune until those and PR 5 proof land.
+
+Deferred (unchanged):
 
 1. v2 per-game profiles (UsageStats poll, no Accessibility).
 2. v2 thermal abort at 85 °C.
@@ -1130,7 +1181,8 @@ None blocking v1. Deferred:
 ## References
 
 - Option catalog (rev 4): [`T12-tune-options.md`](T12-tune-options.md)
-- ApexCore P0: [`docs/Play_Policy_Gaps_Not_Followed.md`](../Play_Policy_Gaps_Not_Followed.md) §1
+- Implementation vs spec (rev 5): [`T12-real-game-optimisation-results.md`](T12-real-game-optimisation-results.md)
+- ApexCore P0: [`docs/Play_Policy_Gaps_Not_Followed.md`](../Play_Policy_Gaps_Not_Followed.md) §1 — **re-open until PR 6 + PR 5**
 - Privilege: [`PrivilegeTier.kt`](../../app/src/main/kotlin/com/ivarna/apexcore/fps/privilege/PrivilegeTier.kt), [`ShellGateway.kt`](../../app/src/main/kotlin/com/ivarna/apexcore/fps/privilege/ShellGateway.kt)
 - Dummy UI + banner: [`HomeScreen.kt`](../../app/src/main/kotlin/com/ivarna/apexcore/ui/home/HomeScreen.kt) L130, L269–395, L584–589
 - Overlay skip: [`GameOverlayService.kt`](../../app/src/main/kotlin/com/ivarna/apexcore/games/GameOverlayService.kt) L547–557
@@ -1145,39 +1197,56 @@ None blocking v1. Deferred:
 
 ## PR Plan
 
-### PR 1 — Tune shell seam, catalog, probe
+| PR | Status (rev 5) |
+|----|----------------|
+| 1–4 | **Landed** on `main` (`f593dd0` and follow-ups). Incomplete vs this spec — see B1–B4 / S1–S13. |
+| 5 | **Not done.** L9 unwritten; overlay-less restore unproven; §1 must stay open. |
+| 6 | **Next.** Close B1–B4 (and S1–S13 if in the same cut). |
+
+### PR 1 — Tune shell seam, catalog, probe — landed
 
 - **Title:** `T12: add TuneCatalog + ShellExecutor timeout + writePath + capability probe`
 - **Files:** `fps/util/ShellExecutor.kt` (timeoutMs + destroy); `fps/privilege/ShellGateway.kt` (writePath, exists, Mutex); new `tune/TuneId.kt`, `TuneModels.kt`, `TuneCatalog.kt`, `TuneShell.kt`, `TuneProbe.kt`; tests `TuneCatalogTest`, `TuneProbePerTuneIdTest`, `TuneProbeTimeoutTest`, `TuneProbeRootWriteVerifyTest`, `GpuFloorNotEnabledByPwrlevelOnly`
 - **Dependencies:** none
 - **Description:** Charset-safe interpolated `writePath` on today’s `su -c` single-string contract. Path catalog (no GPL Java; Mali/Samsung extras marked community). Probe: phase-1 per TuneId, 4-policy cap, 16-probe max, batches of 4, 120 ms destroy, Root write-verify. No UI. No apply.
+- **Residual:** `ShellGateway.mutex` unused (S1); policy/mali discovery hardcoded (S6); probe not auto-started (B4).
 
-### PR 2 — Snapshot store, applier, prefs (no dummy migration)
+### PR 2 — Snapshot store, applier, prefs (no dummy migration) — landed
 
 - **Title:** `T12: TuneApplier snapshot/restore + TunePrefs KeyValue`
 - **Files:** `tune/TuneSnapshotStore.kt`, `TuneApplier.kt`, `TunePrefs.kt`, `TuneManager.kt` (intents + apply/restore + recoverJob on IO + persist/rehydrate owner + mutex + self-pkg no-op + writeTier from `FreezeFramework.activeBackend`); `BoostManager.kt` (KDoc only); tests listed in Test Plan PR 2 rows including `TuneTestOverlayDoesNotApply`, `TuneRedeliverRehydratesOwner`, `TuneSetIntentDoesNotBlock`
 - **Dependencies:** PR 1
 - **Description:** Persist intents under `tune_*` **default false**. Snapshot JSON + `BOOT_COUNT` + `boot_id` + `tune_owner`. Insert-if-absent. Invertible apply/restore. `setIntent` persist+return; IO bundle apply/restore if session live. Fail closed if capability missing. **Does not read or delete `dummy_opt_*`.**
+- **Residual:** last-OFF mutex deadlock (B2); restore-fail clears snapshot (B3); Settings apply stubs (B1).
 
-### PR 3 — Session hooks (safe without UI; defaults false)
+### PR 3 — Session hooks (safe without UI; defaults false) — landed
 
 - **Title:** `T12: apply tune on game session; overlay or watchdog restore`
 - **Files:** `games/GameLauncher.kt`; `games/GameOverlayService.kt` (`start(): Boolean`, **companion** `isRunning`, cancel previous `exitWatcher`, `detect()` + `setOwner(OVERLAY)` on real `EXTRA_PKG`); `tune/TuneSessionWatchdog.kt` (arm sets `owner=WATCHDOG`); `ui/shell/MainScreen.kt` (`TuneManager.get` only)
 - **Dependencies:** PR 2
 - **Description:** `startActivity` first, then apply on IO (**2500 ms** if >4 intents on, else 1500). `start(): Boolean` selects owner OVERLAY vs **WATCHDOG (primary when no draw-over)**; re-arm **sets WATCHDOG**. Overlay `onStartCommand` reconstructs owner + `detect()` so redeliver can restore. `onDestroy` fire-and-forget. Self-pkg test HUD does not apply. Recover joins before apply. **Never reads dummy keys.** Safe to merge alone because all `tune_*` default false.
+- **Residual:** no apply wall budget (S2); no FGS-died re-arm (S12); no backend-drop restore (S13).
 
-### PR 4 — TuneScreen catalog + dummy-key deletion (closes Play P0)
+### PR 4 — TuneScreen catalog + dummy-key deletion — landed (does **not** close Play P0)
 
 - **Title:** `T12: Game optimisation page — 36 capability-gated options in 10 categories`
 - **Files:** `ui/home/HomeScreen.kt` (entry row); `ui/tune/TuneScreen.kt` + category/row composables; `tune/TuneSpecs.kt`; `tune/TunePrefs.kt` (`deleteDummyKeysIfNeeded`); tests `TunePrefsNoDummyTrueMigration`, `TuneSpecsCount`
 - **Dependencies:** PR 3
 - **Description:** Elevation-gated Home row + full `TuneScreen`. Catalog in [`T12-tune-options.md`](T12-tune-options.md). Footer thermal line. **Delete `dummy_opt_*`; do not copy trues.** Users re-opt in.
+- **Residual:** Home row always shown (S3); empty categories shown (S4); CPU split rows not disabled (S5); Settings stubs recreate no-op ON (B1). **P0 stays open.**
 
-### PR 5 — Device matrix + listing honesty
+### PR 5 — Device matrix + listing honesty — **blocked on PR 6**
 
 - **Title:** `T12: rewrite Play listing Game-optimisations line; close P0 after device proof`
-- **Files:** `docs/Play_Policy_Gaps_Not_Followed.md` (mark §1 fixed **only after** PR 4 + one device proof including overlay-less); `fastlane/metadata/android/en-US/full_description.txt` (**rewrite L9**, do not leave “tune game options” as a dummy claim); optional `docs/plans/T12-field-matrix.md`
-- **Dependencies:** PR 4 + Adreno-Root + Shizuku-only + **draw-over-denied** runs
-- **Description:** Do not claim kernel tuning on all devices. Close P0 with evidence.
+- **Files:** `docs/Play_Policy_Gaps_Not_Followed.md` (mark §1 fixed **only after** PR 6 + one device proof including overlay-less); `fastlane/metadata/android/en-US/full_description.txt` (**rewrite L9**, do not leave “tune game options” as a dummy claim); optional `docs/plans/T12-field-matrix.md`
+- **Dependencies:** PR 6 + Adreno-Root + Shizuku-only + **draw-over-denied** runs
+- **Description:** Do not claim kernel tuning on all devices. Close P0 with evidence. A Poco X6 Pro UI smoke (cold start / rotation / navigation) is **not** PR 5 proof.
 
-PR 3 no longer requires a merge-queue gate with PR 4: dummy trues are never applied. Still land 3+4 in the same Play cut so the dummy UI does not sit next to a live (but default-off) backend.
+### PR 6 — Close review gaps (next)
+
+- **Title:** `T12: real Settings apply, session mutex/restore, auto-probe; drop no-op rows`
+- **Files:** `TuneApplier.kt`, `TuneProbe.kt`, `TuneManager.kt`, `HomeScreen.kt`, `TuneScreen.kt` / `TuneOptionRow.kt` / `TuneCategorySection.kt`, `ShellGateway.kt`, `TuneCatalog.kt`, `GameLauncher.kt`; tests that currently miss the seam (S8); [`T12-real-game-optimisation-results.md`](T12-real-game-optimisation-results.md) if claims drift again
+- **Dependencies:** PR 4 (already on `main`)
+- **Description:** Implement B1–B4. Prefer S1–S13 in the same cut. Do **not** add `TuneRestoreReceiver`, `drop_caches`, thermal disable, or apply-on-boot. After merge, run PR 5 — do not close §1 from this PR alone.
+
+PR 3 no longer requires a merge-queue gate with PR 4: dummy trues are never applied. PRs 3+4 already landed together; Play cut still waits on 6+5.

@@ -126,67 +126,78 @@ class TuneProbe(
             val id = spec.id
             val nodes = TuneCatalog.nodesByTuneId[id].orEmpty()
             val writableNodes = nodes.filter { discoveredWritable[it.path] == true }
-
             when (id) {
                 // Focus & Display special handling
                 TuneId.FOCUS_DND -> {
                     val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
                     val hasDndAccess = nm?.isNotificationPolicyAccessGranted == true
-                    val available = hasDndAccess || tier == PrivilegeTier.ROOT || tier == PrivilegeTier.SHIZUKU
                     resultMap[id] = TuneCapability(
                         id = id,
-                        available = available,
+                        available = hasDndAccess,
                         needsRoot = false,
                         writablePaths = emptyList(),
-                        subtitle = if (available) "Silence notifications during game" else "Needs Do Not Disturb access"
+                        subtitle = if (hasDndAccess) "Silence notifications during game" else "Needs Do Not Disturb access"
                     )
                 }
                 TuneId.FOCUS_HEADSUP -> {
-                    val available = tier == PrivilegeTier.ROOT || tier == PrivilegeTier.SHIZUKU
+                    val isElevated = tier == PrivilegeTier.ROOT || tier == PrivilegeTier.SHIZUKU
                     resultMap[id] = TuneCapability(
                         id = id,
-                        available = available,
+                        available = isElevated,
                         needsRoot = false,
                         writablePaths = emptyList(),
-                        subtitle = if (available) "Suppress floating heads-up popups" else "Needs Shizuku or Root"
+                        subtitle = if (isElevated) "Suppress floating heads-up popups" else "Needs Shizuku or Root"
                     )
                 }
                 TuneId.FOCUS_IMMERSIVE -> {
-                    val available = tier == PrivilegeTier.ROOT || tier == PrivilegeTier.SHIZUKU
+                    val isElevated = tier == PrivilegeTier.ROOT || tier == PrivilegeTier.SHIZUKU
                     resultMap[id] = TuneCapability(
                         id = id,
-                        available = available,
+                        available = isElevated,
                         needsRoot = false,
                         writablePaths = emptyList(),
-                        subtitle = if (available) "Auto-hide status and navigation bars" else "Needs Shizuku or Root"
+                        subtitle = if (isElevated) "Auto-hide status and navigation bars" else "Needs Shizuku or Root"
                     )
                 }
                 TuneId.DISPLAY_PEAK -> {
+                    val isElevated = tier == PrivilegeTier.ROOT || tier == PrivilegeTier.SHIZUKU
                     val peakStr = try {
                         Settings.System.getString(context.contentResolver, "peak_refresh_rate")
                             ?: Settings.Global.getString(context.contentResolver, "peak_refresh_rate")
+                            ?: Settings.Secure.getString(context.contentResolver, "peak_refresh_rate")
                     } catch (_: Throwable) { null }
-                    val available = (peakStr != null && peakStr.isNotBlank()) || tier == PrivilegeTier.ROOT
+                    val hasValidPeak = peakStr != null && peakStr.isNotBlank() && (peakStr.toDoubleOrNull() ?: 0.0) > 0.0
+                    val available = isElevated && hasValidPeak
                     resultMap[id] = TuneCapability(
                         id = id,
                         available = available,
                         needsRoot = false,
                         writablePaths = emptyList(),
-                        subtitle = if (available) "Lock refresh rate to peak" else "Peak rate setting not found on this ROM"
+                        subtitle = when {
+                            !isElevated -> "Needs Shizuku or Root"
+                            hasValidPeak -> "Lock refresh rate to peak (${peakStr}Hz)"
+                            else -> "Peak rate setting not found on this ROM"
+                        }
                     )
                 }
                 TuneId.DISPLAY_MIUI -> {
+                    val isElevated = tier == PrivilegeTier.ROOT || tier == PrivilegeTier.SHIZUKU
                     val miuiMode = try {
                         Settings.System.getString(context.contentResolver, "refresh_rate_mode")
                             ?: Settings.System.getString(context.contentResolver, "miui_refresh_rate")
                     } catch (_: Throwable) { null }
-                    val available = miuiMode != null && (tier == PrivilegeTier.ROOT || tier == PrivilegeTier.SHIZUKU)
+                    val hasMiui = miuiMode != null && miuiMode.isNotBlank()
+                    val available = isElevated && hasMiui
                     resultMap[id] = TuneCapability(
                         id = id,
                         available = available,
                         needsRoot = false,
                         writablePaths = emptyList(),
-                        subtitle = if (available) "Xiaomi high refresh mode" else "MIUI display mode unavailable"
+                        subtitle = when {
+                            !isElevated -> "Needs Shizuku or Root"
+                            hasMiui -> "Xiaomi high refresh mode"
+                            else -> "MIUI display mode unavailable"
+                        }
                     )
                 }
                 TuneId.GPU_FLOOR -> {
@@ -292,8 +303,23 @@ class TuneProbe(
             }
         }
 
+        // For IO_SCHEDULER, parse available schedulers from currentVal if availablePath is null
+        if (node.id == TuneId.IO_SCHEDULER && node.availablePath == null) {
+            val tokens = currentVal.replace("[", "").replace("]", "").split(Regex("\\s+")).filter { it.isNotBlank() }
+            if (tokens.isNotEmpty()) {
+                synchronized(discoveredAvailableOptions) {
+                    discoveredAvailableOptions[node.id] = tokens
+                }
+            }
+        }
+
         // Write-verification of current value to ensure write permission actually succeeds
-        val writeRes = shell.write(node.path, currentVal, tier, timeoutMs = PER_NODE_TIMEOUT_MS)
+        val valueToWrite = if (node.id == TuneId.IO_SCHEDULER) {
+            Regex("""\[(.*?)\]""").find(currentVal)?.groupValues?.get(1) ?: currentVal.split(Regex("\\s+")).firstOrNull() ?: currentVal
+        } else {
+            currentVal
+        }
+        val writeRes = shell.write(node.path, valueToWrite, tier, timeoutMs = PER_NODE_TIMEOUT_MS)
         discoveredWritable[node.path] = writeRes.ok
     }
 
@@ -338,6 +364,7 @@ class TuneProbe(
         private const val TAG = "ApexCore.TuneProbe"
         private const val WALL_BUDGET_MS = 3500L
         private const val PER_NODE_TIMEOUT_MS = 120L
+        // T12 spec: "Total probes <= 16" (phase 1 per-TuneId candidates + phase 2 fill).
         private const val MAX_TOTAL_PROBES = 16
         private const val CACHE_TTL_MS = 60_000L
     }

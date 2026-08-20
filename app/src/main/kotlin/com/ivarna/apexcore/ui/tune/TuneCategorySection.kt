@@ -122,11 +122,17 @@ fun TuneCategorySection(
                     }
                     val cap = capabilities[spec.id]
                     val intent = intents[spec.id] ?: TuneValue(on = false, raw = null)
+                    val isCpuFloorOn = intents[TuneId.CPU_FLOOR]?.on == true
+                    val isSplitCpu = spec.id == TuneId.CPU_FLOOR_LITTLE || spec.id == TuneId.CPU_FLOOR_BIG || spec.id == TuneId.CPU_FLOOR_PRIME
+                    val isOverridden = isCpuFloorOn && isSplitCpu
+
                     TuneOptionRow(
                         spec = spec,
                         capability = cap,
-                        intent = intent,
+                        intent = if (isOverridden) TuneValue(on = false, raw = intent.raw) else intent,
                         enabled = enabled,
+                        isOverridden = isOverridden,
+                        overrideSubtitle = if (isOverridden) "Covered by CPU frequency floor" else null,
                         onIntentChange = { newIntent ->
                             onIntentChange(spec.id, newIntent)
                         }

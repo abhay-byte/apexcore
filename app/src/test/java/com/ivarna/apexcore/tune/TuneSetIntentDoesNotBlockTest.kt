@@ -58,15 +58,18 @@ class TuneSetIntentDoesNotBlockTest {
         )
 
         probe.probeSync()
+        prefs.setIntent(TuneId.THERMAL_SCONFIG, TuneValue(on = true))
+        manager.applyForSession("com.test.game")
+        assertTrue(manager.sessionActive.value)
 
         // Set slow write
         fakeShell.sleepOnWriteMs = 200L
 
         val start = System.currentTimeMillis()
-        val success = manager.setIntent(TuneId.THERMAL_SCONFIG, TuneValue(on = true))
+        val success = manager.setIntent(TuneId.THERMAL_SCONFIG, TuneValue(on = false))
         val elapsed = System.currentTimeMillis() - start
 
         assertTrue(success)
-        assertTrue("setIntent must return immediately (< 50ms) and not block caller", elapsed < 50L)
+        assertTrue("setIntent must return immediately (< 50ms) and not block caller during live session", elapsed < 50L)
     }
 }

@@ -14,7 +14,7 @@ import org.junit.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 
-class WatchdogUnknownFailsTowardRestoreTest {
+class TuneFailedRestoreSnapshotRetainedTest {
 
     private val fakeShell = FakeTuneShell()
     private val fakeKv = FakeKeyValue()
@@ -27,6 +27,9 @@ class WatchdogUnknownFailsTowardRestoreTest {
 
         val resolver = FreezeBackendResolver(listOf(TestFreezeBackend("Root", 0, ready = true)))
         FreezeFramework.setResolverForTest(resolver)
+        runBlocking {
+            FreezeFramework.detect()
+        }
     }
 
     @After
@@ -35,10 +38,10 @@ class WatchdogUnknownFailsTowardRestoreTest {
     }
 
     @Test
-    fun testWatchdogRestoresWhenUnknownStreakExceedsThreshold() = runBlocking {
-        val sconfigPath = "/sys/class/thermal/thermal_message/sconfig"
-        fakeShell.existingPaths.add(sconfigPath)
-        fakeShell.pathValues[sconfigPath] = "0"
+    fun testFailedRestoreRetainsSnapshotAndKeepsAppliedTrue() = runBlocking {
+        val chargePath = "/sys/class/qcom-battery/bypass_charging_enable"
+        fakeShell.existingPaths.add(chargePath)
+        fakeShell.pathValues[chargePath] = "0"
 
         val prefs = TunePrefs(fakeKv)
         val snapshotStore = TuneSnapshotStore(context, fakeKv, fakeShell)
@@ -59,35 +62,22 @@ class WatchdogUnknownFailsTowardRestoreTest {
         TuneManager.setInstanceForTest(manager)
 
         probe.probeSync()
-        prefs.setIntent(TuneId.THERMAL_SCONFIG, TuneValue(on = true))
+        prefs.setIntent(TuneId.CHARGE_BYPASS, TuneValue(on = true))
         manager.applyForSession("com.test.game")
 
-        assertEquals("13", fakeShell.pathValues[sconfigPath])
         assertTrue(manager.sessionActive.value)
+        assertTrue(prefs.isApplied())
+        assertEquals("1", fakeShell.pathValues[chargePath])
+        assertEquals("0", snapshotStore.getOriginal(chargePath))
 
-        // Drive the real TuneSessionWatchdog loop with 3 null readings
-        try {
-            TuneSessionWatchdog.topPackageProvider = { null }
-            TuneSessionWatchdog.gracePeriodOverrideMs = 10L
-            TuneSessionWatchdog.pollIntervalOverrideMs = 10L
+        // Make the restore write fail
+        fakeShell.failWritePaths.add(chargePath)
 
-            TuneSessionWatchdog.arm(context, "com.test.game")
+        val report = manager.restoreSession()
 
-            // Wait for 3 polling intervals (10ms grace + 3*10ms polls + restore)
-            var waited = 0
-            while (manager.sessionActive.value && waited < 2000) {
-                kotlinx.coroutines.delay(20)
-                waited += 20
-            }
-
-            assertFalse("Session should be restored automatically by watchdog", manager.sessionActive.value)
-            assertEquals("0", fakeShell.pathValues[sconfigPath])
-            assertEquals(TuneSessionOwner.NONE, manager.owner)
-        } finally {
-            TuneSessionWatchdog.cancel()
-            TuneSessionWatchdog.topPackageProvider = null
-            TuneSessionWatchdog.gracePeriodOverrideMs = null
-            TuneSessionWatchdog.pollIntervalOverrideMs = null
-        }
+        // Verify snapshot was NOT wiped and prefs.isApplied() stays true so recoverSession can retry
+        assertTrue("tune_applied must stay true if restore failed", prefs.isApplied())
+        assertEquals("0", snapshotStore.getOriginal(chargePath))
+        assertTrue(snapshotStore.getAllOriginals().containsKey(chargePath))
     }
 }

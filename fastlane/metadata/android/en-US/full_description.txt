@@ -6,7 +6,7 @@ What you can do
 
 • RAM Free — force a system memory reclaim from the app itself, no elevated freeze required. Uses a safe fill-and-release path with a 90% cap; it does not force-stop other apps.
 
-• Game optimisations — browse installed games and apps, add titles to your library, and tune game options for a smoother session.
+• Game optimisation — optional, capability-gated kernel and display parameters applied during game sessions and restored when you finish. Elevation required; nodes are write-verified on your kernel before switches unlock.
 
 • Games library — browse, pin, and launch your games with an allocate-and-play flow.
 

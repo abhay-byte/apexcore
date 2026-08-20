@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import com.ivarna.apexcore.fps.privilege.PrivilegeModeStore
+import com.ivarna.apexcore.fps.privilege.PrivilegeTier
 import com.ivarna.apexcore.fps.privilege.ShellGateway
 import com.ivarna.apexcore.fps.util.ShellExecutor
 import com.ivarna.apexcore.freeze.FreezeBackendResolver
@@ -53,22 +54,28 @@ class LaunchSucceedsIfApplyThrowsTest {
         val store = mock(PrivilegeModeStore::class.java)
         val gateway = ShellGateway(executor, store)
 
+        // Create a manager whose applier throws an exception during apply
+        val throwingApplier = object : TuneApplier(context, fakeShell, snapshotStore) {
+            override fun applyBundle(id: TuneId, intent: TuneValue, tier: PrivilegeTier): Int {
+                throw RuntimeException("Simulated disk error during kernel write")
+            }
+        }
+
         val manager = TuneManager(
             appContext = context,
             shellGateway = gateway,
             prefs = prefs,
             snapshotStore = snapshotStore,
             probe = probe,
-            applier = applier
+            applier = throwingApplier
         )
         TuneManager.setInstanceForTest(manager)
 
-        // Make all writes fail
-        fakeShell.failWritePaths.add("/sys/node")
+        prefs.setIntent(TuneId.THERMAL_SCONFIG, TuneValue(on = true))
 
         val result = GameLauncher.launch(context, "com.test.game")
 
-        assertTrue("Game launch must succeed even if tuning throws/fails", result.success)
+        assertTrue("Game launch must succeed even if tuning throws an exception", result.success)
         assertEquals("com.test.game", result.launchedPkg)
     }
 }

@@ -6,7 +6,9 @@ import com.ivarna.apexcore.fps.privilege.ShellGateway
 import com.ivarna.apexcore.fps.util.ShellExecutor
 import com.ivarna.apexcore.freeze.FreezeBackendResolver
 import com.ivarna.apexcore.freeze.FreezeFramework
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -14,7 +16,7 @@ import org.junit.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 
-class WatchdogUnknownFailsTowardRestoreTest {
+class TuneLastOffDeadlockTest {
 
     private val fakeShell = FakeTuneShell()
     private val fakeKv = FakeKeyValue()
@@ -35,7 +37,7 @@ class WatchdogUnknownFailsTowardRestoreTest {
     }
 
     @Test
-    fun testWatchdogRestoresWhenUnknownStreakExceedsThreshold() = runBlocking {
+    fun testTurningOffLastOptionDoesNotDeadlock() = runBlocking {
         val sconfigPath = "/sys/class/thermal/thermal_message/sconfig"
         fakeShell.existingPaths.add(sconfigPath)
         fakeShell.pathValues[sconfigPath] = "0"
@@ -59,35 +61,27 @@ class WatchdogUnknownFailsTowardRestoreTest {
         TuneManager.setInstanceForTest(manager)
 
         probe.probeSync()
+
+        // Turn ON one option and start session
         prefs.setIntent(TuneId.THERMAL_SCONFIG, TuneValue(on = true))
         manager.applyForSession("com.test.game")
-
-        assertEquals("13", fakeShell.pathValues[sconfigPath])
         assertTrue(manager.sessionActive.value)
+        assertEquals("13", fakeShell.pathValues[sconfigPath])
 
-        // Drive the real TuneSessionWatchdog loop with 3 null readings
-        try {
-            TuneSessionWatchdog.topPackageProvider = { null }
-            TuneSessionWatchdog.gracePeriodOverrideMs = 10L
-            TuneSessionWatchdog.pollIntervalOverrideMs = 10L
+        // Turning OFF the only active option should trigger restoreSessionLocked without deadlocking
+        withTimeout(2000L) {
+            val success = manager.setIntent(TuneId.THERMAL_SCONFIG, TuneValue(on = false))
+            assertTrue(success)
 
-            TuneSessionWatchdog.arm(context, "com.test.game")
-
-            // Wait for 3 polling intervals (10ms grace + 3*10ms polls + restore)
+            // Wait briefly for the async IO job to complete
             var waited = 0
-            while (manager.sessionActive.value && waited < 2000) {
-                kotlinx.coroutines.delay(20)
+            while (manager.sessionActive.value && waited < 1000) {
+                delay(20)
                 waited += 20
             }
 
-            assertFalse("Session should be restored automatically by watchdog", manager.sessionActive.value)
+            assertFalse("Session should be cleanly restored when last option turned off", manager.sessionActive.value)
             assertEquals("0", fakeShell.pathValues[sconfigPath])
-            assertEquals(TuneSessionOwner.NONE, manager.owner)
-        } finally {
-            TuneSessionWatchdog.cancel()
-            TuneSessionWatchdog.topPackageProvider = null
-            TuneSessionWatchdog.gracePeriodOverrideMs = null
-            TuneSessionWatchdog.pollIntervalOverrideMs = null
         }
     }
 }

@@ -6,6 +6,7 @@ import com.ivarna.apexcore.fps.privilege.ShellGateway
 import com.ivarna.apexcore.fps.util.ShellExecutor
 import com.ivarna.apexcore.freeze.FreezeBackendResolver
 import com.ivarna.apexcore.freeze.FreezeFramework
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.*
@@ -14,7 +15,7 @@ import org.junit.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
 
-class WatchdogUnknownFailsTowardRestoreTest {
+class TuneBackendDropRestoresTest {
 
     private val fakeShell = FakeTuneShell()
     private val fakeKv = FakeKeyValue()
@@ -35,7 +36,7 @@ class WatchdogUnknownFailsTowardRestoreTest {
     }
 
     @Test
-    fun testWatchdogRestoresWhenUnknownStreakExceedsThreshold() = runBlocking {
+    fun testBackendDropRestoresSession() = runBlocking {
         val sconfigPath = "/sys/class/thermal/thermal_message/sconfig"
         fakeShell.existingPaths.add(sconfigPath)
         fakeShell.pathValues[sconfigPath] = "0"
@@ -62,32 +63,19 @@ class WatchdogUnknownFailsTowardRestoreTest {
         prefs.setIntent(TuneId.THERMAL_SCONFIG, TuneValue(on = true))
         manager.applyForSession("com.test.game")
 
-        assertEquals("13", fakeShell.pathValues[sconfigPath])
         assertTrue(manager.sessionActive.value)
+        assertEquals("13", fakeShell.pathValues[sconfigPath])
 
-        // Drive the real TuneSessionWatchdog loop with 3 null readings
-        try {
-            TuneSessionWatchdog.topPackageProvider = { null }
-            TuneSessionWatchdog.gracePeriodOverrideMs = 10L
-            TuneSessionWatchdog.pollIntervalOverrideMs = 10L
+        // Drop active backend to none/standard
+        FreezeFramework.setActiveBackendForTest(null)
 
-            TuneSessionWatchdog.arm(context, "com.test.game")
-
-            // Wait for 3 polling intervals (10ms grace + 3*10ms polls + restore)
-            var waited = 0
-            while (manager.sessionActive.value && waited < 2000) {
-                kotlinx.coroutines.delay(20)
-                waited += 20
-            }
-
-            assertFalse("Session should be restored automatically by watchdog", manager.sessionActive.value)
-            assertEquals("0", fakeShell.pathValues[sconfigPath])
-            assertEquals(TuneSessionOwner.NONE, manager.owner)
-        } finally {
-            TuneSessionWatchdog.cancel()
-            TuneSessionWatchdog.topPackageProvider = null
-            TuneSessionWatchdog.gracePeriodOverrideMs = null
-            TuneSessionWatchdog.pollIntervalOverrideMs = null
+        var waited = 0
+        while (manager.sessionActive.value && waited < 1000) {
+            delay(20)
+            waited += 20
         }
+
+        assertFalse("Session should be restored when backend drops to non-elevated", manager.sessionActive.value)
+        assertEquals("0", fakeShell.pathValues[sconfigPath])
     }
 }

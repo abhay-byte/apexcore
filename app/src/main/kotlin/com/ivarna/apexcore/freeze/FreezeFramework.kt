@@ -39,6 +39,11 @@ object FreezeFramework {
         resolver = r
     }
 
+    /** Test seam: explicitly set active backend flow value in unit tests. */
+    fun setActiveBackendForTest(b: FreezeBackend?) {
+        _activeBackend.value = b
+    }
+
     fun setPreferredBackend(name: String?) {
         resolver?.setPreferredBackend(name)
     }

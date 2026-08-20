@@ -52,7 +52,28 @@ object GameLauncher {
 
             // Apply session tune on IO (1500ms normal / 2500ms if >4 intents enabled)
             try {
-                tuneManager.applyForSession(gamePkg)
+                val report = tuneManager.applyForSession(gamePkg)
+
+                // If overlay was started but FGS died before onCreate, fall back to watchdog
+                if (overlayStarted && !GameOverlayService.isRunning) {
+                    kotlinx.coroutines.delay(100)
+                    if (!GameOverlayService.isRunning) {
+                        Log.w(TAG, "Overlay start() returned true but service is not running; re-arming WATCHDOG")
+                        tuneManager.setOwner(com.ivarna.apexcore.tune.TuneSessionOwner.WATCHDOG)
+                        com.ivarna.apexcore.tune.TuneSessionWatchdog.arm(context, gamePkg)
+                    }
+                }
+
+                // 0/N overlay toast if overlay is up and apply attempted but 0 succeeded
+                if (report.applied == 0 && report.failed > 0 && GameOverlayService.isRunning) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                        android.widget.Toast.makeText(
+                            context,
+                            "Game tune skipped — kernel nodes not writable",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
             } catch (t: Throwable) {
                 Log.w(TAG, "Tune apply failed for $gamePkg: ${t.message}")
             }

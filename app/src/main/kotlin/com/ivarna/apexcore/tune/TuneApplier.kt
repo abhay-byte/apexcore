@@ -12,14 +12,14 @@ import java.io.File
  * Handles value selection (percentile/median frequencies, node alphabets, scale normalization),
  * group exclusion, snapshot integration, and safe write-verification.
  */
-class TuneApplier(
+open class TuneApplier(
     private val context: Context,
     private val shell: TuneShell,
     private val snapshotStore: TuneSnapshotStore
 ) {
     private val appliedGroups = mutableSetOf<String>()
 
-    fun applyBundle(id: TuneId, intent: TuneValue, tier: PrivilegeTier): Int {
+    open fun applyBundle(id: TuneId, intent: TuneValue, tier: PrivilegeTier): Int {
         if (tier == PrivilegeTier.STANDARD && !isSettingsOnly(id)) {
             Log.w(TAG, "Standard tier cannot apply sysfs bundle $id")
             return 0
@@ -59,7 +59,7 @@ class TuneApplier(
         return successCount
     }
 
-    fun restoreBundle(id: TuneId, tier: PrivilegeTier): Int {
+    open fun restoreBundle(id: TuneId, tier: PrivilegeTier): Int {
         var restored = 0
         when (id) {
             TuneId.FOCUS_DND -> {
@@ -96,7 +96,7 @@ class TuneApplier(
         return restored
     }
 
-    fun restoreAll(tier: PrivilegeTier): Int {
+    open fun restoreAll(tier: PrivilegeTier): Int {
         var restored = 0
         // Restore Settings APIs
         if (restoreFocusDnd()) restored++
@@ -146,8 +146,13 @@ class TuneApplier(
             return false
         }
 
-        // Snapshot before write (insert-if-absent)
-        snapshotStore.recordOriginal(node.path, original)
+        // Snapshot before write (insert-if-absent). For IO_SCHEDULER, extract bare active token.
+        val tokenToSnapshot = if (node.id == TuneId.IO_SCHEDULER) {
+            Regex("""\[(.*?)\]""").find(original)?.groupValues?.get(1) ?: original.split(Regex("\\s+")).firstOrNull() ?: original
+        } else {
+            original
+        }
+        snapshotStore.recordOriginal(node.path, tokenToSnapshot)
 
         // Write target value
         var writeRes = shell.write(node.path, targetValue, tier, timeoutMs = APPLY_TIMEOUT_MS)
@@ -277,11 +282,17 @@ class TuneApplier(
             }
 
             TuneId.IO_SCHEDULER -> {
-                val available = readAvailableTokens(node).map { it.replace("[", "").replace("]", "") }
+                val availList = if (node.availablePath != null) {
+                    readAvailableTokens(node)
+                } else {
+                    currentVal.split(Regex("\\s+"))
+                }
+                val available = availList.map { it.replace("[", "").replace("]", "") }.filter { it.isNotBlank() }
                 val preferred = intent.raw ?: "mq-deadline"
                 when {
                     available.contains(preferred) -> preferred
                     available.contains("none") -> "none"
+                    available.isNotEmpty() -> available.first()
                     else -> null
                 }
             }
@@ -359,67 +370,143 @@ class TuneApplier(
     }
 
     private fun applyFocusHeadsUp(tier: PrivilegeTier): Boolean {
-        val cur = shell.read("/sys/devices/virtual/focus/heads_up") // check if shell can execute
+        if (tier == PrivilegeTier.STANDARD) return false
         val prev = try {
             Settings.Global.getInt(context.contentResolver, "heads_up_notifications_enabled", 1)
         } catch (_: Throwable) { 1 }
         snapshotStore.recordOriginal("settings://heads_up", prev.toString())
-        val cmd = "settings put global heads_up_notifications_enabled 0"
-        val res = shell.write("/sys/devices/virtual/focus/heads_up_dummy", "0", tier) // triggers shell command
-        return true
+        val res = shell.execute("settings put global heads_up_notifications_enabled 0", tier, timeoutMs = APPLY_TIMEOUT_MS)
+        return res.isSuccess
     }
 
     private fun restoreFocusHeadsUp(tier: PrivilegeTier): Boolean {
         val orig = snapshotStore.getOriginal("settings://heads_up") ?: return false
-        snapshotStore.removeOriginal("settings://heads_up")
-        return true
+        if (tier == PrivilegeTier.STANDARD) return false
+        val res = shell.execute("settings put global heads_up_notifications_enabled $orig", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+        if (res.isSuccess) {
+            snapshotStore.removeOriginal("settings://heads_up")
+            return true
+        }
+        return false
     }
 
     private fun applyFocusImmersive(tier: PrivilegeTier): Boolean {
+        if (tier == PrivilegeTier.STANDARD) return false
         val prev = try {
             Settings.Global.getString(context.contentResolver, "policy_control").orEmpty()
         } catch (_: Throwable) { "" }
         snapshotStore.recordOriginal("settings://policy_control", prev)
-        return true
+        val res = shell.execute("settings put global policy_control 'immersive.full=*'", tier, timeoutMs = APPLY_TIMEOUT_MS)
+        return res.isSuccess
     }
 
     private fun restoreFocusImmersive(tier: PrivilegeTier): Boolean {
         val orig = snapshotStore.getOriginal("settings://policy_control") ?: return false
-        snapshotStore.removeOriginal("settings://policy_control")
-        return true
+        if (tier == PrivilegeTier.STANDARD) return false
+        val res = if (orig.isBlank()) {
+            shell.execute("settings delete global policy_control", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+        } else {
+            shell.execute("settings put global policy_control '$orig'", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+        }
+        if (res.isSuccess) {
+            snapshotStore.removeOriginal("settings://policy_control")
+            return true
+        }
+        return false
     }
 
     private fun applyDisplayPeak(tier: PrivilegeTier): Boolean {
-        val prev = try {
-            Settings.System.getString(context.contentResolver, "peak_refresh_rate").orEmpty()
+        if (tier == PrivilegeTier.STANDARD) return false
+        val curPeak = try {
+            Settings.System.getString(context.contentResolver, "peak_refresh_rate")
+                ?: Settings.Global.getString(context.contentResolver, "peak_refresh_rate")
+                ?: Settings.Secure.getString(context.contentResolver, "peak_refresh_rate")
+        } catch (_: Throwable) { null }
+        if (curPeak.isNullOrBlank()) return false
+
+        val curMin = try {
+            Settings.System.getString(context.contentResolver, "min_refresh_rate")
+                ?: Settings.Global.getString(context.contentResolver, "min_refresh_rate")
+                ?: Settings.Secure.getString(context.contentResolver, "min_refresh_rate")
         } catch (_: Throwable) { "" }
-        if (prev.isNotBlank()) {
-            snapshotStore.recordOriginal("settings://peak_refresh_rate", prev)
+
+        snapshotStore.recordOriginal("settings://peak_refresh_rate", curPeak)
+        if (!curMin.isNullOrBlank()) {
+            snapshotStore.recordOriginal("settings://min_refresh_rate", curMin)
         }
-        return true
+
+        val res = shell.execute("settings put system peak_refresh_rate $curPeak && settings put system min_refresh_rate $curPeak", tier, timeoutMs = APPLY_TIMEOUT_MS)
+        return res.isSuccess
     }
 
     private fun restoreDisplayPeak(tier: PrivilegeTier): Boolean {
-        val orig = snapshotStore.getOriginal("settings://peak_refresh_rate") ?: return false
-        snapshotStore.removeOriginal("settings://peak_refresh_rate")
-        return true
+        val origPeak = snapshotStore.getOriginal("settings://peak_refresh_rate") ?: return false
+        val origMin = snapshotStore.getOriginal("settings://min_refresh_rate")
+        if (tier == PrivilegeTier.STANDARD) return false
+
+        val restoreCmd = if (!origMin.isNullOrBlank()) {
+            "settings put system peak_refresh_rate $origPeak && settings put system min_refresh_rate $origMin"
+        } else {
+            "settings put system peak_refresh_rate $origPeak && settings delete system min_refresh_rate"
+        }
+        val res = shell.execute(restoreCmd, tier, timeoutMs = RESTORE_TIMEOUT_MS)
+        if (res.isSuccess) {
+            snapshotStore.removeOriginal("settings://peak_refresh_rate")
+            snapshotStore.removeOriginal("settings://min_refresh_rate")
+            return true
+        }
+        return false
     }
 
     private fun applyDisplayMiui(tier: PrivilegeTier): Boolean {
-        val prev = try {
+        if (tier == PrivilegeTier.STANDARD) return false
+        val mode = try {
             Settings.System.getString(context.contentResolver, "refresh_rate_mode")
-                ?: Settings.System.getString(context.contentResolver, "miui_refresh_rate").orEmpty()
-        } catch (_: Throwable) { "" }
-        if (!prev.isNullOrBlank()) {
-            snapshotStore.recordOriginal("settings://refresh_rate_mode", prev)
+        } catch (_: Throwable) { null }
+        val miuiRate = try {
+            Settings.System.getString(context.contentResolver, "miui_refresh_rate")
+        } catch (_: Throwable) { null }
+
+        if (mode.isNullOrBlank() && miuiRate.isNullOrBlank()) return false
+
+        var success = false
+        if (!mode.isNullOrBlank()) {
+            snapshotStore.recordOriginal("settings://refresh_rate_mode", mode)
+            val res = shell.execute("settings put system refresh_rate_mode 1", tier, timeoutMs = APPLY_TIMEOUT_MS)
+            if (res.isSuccess) success = true
         }
-        return true
+        if (!miuiRate.isNullOrBlank()) {
+            snapshotStore.recordOriginal("settings://miui_refresh_rate", miuiRate)
+            val res = shell.execute("settings put system miui_refresh_rate 120", tier, timeoutMs = APPLY_TIMEOUT_MS)
+            if (res.isSuccess) success = true
+        }
+        return success
     }
 
     private fun restoreDisplayMiui(tier: PrivilegeTier): Boolean {
-        val orig = snapshotStore.getOriginal("settings://refresh_rate_mode") ?: return false
-        snapshotStore.removeOriginal("settings://refresh_rate_mode")
-        return true
+        val origMode = snapshotStore.getOriginal("settings://refresh_rate_mode")
+        val origRate = snapshotStore.getOriginal("settings://miui_refresh_rate")
+        if (origMode == null && origRate == null) return false
+        if (tier == PrivilegeTier.STANDARD) return false
+
+        var success = true
+        if (origMode != null) {
+            val res = shell.execute("settings put system refresh_rate_mode $origMode", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+            if (res.isSuccess) {
+                snapshotStore.removeOriginal("settings://refresh_rate_mode")
+            } else {
+                success = false
+            }
+        }
+        if (origRate != null) {
+            val res = shell.execute("settings put system miui_refresh_rate $origRate", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+            if (res.isSuccess) {
+                snapshotStore.removeOriginal("settings://miui_refresh_rate")
+            } else {
+                success = false
+            }
+        }
+        return success
     }
 
     private fun isSettingsOnly(id: TuneId): Boolean {

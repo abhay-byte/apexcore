@@ -4,7 +4,7 @@
 |-------|-------|
 | **Parent** | [`T12-real-game-optimisation.md`](T12-real-game-optimisation.md) |
 | **Date** | 2026-08-18 |
-| **Status** | Draft — supersedes T12 “four bundles” as the user-visible catalog |
+| **Status** | Normative catalog (rev 4 IDs). Shipped in `TuneId.kt`. Display/Focus Settings apply except DND is still stubbed — see T12 rev 5 remaining work and [`T12-real-game-optimisation-results.md`](T12-real-game-optimisation-results.md). |
 | **Target** | Android 16 / SDK 36 |
 
 T12 rev 3 shipped **4 user-facing effects** (and ~32 hidden sysfs aliases behind them). This addendum is the requested expansion: **as many honest, capability-gated options and categories as the researched managers actually expose**, without becoming a fake kernel manager.
@@ -196,6 +196,8 @@ Low gaming value; include because the user asked for breadth and the node is rea
 | `GPU_HOLD` | same id, category GPU |
 | `KERNEL` | split → `THERMAL_SCONFIG` + input category (all default **off**) |
 | `dummy_opt_*` | still deleted, never migrated |
+
+**IDs that must not appear** (an earlier results draft listed these; they are rejected, not shipped): `MEM_DROP_CACHES`, `THERMAL_CORE_CONTROL`, `THERMAL_VDD_RESTRICTION`, `NET_WIFI_PM`, `CPU_INTERACTIVE_HISPEED`. GPU keep-awake is `GPU_HOLD`, not `GPU_KEEPAWAKE`.
 
 ---
 

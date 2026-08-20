@@ -254,27 +254,31 @@ fun HomeScreen(
             val capabilities by tuneManager.capabilities.collectAsState()
             val isProbing by tuneManager.probe.isProbing.collectAsState()
 
-            LaunchedEffect(Unit) {
+            LaunchedEffect(isElevatedBackend, backendName) {
                 tuneManager.deleteDummyKeysIfNeeded()
+                if (isElevatedBackend) {
+                    tuneManager.refreshCapabilities()
+                }
             }
 
-            val availableCount = remember(capabilities) { capabilities.values.count { it.available } }
-            val tuneSubtitle = when {
-                !isElevatedBackend -> "Elevation required to tune kernel"
-                isProbing -> "Checking this kernel…"
-                availableCount > 0 -> "$availableCount available on this kernel"
-                else -> "None on this kernel"
+            if (isElevatedBackend) {
+                val availableCount = remember(capabilities) { capabilities.values.count { it.available } }
+                val tuneSubtitle = when {
+                    isProbing -> "Checking this kernel…"
+                    availableCount > 0 -> "$availableCount available on this kernel"
+                    else -> "None on this kernel"
+                }
+
+                HomeAnimatedEntryRow(
+                    title = "Game optimisation",
+                    subtitle = tuneSubtitle,
+                    icon = ZenIcons.Tune,
+                    enabled = state != State.BOOSTING,
+                    onClick = onTuneClick
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
             }
-
-            HomeAnimatedEntryRow(
-                title = "Game optimisation",
-                subtitle = tuneSubtitle,
-                icon = ZenIcons.Tune,
-                enabled = state != State.BOOSTING,
-                onClick = onTuneClick
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
 
             HomeAnimatedEntryRow(
                 title = "RAM Free",

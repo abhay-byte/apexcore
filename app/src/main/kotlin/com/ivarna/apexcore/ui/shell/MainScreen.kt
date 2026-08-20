@@ -112,6 +112,7 @@ fun MainScreen(
             backendName = backend.name
         } else if (detectionDone) {
             backendName = "SETUP REQUIRED"
+            showTuneScreen = false
         }
     }
 

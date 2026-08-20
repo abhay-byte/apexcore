@@ -42,11 +42,32 @@ class TuneManager internal constructor(
     init {
         _owner = prefs.getOwner()
         startRecovery()
+        observeBackendChanges()
     }
 
     private fun startRecovery() {
         recoverJob = scope.launch {
             recoverSession()
+        }
+    }
+
+    private fun observeBackendChanges() {
+        scope.launch {
+            // React only to an actual drop from a previously elevated backend.
+            // The initial emission (null on cold start) must not trigger a spurious
+            // restore — recovery owns the cold-start path (boot-match + orphan check).
+            var previousName: String? = null
+            FreezeFramework.activeBackend.collect { backend ->
+                val name = backend?.name
+                val droppedFromElevated = previousName == "Root" || previousName == "Shizuku"
+                previousName = name
+                if (droppedFromElevated && name != "Root" && name != "Shizuku") {
+                    if (_sessionActive.value || prefs.isApplied()) {
+                        Log.w(TAG, "Backend dropped to non-elevated ($name) while session active; restoring session")
+                        restoreSession()
+                    }
+                }
+            }
         }
     }
 
@@ -87,7 +108,7 @@ class TuneManager internal constructor(
                                 prefs.getIntent(spec.id).on && capabilities.value[spec.id]?.available == true
                             }
                             if (!anyOn) {
-                                restoreSession()
+                                restoreSessionLocked(tier)
                             }
                         }
                     }
@@ -126,36 +147,53 @@ class TuneManager internal constructor(
                 return@withLock TuneApplyReport(0, 0, 0, _sessionActive.value)
             }
 
+            // If capabilities are not probed yet, probe sync before applying
+            if (capabilities.value.values.none { it.available }) {
+                try {
+                    probe.probeSync()
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Probe during applyForSession failed: ${t.message}")
+                }
+            }
+
             snapshotStore.recordBootIdentity()
 
             var applied = 0
             var failed = 0
             var skipped = 0
 
+            val onIntentsCount = TuneSpecs.all.count { spec ->
+                prefs.getIntent(spec.id).on && capabilities.value[spec.id]?.available == true
+            }
+            val budgetMs = if (onIntentsCount > 4) 2500L else 1500L
             val cpuFloorOn = prefs.getIntent(TuneId.CPU_FLOOR).on
 
-            for (spec in TuneSpecs.all) {
-                val id = spec.id
-                val intent = prefs.getIntent(id)
-                val cap = capabilities.value[id]
+            withTimeoutOrNull(budgetMs) {
+                for (spec in TuneSpecs.all) {
+                    val id = spec.id
+                    val intent = prefs.getIntent(id)
+                    val cap = capabilities.value[id]
 
-                if (!intent.on || cap?.available != true) {
-                    skipped++
-                    continue
-                }
+                    if (!intent.on || cap?.available != true) {
+                        skipped++
+                        continue
+                    }
 
-                // Mutex: if CPU_FLOOR is on, ignore split cluster intents
-                if (cpuFloorOn && (id == TuneId.CPU_FLOOR_LITTLE || id == TuneId.CPU_FLOOR_BIG || id == TuneId.CPU_FLOOR_PRIME)) {
-                    skipped++
-                    continue
-                }
+                    // Mutex: if CPU_FLOOR is on, ignore split cluster intents
+                    if (cpuFloorOn && (id == TuneId.CPU_FLOOR_LITTLE || id == TuneId.CPU_FLOOR_BIG || id == TuneId.CPU_FLOOR_PRIME)) {
+                        skipped++
+                        continue
+                    }
 
-                val count = applier.applyBundle(id, intent, tier)
-                if (count > 0) {
-                    applied += count
-                } else {
-                    failed++
+                    val count = applier.applyBundle(id, intent, tier)
+                    if (count > 0) {
+                        applied += count
+                    } else {
+                        failed++
+                    }
                 }
+            } ?: run {
+                Log.w(TAG, "applyForSession hit timeout budget (${budgetMs}ms); skipped remaining options")
             }
 
             if (applied > 0) {
@@ -164,7 +202,7 @@ class TuneManager internal constructor(
                 prefs.setSessionPkg(gamePkg)
             }
 
-            Log.i(TAG, "applyForSession for $gamePkg: applied=$applied failed=$failed skipped=$skipped")
+            Log.i(TAG, "applyForSession for $gamePkg: applied=$applied failed=$failed skipped=$skipped (budget=${budgetMs}ms)")
             TuneApplyReport(applied, failed, skipped, _sessionActive.value)
         }
     }
@@ -196,17 +234,29 @@ class TuneManager internal constructor(
         }
     }
 
-    suspend fun restoreSession(): TuneApplyReport {
-        recoverJob?.join()
-        return mutex.withLock {
-            val tier = writeTier() ?: PrivilegeTier.STANDARD
-            val count = applier.restoreAll(tier)
+    private fun restoreSessionLocked(tier: PrivilegeTier): TuneApplyReport {
+        val count = applier.restoreAll(tier)
+        val remaining = snapshotStore.getAllOriginals()
+        return if (remaining.isEmpty()) {
             snapshotStore.clear()
             _sessionActive.value = false
             prefs.setApplied(false)
             setOwner(TuneSessionOwner.NONE)
-            Log.i(TAG, "restoreSession completed: $count paths restored")
+            Log.i(TAG, "restoreSession completed: $count paths restored, all clean")
             TuneApplyReport(count, 0, 0, false)
+        } else {
+            Log.w(TAG, "restoreSession: ${remaining.size} paths failed to restore; keeping snapshot and tune_applied=true")
+            _sessionActive.value = false
+            prefs.setApplied(true)
+            TuneApplyReport(count, remaining.size, 0, false)
+        }
+    }
+
+    suspend fun restoreSession(): TuneApplyReport {
+        recoverJob?.join()
+        return mutex.withLock {
+            val tier = writeTier() ?: PrivilegeTier.STANDARD
+            restoreSessionLocked(tier)
         }
     }
 
@@ -247,11 +297,19 @@ class TuneManager internal constructor(
         // Orphan predicate: applied && bootMatch && !inMemory && !isRunning
         Log.w(TAG, "Orphan session detected: restoring sysfs snapshot")
         val tier = writeTier() ?: PrivilegeTier.STANDARD
-        applier.restoreAll(tier)
-        snapshotStore.clear()
-        _sessionActive.value = false
-        prefs.setApplied(false)
-        setOwner(TuneSessionOwner.NONE)
+        val count = applier.restoreAll(tier)
+        val remaining = snapshotStore.getAllOriginals()
+        if (remaining.isEmpty()) {
+            snapshotStore.clear()
+            _sessionActive.value = false
+            prefs.setApplied(false)
+            setOwner(TuneSessionOwner.NONE)
+            Log.i(TAG, "Orphan restore completed: $count paths restored, all clean")
+        } else {
+            Log.w(TAG, "Orphan restore: ${remaining.size} paths failed to restore, keeping snapshot and tune_applied=true")
+            _sessionActive.value = false
+            prefs.setApplied(true)
+        }
     }
 
     fun deleteDummyKeysIfNeeded() {

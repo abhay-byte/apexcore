@@ -55,8 +55,14 @@ class WatchdogWhenStartFalseTest {
         )
         TuneManager.setInstanceForTest(manager)
 
-        // When overlay cannot start (start() returns false):
-        val overlayStarted = false
+        // When overlay cannot start (start() returns false without draw-over permission):
+        val overlayStarted = try {
+            GameOverlayService.start(context, "com.test.game")
+        } catch (_: Throwable) {
+            false
+        }
+        assertFalse("Overlay start must return false when draw-over permission is absent", overlayStarted)
+
         if (overlayStarted) {
             manager.setOwner(TuneSessionOwner.OVERLAY)
         } else {

@@ -48,6 +48,24 @@ object TuneCatalog {
             groupId = "gpu_min"
         ),
         TuneNode(
+            path = "/sys/class/devfreq/mali0/min_freq",
+            id = TuneId.GPU_FLOOR,
+            vendor = TuneVendor.MALI,
+            privilege = TunePrivilege.ROOT_ONLY,
+            valueKind = TuneValueKind.FREQ_HZ,
+            availablePath = "/sys/class/devfreq/mali0/available_frequencies",
+            groupId = "gpu_min"
+        ),
+        TuneNode(
+            path = "/sys/class/devfreq/gpu/min_freq",
+            id = TuneId.GPU_FLOOR,
+            vendor = TuneVendor.MALI,
+            privilege = TunePrivilege.ROOT_ONLY,
+            valueKind = TuneValueKind.FREQ_HZ,
+            availablePath = "/sys/class/devfreq/gpu/available_frequencies",
+            groupId = "gpu_min"
+        ),
+        TuneNode(
             path = "/sys/class/misc/mali0/device/devfreq/13000000.mali/min_freq",
             id = TuneId.GPU_FLOOR,
             vendor = TuneVendor.MALI,
@@ -206,6 +224,33 @@ object TuneCatalog {
             groupId = "cpu_min_policy0"
         ),
         TuneNode(
+            path = "/sys/devices/system/cpu/cpufreq/policy1/scaling_min_freq",
+            id = TuneId.CPU_FLOOR,
+            vendor = TuneVendor.GENERIC,
+            privilege = TunePrivilege.SHELL_OK,
+            valueKind = TuneValueKind.FREQ_KHZ,
+            availablePath = "/sys/devices/system/cpu/cpufreq/policy1/scaling_available_frequencies",
+            groupId = "cpu_min_policy1"
+        ),
+        TuneNode(
+            path = "/sys/devices/system/cpu/cpufreq/policy2/scaling_min_freq",
+            id = TuneId.CPU_FLOOR,
+            vendor = TuneVendor.GENERIC,
+            privilege = TunePrivilege.SHELL_OK,
+            valueKind = TuneValueKind.FREQ_KHZ,
+            availablePath = "/sys/devices/system/cpu/cpufreq/policy2/scaling_available_frequencies",
+            groupId = "cpu_min_policy2"
+        ),
+        TuneNode(
+            path = "/sys/devices/system/cpu/cpufreq/policy3/scaling_min_freq",
+            id = TuneId.CPU_FLOOR,
+            vendor = TuneVendor.GENERIC,
+            privilege = TunePrivilege.SHELL_OK,
+            valueKind = TuneValueKind.FREQ_KHZ,
+            availablePath = "/sys/devices/system/cpu/cpufreq/policy3/scaling_available_frequencies",
+            groupId = "cpu_min_policy3"
+        ),
+        TuneNode(
             path = "/sys/devices/system/cpu/cpufreq/policy4/scaling_min_freq",
             id = TuneId.CPU_FLOOR,
             vendor = TuneVendor.GENERIC,
@@ -213,6 +258,15 @@ object TuneCatalog {
             valueKind = TuneValueKind.FREQ_KHZ,
             availablePath = "/sys/devices/system/cpu/cpufreq/policy4/scaling_available_frequencies",
             groupId = "cpu_min_policy4"
+        ),
+        TuneNode(
+            path = "/sys/devices/system/cpu/cpufreq/policy5/scaling_min_freq",
+            id = TuneId.CPU_FLOOR,
+            vendor = TuneVendor.GENERIC,
+            privilege = TunePrivilege.SHELL_OK,
+            valueKind = TuneValueKind.FREQ_KHZ,
+            availablePath = "/sys/devices/system/cpu/cpufreq/policy5/scaling_available_frequencies",
+            groupId = "cpu_min_policy5"
         ),
         TuneNode(
             path = "/sys/devices/system/cpu/cpufreq/policy6/scaling_min_freq",
@@ -295,17 +349,9 @@ object TuneCatalog {
             groupId = "cpu_gov_policy7"
         ),
 
-        // 14. CPU_UCLAMP (cgroup top-app only, NOT sysctl)
+        // 14. CPU_UCLAMP (cgroup top-app only, NOT root cgroup, NOT sysctl)
         TuneNode(
             path = "/dev/cpuctl/top-app/cpu.uclamp.min",
-            id = TuneId.CPU_UCLAMP,
-            vendor = TuneVendor.GENERIC,
-            privilege = TunePrivilege.ROOT_ONLY,
-            valueKind = TuneValueKind.RAW,
-            groupId = "uclamp_top"
-        ),
-        TuneNode(
-            path = "/dev/cpuctl/cpu.uclamp.min",
             id = TuneId.CPU_UCLAMP,
             vendor = TuneVendor.GENERIC,
             privilege = TunePrivilege.ROOT_ONLY,
@@ -646,5 +692,18 @@ object TuneCatalog {
         return TuneId.values().mapNotNull { id ->
             nodesByTuneId[id]?.firstOrNull()
         }
+    }
+
+    /** Discover available cpufreq policy cluster directories (capped at 4). */
+    fun discoverPolicies(shell: TuneShell): List<String> {
+        val found = mutableListOf<String>()
+        for (i in 0..7) {
+            val path = "/sys/devices/system/cpu/cpufreq/policy$i/scaling_min_freq"
+            if (shell.exists(path, timeoutMs = 60L)) {
+                found.add("policy$i")
+                if (found.size >= 4) break
+            }
+        }
+        return if (found.isNotEmpty()) found else listOf("policy0", "policy4", "policy6", "policy7")
     }
 }

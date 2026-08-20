@@ -51,8 +51,20 @@ class FakeTuneShell : TuneShell {
         )
     }
 
+    val executedCommands = mutableListOf<Triple<String, PrivilegeTier, Long>>()
+    val failCommands = mutableSetOf<String>()
+
     @Synchronized
     override fun exists(path: String, timeoutMs: Long): Boolean {
         return existingPaths.contains(path) || pathValues.containsKey(path)
+    }
+
+    @Synchronized
+    override fun execute(command: String, tier: PrivilegeTier, timeoutMs: Long): com.ivarna.apexcore.fps.util.ShellResult {
+        executedCommands.add(Triple(command, tier, timeoutMs))
+        if (failCommands.any { command.contains(it) }) {
+            return com.ivarna.apexcore.fps.util.ShellResult("Command failed", exitCode = 1)
+        }
+        return com.ivarna.apexcore.fps.util.ShellResult("Success", exitCode = 0)
     }
 }

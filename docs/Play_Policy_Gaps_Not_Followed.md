@@ -18,7 +18,7 @@ Items that already pass (no restricted content, no ads/billing, targetSdk 36, 64
 
 | Priority | Count | Theme |
 |----------|------:|-------|
-| **P0 — Ship-blocking (code)** | 0 | **RESOLVED via T12** (Replaced dummy toggles with 36 real, capability-gated, session-scoped reversible sysfs/settings options) |
+| **P0 — Ship-blocking (code)** | 1 | Dummy Home card gone, but Tune Display/Focus Settings apply is still stubbed (no-op ON). See T12 rev 5. |
 | **P1 — Listing honesty** | 2 | Stale store screenshots; thin listing copy |
 | **P1 — Privacy policy quality** | 3 | Developer identity, contact, retention language |
 | **P2 — Play Console (not done)** | 10+ | Data safety, IARC, QAP, FGS, Financial Features, etc. |
@@ -31,11 +31,13 @@ Items that already pass (no restricted content, no ads/billing, targetSdk 36, 64
 
 ### 1. §5.1 Deceptive Behavior — Misleading claims (dummy Game Optimisation)
 
-**Status:** ✅ **RESOLVED (T12)**
-- Removed deceptive dummy toggles (`dummy_opt_*`) and implemented 36 real, capability-probed, write-verified sysfs/settings options across 10 categories.
-- Tuning is strictly session-scoped (applied on game launch, restored on exit).
-- Does not disable thermal protection or perform dangerous operations.
-- Full honest UI displaying available kernel nodes or truthful disabled explanations.
+**Status:** OPEN (T12 landed incomplete — do not close until PR 6 + PR 5)
+
+- Home `dummy_opt_*` four-switch card is **deleted** (not migrated). Catalog IDs match [`docs/plans/T12-tune-options.md`](plans/T12-tune-options.md).
+- **Still deceptive:** `FOCUS_HEADSUP`, `FOCUS_IMMERSIVE`, `DISPLAY_PEAK`, and `DISPLAY_MIUI` light as available and return apply success without writing Settings (`TuneApplier` stubs). Same P0 class as the old dummies.
+- Capability probe is not auto-started from Home, so the row can show “None on this kernel” after a cold start even when nodes exist.
+- Fastlane `full_description.txt` L9 still says “tune game options”. Overlay-less restore is unproven.
+- Close this item only after T12 **PR 6** (real Settings apply, mutex/restore, auto-probe) and **PR 5** (listing rewrite + draw-over-denied restore proof). Spec: [`docs/plans/T12-real-game-optimisation.md`](plans/T12-real-game-optimisation.md) rev 5; status: [`docs/plans/T12-real-game-optimisation-results.md`](plans/T12-real-game-optimisation-results.md).
 
 ---
 

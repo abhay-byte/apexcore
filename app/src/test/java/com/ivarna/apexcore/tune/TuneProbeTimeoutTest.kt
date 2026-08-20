@@ -48,6 +48,6 @@ class TuneProbeTimeoutTest {
         val duration = System.currentTimeMillis() - start
 
         assertNotNull(caps)
-        assertTrue("Probe must complete within reasonable time envelope", duration < 5000L)
+        assertTrue("Probe must complete within 3500ms wall budget (got ${duration}ms)", duration <= 3700L)
     }
 }

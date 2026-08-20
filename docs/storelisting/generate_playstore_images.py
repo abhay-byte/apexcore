@@ -1,9 +1,20 @@
 #!/usr/bin/env python3
-"""ApexCore Play Store listing frames — simple.
+"""ApexCore Play Store listing — Zen Organic Dark Deluxe.
 
-Portrait 1080x1920, Zen Organic dark. One claim per page:
-title + tagline up top, then a single large phone (or two
-phones stacked vertically) at the bottom. No side-by-side rows.
+Modern premium 1080x1920 portrait frames (1_hero … 8_cta) and a 1024x500
+feature graphic. Visual system:
+
+- Multi-layer radial chromatic atmosphere (teal spotlight, warm amber corner,
+  lavender side glow) over deep obsidian slate.
+- Ultra-fine dot matrix + soft film grain + smooth vignette.
+- Flagship titanium bezel with 2.5D corners, inner metallic stroke, top-left
+  specular sheen, top pill cutout, and dual-stage drop shadows (contact +
+  ambient diffuse).
+- Pill kicker badges with gradient border and micro-dot, crisp Plus Jakarta
+  Sans headlines (58-64pt) and clear benefit subtitles.
+
+The 8 frames are synced to fastlane metadata
+(fastlane/metadata/android/en-US/images/…) and docs/storelisting/phoneScreenshots/.
 """
 from __future__ import annotations
 
@@ -19,10 +30,15 @@ SHOTS_PRIMARY = ROOT / "docs" / "storelisting" / "organic_capture"
 SHOTS_FALLBACK = ROOT / "docs" / "screenshots" / "v1"
 ICON = ROOT / "docs" / "brand" / "icon.png"
 OUT = ROOT / "docs" / "storelisting"
+PHONE_OUT_DIRS = [
+    OUT / "phoneScreenshots",
+    ROOT / "fastlane" / "metadata" / "android" / "en-US" / "images" / "phoneScreenshots",
+]
 FONT_DIR = Path("/tmp/storelisting-fonts")
 FONT_DIR.mkdir(parents=True, exist_ok=True)
 W, H = 1080, 1920
 FEATURE_W, FEATURE_H = 1024, 500
+SHOT_ASPECT = 1264 / 2780  # 0.4547 — organic captures
 
 _FONT_URLS = {
     "bold": (
@@ -46,33 +62,19 @@ for _name, _url in _FONT_URLS.values():
         except Exception as e:
             print(f"[warn] font download {_name}: {e}")
 
-BG = (0x0A, 0x13, 0x17, 255)
-SURFACE_BRIGHT = (0x1F, 0x32, 0x39, 255)
-OUTLINE_VAR = (0x3A, 0x4F, 0x56, 255)
-PRIMARY = (0x6F, 0xD8, 0xC8, 255)
-PRIMARY_SOFT = (0x8C, 0xF5, 0xE4, 255)
-GOLD = (0xE7, 0xC2, 0x68, 255)
-TEXT = (0xE0, 0xF2, 0xF8, 255)
-TEXT_DIM = (0xB0, 0xC4, 0xCA, 255)
-ON_PRIMARY = (0x0A, 0x13, 0x17, 255)
+# ── Zen Organic Dark Deluxe palette ─────────────────────────────────
+BG_OBSIDIAN = (7, 14, 18, 255)          # #070E12
+BG_SLATE = (10, 19, 23, 255)            # #0A1317
+CYAN = (0x4E, 0xE4, 0xD0)               # #4EE4D0
+GOLD = (0xF4, 0xC9, 0x6B)               # #F4C96B
+LAVENDER = (0x7B, 0x61, 0xFF)           # #7B61FF
+TEXT = (0xF2, 0xFA, 0xFC)               # #F2FAFC
+TEXT_DIM = (0x9A, 0xB3, 0xBE)           # #9AB3BE
+MINT = (0x4E, 0xF5, 0xC6)               # #4EF5C6 badge
+BEZEL = (0x0C, 0x14, 0x18)              # titanium dark matte
+BEZEL_EDGE = (0x3A, 0x55, 0x60)         # inner metallic stroke
+SPECULAR = (0x6F, 0xD8, 0xC8)           # #6FD8C8 top-left sheen
 NOISE_SEED = 42
-
-SHOT_MAP = {
-    "home": ["01_home.png", "01_home_store.png", "home.png"],
-    "home_scrolled": ["01b_home_scrolled.png", "01_home.png", "home.png"],
-    "games": ["02_games.png", "08_games_all_apps.png"],
-    "overlay": ["03_overlay.png", "overlay.png"],
-    "overlay_hud": ["03b_overlay_hud_active.png", "03_overlay.png", "overlay.png"],
-    "overlay_v1": ["overlay.png"],
-    "optimisations": ["01c_home_game_opt.png", "optimisations.png"],
-    "ram_free": ["04_ram_free.png", "free_ram.png"],
-    "pin": ["05_pin_apps.png", "pin_apps.png"],
-    "settings": ["06_settings.png", "settings.png"],
-    "privacy": ["06c_settings_privacy.png", "06_settings.png", "settings.png"],
-    "add_games": ["07_add_games.png", "add_apps.png"],
-    "games_all": ["08_games_all_apps.png", "02_games.png"],
-    "launcher": ["launcher.png", "01_home.png", "home.png"],
-}
 
 
 def font(weight: str, size: int) -> ImageFont.ImageFont:
@@ -87,43 +89,28 @@ def font(weight: str, size: int) -> ImageFont.ImageFont:
         return ImageFont.load_default()
 
 
-def resolve_shot(key: str) -> Path:
-    for name in SHOT_MAP.get(key, [key]):
-        for base in (SHOTS_PRIMARY, SHOTS_FALLBACK):
-            p = base / name
+def text_size(d: ImageDraw.ImageDraw, text: str, fnt: ImageFont.ImageFont):
+    b = d.textbbox((0, 0), text, font=fnt)
+    return b[2] - b[0], b[3] - b[1]
+
+
+def resolve_shot(*names: str) -> Path:
+    for base in (SHOTS_PRIMARY, SHOTS_FALLBACK):
+        for n in names:
+            p = base / n
             if p.is_file():
                 return p
-    raise FileNotFoundError(f"No screenshot for '{key}'")
+    raise FileNotFoundError(f"No screenshot for {names}")
 
 
-def load_shot(key: str) -> Image.Image:
-    return Image.open(resolve_shot(key)).convert("RGBA")
+def load_shot(*names: str) -> Image.Image:
+    return Image.open(resolve_shot(*names)).convert("RGBA")
 
 
 def load_logo(size: int = 280) -> Image.Image:
     im = Image.open(ICON).convert("RGBA")
     im.thumbnail((size, size), Image.Resampling.LANCZOS)
     return im
-
-
-def text_size(d: ImageDraw.ImageDraw, text: str, fnt: ImageFont.ImageFont):
-    b = d.textbbox((0, 0), text, font=fnt)
-    return b[2] - b[0], b[3] - b[1]
-
-
-def wrap_lines(d, text: str, fnt, max_w: int) -> list[str]:
-    lines, cur = [], ""
-    for w in text.split():
-        trial = (cur + " " + w).strip()
-        if text_size(d, trial, fnt)[0] <= max_w:
-            cur = trial
-        else:
-            if cur:
-                lines.append(cur)
-            cur = w
-    if cur:
-        lines.append(cur)
-    return lines
 
 
 # ── background layers ───────────────────────────────────────────────
@@ -141,7 +128,22 @@ def radial_glow(w, h, cx, cy, radius, color, peak_a=70):
     return Image.fromarray(arr, "RGBA").resize((w, h), Image.Resampling.BILINEAR)
 
 
-def noise_layer(w, h, alpha=14, seed=NOISE_SEED):
+def dot_matrix(w, h, step=42, seed=NOISE_SEED + 3):
+    """Ultra-fine dot grid, ~8-10% alpha with a faint teal super-grid."""
+    layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    rng = np.random.default_rng(seed)
+    for y in range(step, h, step):
+        for x in range(step, w, step):
+            if rng.random() < 0.85:
+                d.ellipse([x - 2, y - 2, x + 2, y + 2], fill=(*TEXT[:3], 20))
+    for x in range(step * 4, w, step * 4):
+        for y in range(step * 4, h, step * 4):
+            d.ellipse([x - 3, y - 3, x + 3, y + 3], fill=(*CYAN, 26))
+    return layer
+
+
+def noise_layer(w, h, alpha=20, seed=NOISE_SEED):
     rng = np.random.default_rng(seed)
     hw, hh = max(1, w // 2), max(1, h // 2)
     v = rng.integers(0, 256, size=(hh, hw), dtype=np.uint8)
@@ -156,348 +158,445 @@ def noise_layer(w, h, alpha=14, seed=NOISE_SEED):
     )
 
 
-def grid_layer(w, h, step=36):
-    g = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    d = ImageDraw.Draw(g)
-    for x in range(0, w, step):
-        d.line([(x, 0), (x, h)], fill=(*OUTLINE_VAR[:3], 26), width=1)
-    for y in range(0, h, step):
-        d.line([(0, y), (w, y)], fill=(*OUTLINE_VAR[:3], 26), width=1)
-    for x in range(0, w, step * 4):
-        d.line([(x, 0), (x, h)], fill=(*PRIMARY[:3], 14), width=1)
-    for y in range(0, h, step * 4):
-        d.line([(0, y), (w, y)], fill=(*PRIMARY[:3], 14), width=1)
-    return g
-
-
-def scanlines(w, h, gap=5, a=8):
-    layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    d = ImageDraw.Draw(layer)
-    for y in range(0, h, gap):
-        d.line([(0, y), (w, y)], fill=(0, 0, 0, a), width=1)
-    return layer
-
-
-def vignette(im: Image.Image) -> Image.Image:
+def vignette(im: Image.Image, w=W, h=H) -> Image.Image:
     scale = 4
     xx, yy = np.meshgrid(
-        np.linspace(-1, 1, W // scale, dtype=np.float32),
-        np.linspace(-1, 1, H // scale, dtype=np.float32),
+        np.linspace(-1, 1, w // scale, dtype=np.float32),
+        np.linspace(-1, 1, h // scale, dtype=np.float32),
     )
     edge = np.maximum(np.abs(xx), np.abs(yy))
-    a = np.where(edge > 0.75, ((edge - 0.75) / 0.25) ** 2 * 90, 0).astype(np.uint8)
-    arr = np.zeros((H // scale, W // scale, 4), dtype=np.uint8)
+    a = np.where(edge > 0.72, ((edge - 0.72) / 0.28) ** 2 * 88, 0).astype(np.uint8)
+    arr = np.zeros((h // scale, w // scale, 4), dtype=np.uint8)
     arr[..., 3] = a
-    vig = Image.fromarray(arr, "RGBA").resize((W, H), Image.Resampling.BILINEAR)
+    vig = Image.fromarray(arr, "RGBA").resize((w, h), Image.Resampling.BILINEAR)
     return Image.alpha_composite(im, vig)
 
 
-def make_base(variant: int = 0) -> Image.Image:
-    im = Image.new("RGBA", (W, H), BG)
-    depth = np.zeros((H, W, 4), dtype=np.uint8)
-    depth[..., 3] = np.linspace(0, 36, H, dtype=np.uint8)[:, None]
+def make_base(variant: int = 0, w=W, h=H) -> Image.Image:
+    im = Image.new("RGBA", (w, h), BG_SLATE)
+    # subtle vertical depth
+    depth = np.zeros((h, w, 4), dtype=np.uint8)
+    depth[..., 3] = np.linspace(0, 38, h, dtype=np.uint8)[:, None]
     im = Image.alpha_composite(im, Image.fromarray(depth, "RGBA"))
-
-    for i, (cx, cy, rad, peak, col) in enumerate(
-        [
-            (W * 0.5, H * 0.16, 520, 55, PRIMARY),
-            (W * 0.15, H * 0.80, 420, 32, PRIMARY),
-            (W * 0.88, H * 0.55, 390, 26, GOLD),
-        ]
-    ):
-        shift = (variant * 37 + i * 19) % 80
-        im = Image.alpha_composite(im, radial_glow(W, H, cx + shift, cy - shift // 2, rad, col, peak))
-
-    im = Image.alpha_composite(im, grid_layer(W, H))
-    im = Image.alpha_composite(im, noise_layer(W, H, 14, NOISE_SEED + variant))
-    im = Image.alpha_composite(im, scanlines(W, H))
-
+    shift = (variant * 31 + 11) % 60
+    glows = [
+        (w * 0.5, h * 0.14, w * 0.5, CYAN, 62),       # primary teal spotlight
+        (w * 0.90, h * 0.78, w * 0.42, GOLD, 34),     # warm amber corner
+        (w * 0.08, h * 0.50, w * 0.34, LAVENDER, 20), # soft lavender side
+    ]
+    for i, (cx, cy, rad, col, peak) in enumerate(glows):
+        im = Image.alpha_composite(
+            im, radial_glow(w, h, cx + (shift if i == 0 else 0), cy - (shift // 2 if i == 0 else 0), rad, col, peak)
+        )
+    if w >= 800:  # dot matrix only for full canvas (skip feature small strip)
+        im = Image.alpha_composite(im, dot_matrix(w, h))
+    im = Image.alpha_composite(im, noise_layer(w, h, 20, NOISE_SEED + variant))
     d = ImageDraw.Draw(im)
-    d.rectangle([0, 0, W, 5], fill=PRIMARY)
-    d.rectangle([0, H - 5, W, H], fill=PRIMARY)
+    d.rectangle([0, 0, w, 5], fill=CYAN)
+    d.rectangle([0, h - 5, w, h], fill=CYAN)
     return im
+
+
+# ── typography helpers ──────────────────────────────────────────────
+
+def draw_centered(d: ImageDraw.ImageDraw, cx: int, y: int, text: str, fnt, fill, shadow=True):
+    tw, th = text_size(d, text, fnt)
+    if shadow:
+        d.text((cx - tw // 2 + 2, y + 3), text, font=fnt, fill=(0, 0, 0, 110))
+    d.text((cx - tw // 2, y), text, font=fnt, fill=fill)
+    return th
+
+
+def kicker_pill(im: Image.Image, text: str, y: int, cx: int, fnt) -> int:
+    """Pill badge: gradient border, translucent fill, micro-dot icon."""
+    d = ImageDraw.Draw(im)
+    dot = "\u25c6 "  # ◆ micro-dot
+    full = dot + text
+    tw, th = text_size(d, full, fnt)
+    pad_x, pad_y = 26, 14
+    x0, x1 = cx - (tw + pad_x * 2) // 2, cx + (tw + pad_x * 2) // 2
+    y0, y1 = y, y + th + pad_y * 2
+    radius = (y1 - y0) // 2
+
+    # gradient border (cyan → gold) + inner fill
+    border = Image.new("RGBA", (x1 - x0, y1 - y0), (0, 0, 0, 0))
+    bd = ImageDraw.Draw(border)
+    bd.rounded_rectangle([0, 0, border.size[0] - 1, border.size[1] - 1], radius=radius, fill=BG_OBSIDIAN)
+    grad = np.zeros((border.size[1], border.size[0], 4), dtype=np.uint8)
+    for yy in range(border.size[1]):
+        t = yy / max(1, border.size[1] - 1)
+        col = tuple(int(a * (1 - t) + b * t) for a, b in zip(CYAN, GOLD))
+        grad[yy, :, :3] = col
+        grad[yy, :, 3] = 200
+    ring = Image.fromarray(grad, "RGBA")
+    mask = Image.new("L", border.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, border.size[0] - 1, border.size[1] - 1], radius=radius, fill=255)
+    outer = Image.composite(ring, border, mask)
+    inner_mask = Image.new("L", border.size, 0)
+    ImageDraw.Draw(inner_mask).rounded_rectangle([2, 2, border.size[0] - 3, border.size[1] - 3], radius=max(2, radius - 2), fill=255)
+    inner = Image.new("RGBA", border.size, (0, 0, 0, 0))
+    ImageDraw.Draw(inner).rounded_rectangle([2, 2, border.size[0] - 3, border.size[1] - 3], radius=max(2, radius - 2), fill=(*BG_SLATE[:3], 200))
+    pill = Image.composite(inner, outer, inner_mask)
+
+    # glow behind pill
+    im.alpha_composite(radial_glow(im.size[0], im.size[1], cx, y + (y1 - y0) // 2, 240, CYAN, 30))
+    im.alpha_composite(pill, (x0, y0))
+
+    # text: mint tint + dot in mint
+    d2 = ImageDraw.Draw(im)
+    dot_fnt = fnt
+    d2.text((x0 + pad_x, y0 + pad_y), full, font=dot_fnt, fill=TEXT)
+    tw_dot, _ = text_size(d2, dot, dot_fnt)
+    d2.text((x0 + pad_x, y0 + pad_y), dot, font=dot_fnt, fill=MINT)
+    return y1 + 30
+
+
+def gradient_divider(im: Image.Image, y: int, cx: int, span: int):
+    step = 4
+    d = ImageDraw.Draw(im)
+    for x in range(0, span // 2, step):
+        t = x / max(1, span // 2)
+        a = int(120 * (1 - t))
+        col = tuple(int(c * (1 - t) + g * t) for c, g in zip(CYAN, GOLD))
+        d.line([(cx - x, y), (cx - x + step, y)], fill=(*col, a), width=2)
+        d.line([(cx + x, y), (cx + x + step, y)], fill=(*col, a), width=2)
 
 
 # ── phone mock ──────────────────────────────────────────────────────
 
-def cover_crop(im: Image.Image, tw: int, th: int) -> Image.Image:
+def cover_crop(im: Image.Image, tw: int, th: int, focus_top: bool = True) -> Image.Image:
     iw, ih = im.size
     scale = max(tw / iw, th / ih)
     im = im.resize((max(1, int(iw * scale)), max(1, int(ih * scale))), Image.Resampling.LANCZOS)
     left = (im.size[0] - tw) // 2
-    top = max(0, (im.size[1] - th) // 8)
+    top = max(0, (im.size[1] - th) // 8) if focus_top else (im.size[1] - th) // 2
     return im.crop((left, top, left + tw, top + th))
 
 
-def phone_frame(shot: Image.Image, pw: int, ph: int, bezel: int = 10, top_bar: int = 18) -> Image.Image:
+def phone_frame(shot: Image.Image, pw: int, ph: int, radius: int = 34, bezel: int = 12, top_bar: int = 20) -> Image.Image:
     out = Image.new("RGBA", (pw, ph), (0, 0, 0, 0))
     d = ImageDraw.Draw(out)
-    d.rounded_rectangle([0, 0, pw - 1, ph - 1], radius=28, fill=(0x0E, 0x14, 0x16, 255))
-    d.rounded_rectangle([0, 0, pw - 1, ph - 1], radius=28, outline=PRIMARY, width=3)
+    # outer titanium body
+    d.rounded_rectangle([0, 0, pw - 1, ph - 1], radius=radius, fill=BEZEL)
+    # inner metallic stroke
+    d.rounded_rectangle([1, 1, pw - 2, ph - 2], radius=max(2, radius - 1), outline=BEZEL_EDGE, width=2)
 
+    # screen
     sx0, sy0 = bezel, bezel + top_bar // 2
     sx1, sy1 = pw - bezel, ph - bezel
     sw, sh = sx1 - sx0, sy1 - sy0
     screen = cover_crop(shot, sw, sh)
     mask = Image.new("L", (sw, sh), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, sw - 1, sh - 1], radius=18, fill=255)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, sw - 1, sh - 1], radius=max(2, radius - 4), fill=255)
     rounded = Image.new("RGBA", (sw, sh), (0, 0, 0, 0))
     rounded.paste(screen, (0, 0), mask)
     out.paste(rounded, (sx0, sy0), rounded)
 
-    bar_w = pw // 4
-    d.rounded_rectangle([(pw - bar_w) // 2, 10, (pw + bar_w) // 2, 16], radius=3, fill=SURFACE_BRIGHT)
+    # top pill cutout (speaker + camera island)
+    pill_w = pw // 3
+    d.rounded_rectangle([(pw - pill_w) // 2, bezel - 2, (pw + pill_w) // 2, bezel + 4], radius=5, fill=(0x16, 0x20, 0x26, 255))
+    d.ellipse([(pw + pill_w) // 2 - 6, bezel - 1, (pw + pill_w) // 2 + 4, bezel + 9], fill=(0x1B, 0x27, 0x2D, 255))
+
+    # top-left specular sheen on the bezel ring
+    ring = Image.new("L", (pw, ph), 0)
+    rd = ImageDraw.Draw(ring)
+    rd.rounded_rectangle([0, 0, pw - 1, ph - 1], radius=radius, fill=255)
+    rd.rounded_rectangle([sx0, sy0, sx1 - 1, sy1 - 1], radius=max(2, radius - 4), fill=0)
+    sheen = np.zeros((ph, pw, 4), dtype=np.uint8)
+    ys, xs = np.mgrid[0:ph, 0:pw]
+    t = np.clip(1 - (xs + ys) / (pw + ph) * 1.9, 0, 1)
+    a = (t ** 2 * 70).astype(np.uint8)
+    sheen[..., 0], sheen[..., 1], sheen[..., 2] = SPECULAR
+    sheen[..., 3] = a
+    sheen_im = Image.fromarray(sheen, "RGBA")
+    sheen_masked = Image.composite(sheen_im, Image.new("RGBA", (pw, ph), (0, 0, 0, 0)), ring)
+    out = Image.alpha_composite(out, sheen_masked)
     return out
 
 
-def paste_phone(canvas: Image.Image, phone: Image.Image, x: int, y: int, shadow: int = 10):
-    pw, ph = phone.size
-    d = ImageDraw.Draw(canvas)
-    # soft drop shadow below only — no right-side shadow bar
-    d.rectangle([x + shadow, y + ph, x + pw, y + ph + shadow], fill=SURFACE_BRIGHT)
-    canvas.paste(phone, (x, y), phone)
+def dual_shadow(pw: int, ph: int, radius: int = 34, dx: int = 8, dy: int = 12):
+    """Contact (tight, 8px blur) + ambient diffuse (40px blur, 20%)."""
+    pad = 110
+    cw, ch = pw + pad * 2, ph + pad * 2
+    ambient = Image.new("RGBA", (cw, ch), (0, 0, 0, 0))
+    ImageDraw.Draw(ambient).rounded_rectangle(
+        [pad + dx - 8, pad + dy - 6, pad + dx + pw + 8, pad + dy + ph + 6],
+        radius=radius + 8, fill=(0, 0, 0, 51),
+    )
+    ambient = ambient.filter(ImageFilter.GaussianBlur(40))
+    contact = Image.new("RGBA", (cw, ch), (0, 0, 0, 0))
+    ImageDraw.Draw(contact).rounded_rectangle(
+        [pad + dx, pad + dy, pad + dx + pw, pad + dy + ph],
+        radius=radius, fill=(0, 0, 0, 150),
+    )
+    contact = contact.filter(ImageFilter.GaussianBlur(8))
+    return Image.alpha_composite(ambient, contact), pad
 
 
-# ── page layout: kicker · title · tagline · phones (vertical stack) ─
+def paste_phone(canvas: Image.Image, phone: Image.Image, x: int, y: int):
+    shadow, pad = dual_shadow(*phone.size)
+    canvas.alpha_composite(shadow, (x - pad, y - pad))
+    canvas.alpha_composite(phone, (x, y))
+
+
+def aura(canvas: Image.Image, x: int, y: int, w: int, h: int, color=CYAN, peak=70):
+    canvas.alpha_composite(radial_glow(canvas.size[0], canvas.size[1], x + w // 2, y + h // 2, max(w, h) * 0.62, color, peak))
+
+
+# ── frame rendering ─────────────────────────────────────────────────
 
 def render_page(
-    title: str,
-    tagline: str,
-    shots: list[tuple[str, str]],
-    kicker: str = "APEX CORE  ·  PLAY LISTING",
+    kicker: str,
+    headline: str,
+    subtitle: str,
+    shots: list[str],
     variant: int = 0,
-    show_logo: bool = False,
-    duo_side: bool = False,
-    card_hero: str | None = None,
+    duo: bool = False,
+    aura_peak: int = 70,
 ) -> Image.Image:
+    """Single or staggered-duo flagship phone layout."""
     im = make_base(variant)
     d = ImageDraw.Draw(im)
-    y = 84
+    cx = W // 2
+    y = kicker_pill(im, kicker, 84, cx, font("med", 20))
 
-    kick = font("med", 18)
-    tw, th = text_size(d, kicker, kick)
-    d.text(((W - tw) // 2, y), kicker, font=kick, fill=PRIMARY_SOFT)
-    y += th + 30
+    head_f = font("bold", 62)
+    for line in headline.split("\n"):
+        while text_size(d, line, head_f)[0] > W - 120 and head_f.size > 44:
+            head_f = font("bold", head_f.size - 4)
+    lines = headline.split("\n")[:2]
+    for line in lines:
+        th = draw_centered(d, cx, y, line, head_f, TEXT)
+        y += th + 12
+    y += 8
 
-    title_f = font("bold", 64)
-    lines = wrap_lines(d, title, title_f, W - 100)
-    while len(lines) > 2 and title_f.size > 44:
-        title_f = font("bold", title_f.size - 4)
-        lines = wrap_lines(d, title, title_f, W - 100)
-    for line in lines[:2]:
-        tw, th = text_size(d, line, title_f)
-        d.text(((W - tw) // 2, y), line, font=title_f, fill=TEXT)
-        y += th + 10
-    y += 12
-
-    tag_f = font("reg", 26)
-    tag_lines = wrap_lines(d, tagline, tag_f, W - 130)[:2]
-    for line in tag_lines:
-        tw, th = text_size(d, line, tag_f)
-        d.text(((W - tw) // 2, y), line, font=tag_f, fill=TEXT_DIM)
+    sub_f = font("reg", 25)
+    for line in subtitle.split("\n")[:2]:
+        th = draw_centered(d, cx, y, line, sub_f, TEXT_DIM)
         y += th + 8
-    y += 26
+    y += 22
+    gradient_divider(im, y, cx, W - 200)
+    y += 44
 
-    d.line([(80, y), (W - 80, y)], fill=(*PRIMARY[:3], 90), width=2)
-    y += 34
-
-    if show_logo:
-        logo = load_logo(150)
-        im.alpha_composite(radial_glow(W, H, W / 2, y + 75, 220, PRIMARY, 80))
-        im.alpha_composite(logo, ((W - logo.size[0]) // 2, y))
-        y += logo.size[1] + 30
-
-    # phone zone: one large phone, two stacked, duo side-by-side, or card
-    avail = H - y - 64
-    if card_hero:
-        # standalone screenshot shown as a large rounded card (no phone frame)
-        shot = load_shot(card_hero)
-        iw, ih = shot.size
-        c_h = int(avail * 0.9)
-        c_w = int(iw * c_h / ih)
-        if c_w > W - 100:
-            c_w = W - 100
-            c_h = int(ih * c_w / iw)
-        shot = shot.resize((c_w, c_h), Image.Resampling.LANCZOS)
-        radius = 56
-        mask = Image.new("L", (c_w, c_h), 0)
-        ImageDraw.Draw(mask).rounded_rectangle([0, 0, c_w - 1, c_h - 1], radius=radius, fill=255)
-        card = Image.new("RGBA", (c_w, c_h), (0, 0, 0, 0))
-        card.paste(shot, (0, 0), mask)
-        cx = (W - c_w) // 2
-        cy = y + (avail - c_h) // 2
-        paste_phone(im, card, cx, cy, 14)
-    elif duo_side:
-        # two phones side by side, one slightly up / one slightly down,
-        # together covering ~50% of the page (no labels)
-        per = (W * H * 0.5) / 2
-        ph_h = int(math.sqrt(per * 19.5 / 9))
-        ph_w = int(ph_h * 9 / 19.5)
-        gap = 36
+    avail = H - y - 60
+    if duo:
+        # staggered duo phones covering ~55% of the page
+        per = (W * H * 0.55) / 2
+        ph_h = int(math.sqrt(per / SHOT_ASPECT))
+        ph_w = int(ph_h * SHOT_ASPECT)
+        gap = 34
         x0 = (W - (ph_w * 2 + gap)) // 2
         cy = y + avail // 2
-        stagger = 46
-        for i, (key, _) in enumerate(shots[:2]):
+        stagger = 42
+        for i, key in enumerate(shots[:2]):
             px = x0 + i * (ph_w + gap)
             py = cy - ph_h // 2 + stagger * (1 if i == 0 else -1)
-            paste_phone(im, phone_frame(load_shot(key), ph_w, ph_h), px, py, 10)
-    elif len(shots) == 1:
+            aura(im, px - 30, py - 30, ph_w + 60, ph_h + 60, CYAN if i == 0 else GOLD, 46)
+            paste_phone(im, phone_frame(load_shot(key), ph_w, ph_h), px, py)
+    else:
         ph_h = int(avail * 0.92)
-        ph_w = int(ph_h * 9 / 19.5)
-        if ph_w > W - 72:
-            ph_w = W - 72
-            ph_h = int(ph_w * 19.5 / 9)
+        ph_w = int(ph_h * SHOT_ASPECT)
+        if ph_w > W - 80:
+            ph_w = W - 80
+            ph_h = int(ph_w / SHOT_ASPECT)
         x = (W - ph_w) // 2
         py = y + (avail - ph_h) // 2
-        phone = phone_frame(load_shot(shots[0][0]), ph_w, ph_h)
-        paste_phone(im, phone, x, py, 12)
-        if shots[0][1]:
-            lf = font("med", 16)
-            tw, th = text_size(d, shots[0][1], lf)
-            d.text(((W - tw) // 2, py + ph_h + 14), shots[0][1], font=lf, fill=PRIMARY_SOFT)
-    else:
-        ph_h = int((avail - 56) / 2)
-        ph_w = int(ph_h * 9 / 19.5)
-        if ph_w > W - 96:
-            ph_w = W - 96
-            ph_h = int(ph_w * 19.5 / 9)
-        x = (W - ph_w) // 2
-        py = y + (avail - (ph_h * 2 + 44)) // 2
-        lf = font("med", 16)
-        for key, label in shots[:2]:
-            phone = phone_frame(load_shot(key), ph_w, ph_h)
-            paste_phone(im, phone, x, py, 10)
-            if label:
-                tw, th = text_size(d, label, lf)
-                d.text(((W - tw) // 2, py + ph_h + 10), label, font=lf, fill=PRIMARY_SOFT)
-            py += ph_h + 44
-
+        aura(im, x, py, ph_w, ph_h, CYAN, aura_peak)
+        paste_phone(im, phone_frame(load_shot(shots[0]), ph_w, ph_h), x, py)
     return vignette(im).convert("RGB")
 
-
-FRAMES = [
-    ("1_hero", "APEX CORE", "More resources for focus", "HOME", True),
-    ("2_purge", "PURGE ENGINE", "Optimise game performance", "PURGE", False),
-    ("3_ram_free", "RAM FREE", "Force system reclaim, on device", "RAM FREE", False),
-    ("4_overlay", "LIVE PERFORMANCE HUD", "FPS · RAM · CPU while you play", "HUD", False),
-    ("5_pin_apps", "PIN WHAT MUST STAY AWAKE", "Whitelist apps purge never freezes", "PIN APPS", False),
-    ("6_library", "GAMES LIBRARY", "Browse · pin · allocate · launch", "LIBRARY", False),
-    ("7_settings", "HONEST ELEVATION", "Shizuku · Root · privacy first", "SETTINGS", False),
-    ("8_cta", "PLAY LOCAL", "No ads · No accounts · On-device", "ON-DEVICE", False),
-]
-
-SHOTS = {
-    "1_hero": [("home", "")],
-    "2_purge": [("home", "HOME")],
-    "3_ram_free": [("ram_free", "MEMORY TOOLKIT")],
-    "4_overlay": [("overlay_v1", "LIVE HUD")],
-    "5_pin_apps": [("pin", "PIN APPS")],
-    "6_library": [("games", "GAMES"), ("add_games", "ADD APPS")],
-    "7_settings": [("settings", "SETTINGS")],
-    "8_cta": [("home", "HOME"), ("overlay", "HUD")],
-}
-
-
-def generate_feature_graphic():
-    im = Image.new("RGBA", (FEATURE_W, FEATURE_H), BG)
-    depth = np.zeros((FEATURE_H, FEATURE_W, 4), dtype=np.uint8)
-    depth[..., 3] = np.linspace(0, 28, FEATURE_H, dtype=np.uint8)[:, None]
-    im = Image.alpha_composite(im, Image.fromarray(depth, "RGBA"))
-    im = Image.alpha_composite(im, radial_glow(FEATURE_W, FEATURE_H, FEATURE_W * 0.55, 250, 420, PRIMARY, 55))
-    im = Image.alpha_composite(im, grid_layer(FEATURE_W, FEATURE_H, 34))
-    im = Image.alpha_composite(im, noise_layer(FEATURE_W, FEATURE_H, 12, NOISE_SEED + 7))
-    d = ImageDraw.Draw(im)
-
-    logo = load_logo(92)
-    im.alpha_composite(logo, (40, 44))
-
-    d.text((40, 168), "Apex Core", font=font("bold", 46), fill=TEXT)
-    d.text((40, 234), "More resources for focus", font=font("bold", 21), fill=PRIMARY)
-    d.text((40, 272), "Purge · RAM Free · Live HUD · On-device", font=font("reg", 15), fill=TEXT_DIM)
-
-    chip = "NO ADS · NO ACCOUNTS"
-    chip_f = font("med", 17)
-    tw, th = text_size(d, chip, chip_f)
-    cw, ch = tw + 44, 46
-    d.rounded_rectangle([40, 330, 40 + cw, 330 + ch], radius=ch // 2, fill=PRIMARY)
-    d.text((40 + 22, 330 + (ch - th) // 2 - 1), chip, font=chip_f, fill=ON_PRIMARY)
-
-    pw, ph = 168, 380
-    px = FEATURE_W - pw - 52
-    py = (FEATURE_H - ph) // 2
-    paste_phone(im, phone_frame(load_shot("home"), pw, ph, bezel=6, top_bar=10), px, py, 6)
-    return im.convert("RGB")
-
-
-# ── hero page: big logo + title + tagline only (no divider, no phones) ─
 
 def render_hero(variant: int = 0) -> Image.Image:
+    """Hero: glowing center logo + headline + large aura phone."""
     im = make_base(variant)
     d = ImageDraw.Draw(im)
+    cx = W // 2
+    y = kicker_pill(im, "ZEN PERFORMANCE", 70, cx, font("med", 20))
 
-    kicker = "APEX CORE  ·  PLAY LISTING"
-    kick = font("med", 20)
-    _, kh = text_size(d, kicker, kick)
+    logo = load_logo(170)
+    aura(im, cx - 120, y - 20, 240, 240, CYAN, 80)
+    im.alpha_composite(logo, (cx - logo.size[0] // 2, y))
+    y += logo.size[1] + 26
 
-    logo = load_logo(420)
-    title_f = font("bold", 76)
-    title = "APEX CORE"
-    _, th = text_size(d, title, title_f)
-    tag_f = font("reg", 30)
-    tag = "More resources for focus"
-    _, tgh = text_size(d, tag, tag_f)
+    head_f = font("bold", 66)
+    for line in ["ApexCore", "Pure Game Focus"]:
+        while text_size(d, line, head_f)[0] > W - 110 and head_f.size > 46:
+            head_f = font("bold", head_f.size - 4)
+        th = draw_centered(d, cx, y, line, head_f, TEXT)
+        y += th + 10
+    y += 6
 
-    gap1, gap2, gap3, gap4 = 52, 58, 26, 26
-    block_h = kh + gap1 + logo.size[1] + gap2 + th + gap3 + tgh + gap4
-    y = (H - block_h) // 2
+    sub_f = font("reg", 25)
+    th = draw_centered(d, cx, y, "Deep freeze bloat & unlock peak hardware performance", sub_f, TEXT_DIM)
+    y += th + 20
+    gradient_divider(im, y, cx, W - 220)
+    y += 40
 
-    tw, _ = text_size(d, kicker, kick)
-    d.text(((W - tw) // 2, y), kicker, font=kick, fill=PRIMARY_SOFT)
-    y += kh + gap1
-
-    im.alpha_composite(radial_glow(W, H, W / 2, y + logo.size[1] / 2, 360, PRIMARY, 85))
-    im.alpha_composite(logo, ((W - logo.size[0]) // 2, y))
-    y += logo.size[1] + gap2
-
-    tw, _ = text_size(d, title, title_f)
-    d.text(((W - tw) // 2, y), title, font=title_f, fill=TEXT)
-    y += th + gap3
-
-    tw, _ = text_size(d, tag, tag_f)
-    d.text(((W - tw) // 2, y), tag, font=tag_f, fill=TEXT_DIM)
-
+    avail = H - y - 60
+    ph_h = int(avail * 0.92)
+    ph_w = int(ph_h * SHOT_ASPECT)
+    if ph_w > W - 80:
+        ph_w = W - 80
+        ph_h = int(ph_w / SHOT_ASPECT)
+    x = (W - ph_w) // 2
+    py = y + (avail - ph_h) // 2
+    aura(im, x, py, ph_w, ph_h, CYAN, 90)
+    aura(im, x + 40, py + 40, ph_w, ph_h, GOLD, 34)
+    paste_phone(im, phone_frame(load_shot("01_home_store.png", "01_home.png"), ph_w, ph_h), x, py)
     return vignette(im).convert("RGB")
+
+
+# ── feature graphic (1024x500) ──────────────────────────────────────
+
+def angled_phone(shot: Image.Image, pw: int, ph: int, angle_deg: float = -6.0) -> Image.Image:
+    """Phone frame rotated slightly for a floating perspective."""
+    phone = phone_frame(shot, pw, ph, radius=28, bezel=10, top_bar=16)
+    ang = math.radians(angle_deg)
+    cos, sin = math.cos(ang), math.sin(ang)
+    w, h = phone.size
+    xform = (cos, sin, 0, -sin, cos, 0, 0, 0)
+    # transform expands bounds; rotate around center
+    rotated = phone.rotate(angle_deg, resample=Image.Resampling.BICUBIC, expand=True)
+    return rotated
+
+
+def generate_feature_graphic() -> Image.Image:
+    im = make_base(1, FEATURE_W, FEATURE_H)
+    d = ImageDraw.Draw(im)
+
+    logo = load_logo(96)
+    im.alpha_composite(radial_glow(FEATURE_W, FEATURE_H, 88, 96, 150, CYAN, 85))
+    im.alpha_composite(logo, (40, 42))
+
+    d.text((44, 156), "ApexCore", font=font("bold", 52), fill=TEXT)
+    d.text((44, 220), "Zen Performance Engine", font=font("bold", 23), fill=MINT)
+    d.text((44, 258), "Deep freeze bloat · Live HUD · Real kernel tune", font=font("reg", 16), fill=TEXT_DIM)
+
+    chips = ["NO ADS · NO ACCOUNTS", "REAL KERNEL TUNE", "100% ON-DEVICE"]
+    cy = 310
+    for chip in chips:
+        chip_f = font("med", 17)
+        tw, th = text_size(d, chip, chip_f)
+        cw, ch = tw + 40, 40
+        d.rounded_rectangle([44, cy, 44 + cw, cy + ch], radius=ch // 2, fill=(*CYAN, 40), outline=(*CYAN, 200), width=2)
+        d.text((44 + 20, cy + (ch - th) // 2 - 1), chip, font=chip_f, fill=TEXT)
+        cy += ch + 10
+
+    # angled floating phone with cyan backlight
+    pw, ph = 148, 340
+    rotated = angled_phone(load_shot("03b_overlay_hud_active.png", "03_overlay.png"), pw, ph, -7)
+    rw, rh = rotated.size
+    px = FEATURE_W - rw - 46
+    py = (FEATURE_H - rh) // 2 + 6
+    glow_cx, glow_cy = px + rw // 2, py + rh // 2
+    im.alpha_composite(radial_glow(FEATURE_W, FEATURE_H, glow_cx, glow_cy, 260, CYAN, 72))
+    shadow, pad = dual_shadow(pw, ph)
+    im.alpha_composite(shadow, (px + rw // 2 - pw // 2 - pad, py + rh // 2 - ph // 2 - pad))
+    im.alpha_composite(rotated, (px, py))
+
+    return vignette(im, FEATURE_W, FEATURE_H).convert("RGB")
+
+
+# ── storyboard (plan T12-onboarding-storelisting §3.3) ──────────────
+
+FRAMES = [
+    # 1_hero rendered separately
+    {
+        "stem": "2_purge", "kicker": "01 · PURGE ENGINE",
+        "headline": "Deep Freeze Bloat\nZero Background Lag",
+        "subtitle": "Reclaim CPU cycles and memory before launching games",
+        "shots": ["01_home.png"],
+    },
+    {
+        "stem": "3_ram_free", "kicker": "02 · MEMORY TOOLKIT",
+        "headline": "Force RAM Reclaim\nInstant System Clean",
+        "subtitle": "Safely clear cached memory with hardware-safe 90% cap",
+        "shots": ["04_ram_free.png"],
+    },
+    {
+        "stem": "4_overlay", "kicker": "03 · PERFORMANCE HUD",
+        "headline": "Live On-Screen HUD\nFPS · RAM · CPU",
+        "subtitle": "Real-time telemetry overlay rendered while you play",
+        "shots": ["03b_overlay_hud_active.png", "03_overlay.png"],
+    },
+    {
+        "stem": "5_pin_apps", "kicker": "04 · APP WHITELIST",
+        "headline": "Pin Essential Apps\nStay Always Awake",
+        "subtitle": "Protect messaging, audio, and tools from being frozen",
+        "shots": ["05_pin_apps.png"],
+    },
+    {
+        "stem": "6_library", "kicker": "05 · GAME LIBRARY",
+        "headline": "Your Game Hub\nAllocate & Launch",
+        "subtitle": "Automatic game detection with one-tap boost launch",
+        "shots": ["02_games.png", "07_add_games.png"],
+        "duo": True,
+    },
+    {
+        "stem": "7_settings", "kicker": "06 · REAL KERNEL TUNE",
+        "headline": "Real Kernel Tuning\n36 Advanced Knobs",
+        "subtitle": "Frequency floors, GPU keep-awake & input boost",
+        "shots": ["01c_home_game_opt.png", "01_home.png"],
+    },
+    {
+        "stem": "8_cta", "kicker": "07 · PRIVATE & LOCAL",
+        "headline": "100% On-Device\nNo Ads · No Tracking",
+        "subtitle": "Shizuku & Root privileged speed without cloud dependencies",
+        "shots": ["06c_settings_privacy.png", "10_backend_dropdown.png"],
+        "duo": True,
+    },
+]
+
+
+def sync_copies():
+    """Copy frames + feature graphic into phoneScreenshots dirs and fastlane."""
+    stems = ["1_hero.png"] + [f["stem"] + ".png" for f in FRAMES]
+    for dest in PHONE_OUT_DIRS:
+        dest.mkdir(parents=True, exist_ok=True)
+        for stem in stems:
+            src = OUT / stem
+            if src.is_file():
+                dest.joinpath(stem).write_bytes(src.read_bytes())
+                print(f"    → {dest.name}/{stem}")
+
+    fl_feature = ROOT / "fastlane" / "metadata" / "android" / "en-US" / "images" / "featureGraphic.png"
+    if fl_feature.parent.is_dir():
+        fl_feature.write_bytes((OUT / "feature_graphic.png").read_bytes())
+        print(f"    → fastlane featureGraphic.png")
+    doc_feature = OUT / "featureGraphic.png"
+    doc_feature.write_bytes((OUT / "feature_graphic.png").read_bytes())
+    print(f"    → {doc_feature.name}")
 
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    print("Generating simple ApexCore listing…")
-    for stem, title, tagline, kicker, logo in FRAMES:
-        print(f"  {stem} …")
-        if stem == "1_hero":
-            img = render_hero(variant=FRAMES.index((stem, title, tagline, kicker, logo)))
-        else:
-            img = render_page(
-                title,
-                tagline,
-                SHOTS[stem],
-                kicker=f"// {kicker}",
-                variant=FRAMES.index((stem, title, tagline, kicker, logo)),
-                duo_side=(stem in ("6_library", "8_cta")),
-                card_hero=("optimisations" if stem == "2_purge" else None),
-            )
-        path = OUT / f"{stem}.png"
+    print("Generating Zen Organic Dark Deluxe ApexCore listing…")
+
+    hero = OUT / "1_hero.png"
+    hero_img = render_hero(variant=0)
+    hero_img.save(hero, "PNG", optimize=True)
+    print(f"  1_hero.png {hero_img.size}")
+
+    for idx, f in enumerate(FRAMES, start=2):
+        img = render_page(
+            kicker=f['kicker'],
+            headline=f["headline"],
+            subtitle=f["subtitle"],
+            shots=f["shots"],
+            variant=idx,
+            duo=f.get("duo", False),
+            aura_peak=66,
+        )
+        path = OUT / f"{f['stem']}.png"
         img.save(path, "PNG", optimize=True)
-        print(f"    → {path.name} {img.size}")
+        print(f"  {f['stem']}.png {img.size}")
 
     fg = OUT / "feature_graphic.png"
-    generate_feature_graphic().save(fg, "PNG", optimize=True)
-    print(f"  feature_graphic.png: 1024x500")
+    fg_img = generate_feature_graphic()
+    fg_img.save(fg, "PNG", optimize=True)
+    print(f"  feature_graphic.png {fg_img.size}")
 
-    fl = ROOT / "fastlane" / "metadata" / "android" / "en-US" / "images" / "featureGraphic.png"
-    if fl.parent.is_dir():
-        fl.write_bytes(fg.read_bytes())
-        print(f"  synced → {fl}")
+    sync_copies()
     print("Done →", OUT)
 
 

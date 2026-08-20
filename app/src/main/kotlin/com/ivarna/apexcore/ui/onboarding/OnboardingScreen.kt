@@ -523,23 +523,7 @@ private fun ElevationSetupPage(
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(6.dp))
-
-        // Large Access Shield Art
-        Box(
-            modifier = Modifier
-                .size(230.dp)
-                .clip(RoundedCornerShape(32.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Image(
-                painter = painterResource(id = page.imageRes),
-                contentDescription = page.title,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         // Kicker Badge
         Box(

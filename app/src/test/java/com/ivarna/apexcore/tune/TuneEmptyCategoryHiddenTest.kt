@@ -6,7 +6,7 @@ import org.junit.Test
 class TuneEmptyCategoryHiddenTest {
 
     @Test
-    fun testAllCategoriesDisplayedWithSupportStatus() {
+    fun testEmptyCategoriesOmitted() {
         val caps = mutableMapOf<TuneId, TuneCapability>()
         for (spec in TuneSpecs.all) {
             val isGpu = spec.category == TuneCategory.GPU && spec.id == TuneId.GPU_FLOOR
@@ -19,29 +19,16 @@ class TuneEmptyCategoryHiddenTest {
             )
         }
 
-        val allCategories = TuneCategory.values().toList()
-        assertEquals(10, allCategories.size)
-        assertTrue(allCategories.contains(TuneCategory.GPU))
-        assertTrue(allCategories.contains(TuneCategory.CPU))
-        assertTrue(allCategories.contains(TuneCategory.NETWORK))
+        // Only categories with >= 1 available option are visible
+        val visibleCategories = TuneCategory.values().filter { cat ->
+            val specs = TuneSpecs.byCategory[cat].orEmpty()
+            specs.any { caps[it.id]?.available == true }
+        }
 
-        // GPU category has 1 supported option
-        val gpuSpecs = TuneSpecs.byCategory[TuneCategory.GPU].orEmpty()
-        val gpuSupported = gpuSpecs.count { caps[it.id]?.available == true }
-        assertEquals(1, gpuSupported)
-
-        // CPU category has 0 supported options
-        val cpuSpecs = TuneSpecs.byCategory[TuneCategory.CPU].orEmpty()
-        val cpuSupported = cpuSpecs.count { caps[it.id]?.available == true }
-        assertEquals(0, cpuSupported)
-
-        // Supported categories appear first at the top
-        val sortedCategories = TuneCategory.values().sortedWith(
-            compareByDescending<TuneCategory> { cat ->
-                val specs = TuneSpecs.byCategory[cat].orEmpty()
-                specs.count { caps[it.id]?.available == true }
-            }.thenBy { it.ordinal }
-        )
-        assertEquals(TuneCategory.GPU, sortedCategories.first())
+        assertEquals(1, visibleCategories.size)
+        assertTrue("GPU category has available options and must be visible", visibleCategories.contains(TuneCategory.GPU))
+        assertFalse("CPU category has 0 available options and must be omitted", visibleCategories.contains(TuneCategory.CPU))
+        assertFalse("NETWORK category has 0 available options and must be omitted", visibleCategories.contains(TuneCategory.NETWORK))
     }
 }
+

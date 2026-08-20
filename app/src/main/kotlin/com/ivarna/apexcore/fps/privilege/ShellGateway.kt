@@ -51,22 +51,24 @@ class ShellGateway(
 
     fun currentPolicy(): PrivilegePolicy = PrivilegePolicy(store.mode.value)
 
-    fun execute(command: String, tier: PrivilegeTier, timeoutMs: Long = 8_000L): ShellResult {
-        return when (tier) {
-            PrivilegeTier.ROOT -> {
-                if (!canRoot()) {
-                    return ShellResult("", exitCode = -1).also { markBlocked(it, "no_su") }
+    fun execute(command: String, tier: PrivilegeTier, timeoutMs: Long = 8_000L): ShellResult = kotlinx.coroutines.runBlocking {
+        mutex.withLock {
+            when (tier) {
+                PrivilegeTier.ROOT -> {
+                    if (!canRoot()) {
+                        return@withLock ShellResult("", exitCode = -1).also { markBlocked(it, "no_su") }
+                    }
+                    shellExecutor.execute(command, useRoot = true, timeoutMs = timeoutMs)
                 }
-                shellExecutor.execute(command, useRoot = true, timeoutMs = timeoutMs)
-            }
-            PrivilegeTier.SHIZUKU -> {
-                if (!canShizuku()) {
-                    return ShellResult("", exitCode = -1).also { markBlocked(it, "no_shizuku") }
+                PrivilegeTier.SHIZUKU -> {
+                    if (!canShizuku()) {
+                        return@withLock ShellResult("", exitCode = -1).also { markBlocked(it, "no_shizuku") }
+                    }
+                    executeViaShizuku(command, timeoutMs = timeoutMs)
                 }
-                executeViaShizuku(command, timeoutMs = timeoutMs)
-            }
-            PrivilegeTier.STANDARD -> {
-                shellExecutor.execute(command, useRoot = false, timeoutMs = timeoutMs)
+                PrivilegeTier.STANDARD -> {
+                    shellExecutor.execute(command, useRoot = false, timeoutMs = timeoutMs)
+                }
             }
         }
     }

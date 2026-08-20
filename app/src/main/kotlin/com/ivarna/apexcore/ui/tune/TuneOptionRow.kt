@@ -25,11 +25,13 @@ fun TuneOptionRow(
     intent: TuneValue,
     enabled: Boolean,
     onIntentChange: (TuneValue) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isOverridden: Boolean = false,
+    overrideSubtitle: String? = null
 ) {
     val scheme = MaterialTheme.colorScheme
     val isAvailable = capability?.available == true
-    val isRowInteractive = enabled && isAvailable
+    val isRowInteractive = enabled && isAvailable && !isOverridden
     val alpha = if (isRowInteractive) 1f else 0.45f
 
     var showDropdown by remember { mutableStateOf(false) }
@@ -48,20 +50,29 @@ fun TuneOptionRow(
             Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                 Text(
                     text = spec.title,
-                    color = if (isAvailable) scheme.onSurface else scheme.onSurface.copy(alpha = 0.8f),
+                    color = if (isAvailable && !isOverridden) scheme.onSurface else scheme.onSurface.copy(alpha = 0.8f),
                     fontSize = 14.sp,
                     fontFamily = PlusJakartaSans,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
                     text = spec.description,
-                    color = scheme.onSurfaceVariant.copy(alpha = if (isAvailable) 1f else 0.7f),
+                    color = scheme.onSurfaceVariant.copy(alpha = if (isAvailable && !isOverridden) 1f else 0.7f),
                     fontSize = 11.sp,
                     fontFamily = PlusJakartaSans,
                     lineHeight = 14.sp,
                     modifier = Modifier.padding(top = 2.dp)
                 )
-                if (!isAvailable) {
+                if (isOverridden) {
+                    Text(
+                        text = overrideSubtitle ?: "Covered by CPU frequency floor",
+                        color = scheme.primary.copy(alpha = 0.85f),
+                        fontSize = 10.sp,
+                        fontFamily = PlusJakartaSans,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                } else if (!isAvailable) {
                     val notSupportedReason = when {
                         !enabled -> "Checking kernel node…"
                         capability?.needsRoot == true -> "Not supported (Needs Root backend)"
@@ -95,7 +106,7 @@ fun TuneOptionRow(
             when (spec.kind) {
                 TuneControlKind.SWITCH -> {
                     Switch(
-                        checked = intent.on && isAvailable,
+                        checked = intent.on && isAvailable && !isOverridden,
                         enabled = isRowInteractive,
                         onCheckedChange = { isChecked ->
                             onIntentChange(TuneValue(on = isChecked, raw = intent.raw))
