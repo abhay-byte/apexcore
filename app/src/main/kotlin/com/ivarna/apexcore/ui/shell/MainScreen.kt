@@ -31,6 +31,7 @@ import com.ivarna.apexcore.games.GameManager
 import com.ivarna.apexcore.games.WhitelistPickerDialog
 import com.ivarna.apexcore.ram.RamFreeScreen
 import com.ivarna.apexcore.ui.home.HomeScreen
+import com.ivarna.apexcore.ui.legal.PrivacyPolicyScreen
 import com.ivarna.apexcore.ui.onboarding.OnboardingScreen
 import com.ivarna.apexcore.ui.overlay.OverlayScreen
 import com.ivarna.apexcore.ui.settings.SettingsScreen
@@ -60,6 +61,7 @@ fun MainScreen(
     var lastResult by remember { mutableStateOf<FreezeResult?>(null) }
     var showRamFree by remember { mutableStateOf(false) }
     var showTuneScreen by remember { mutableStateOf(false) }
+    var showPrivacyPolicy by remember { mutableStateOf(false) }
     var globalBackendPref by remember {
         mutableStateOf(
             context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
@@ -141,6 +143,11 @@ fun MainScreen(
                     onBack = { showTuneScreen = false },
                     modifier = Modifier.weight(1f)
                 )
+            } else if (showPrivacyPolicy) {
+                PrivacyPolicyScreen(
+                    onBack = { showPrivacyPolicy = false },
+                    modifier = Modifier.weight(1f)
+                )
             } else {
                 AnimatedContent(
                     targetState = currentTab,
@@ -196,7 +203,6 @@ fun MainScreen(
                                 }
                             },
                             onSetupClick = { showSetupDialog = true },
-                            onRamFreeClick = { showRamFree = true },
                             onPinClick = { showPinPicker = true },
                             onTuneClick = { showTuneScreen = true }
                         )
@@ -210,7 +216,8 @@ fun MainScreen(
                             activeBackendName = backendName,
                             preferredBackend = globalBackendPref,
                             onSetupClick = { showSetupDialog = true },
-                            onShowOnboarding = { showOnboardingReplay = true }
+                            onShowOnboarding = { showOnboardingReplay = true },
+                            onPrivacyClick = { showPrivacyPolicy = true }
                         )
                     }
                 }
@@ -219,7 +226,7 @@ fun MainScreen(
 
         // Frosted top bar + status bar — absolute top, full-bleed haze strip
         AnimatedVisibility(
-            visible = !showRamFree && !showTuneScreen,
+            visible = !showRamFree && !showTuneScreen && !showPrivacyPolicy,
             modifier = Modifier.align(Alignment.TopCenter),
             enter = fadeIn() + slideInVertically { -it / 2 },
             exit = fadeOut() + slideOutVertically { -it / 2 }
@@ -259,7 +266,7 @@ fun MainScreen(
 
         // Frosted bottom island — overlays content; screens reserve bottomNavClearance
         AnimatedVisibility(
-            visible = !showRamFree && !showTuneScreen,
+            visible = !showRamFree && !showTuneScreen && !showPrivacyPolicy,
             modifier = Modifier.align(Alignment.BottomCenter),
             enter = fadeIn() + slideInVertically { it / 2 },
             exit = fadeOut() + slideOutVertically { it / 2 }

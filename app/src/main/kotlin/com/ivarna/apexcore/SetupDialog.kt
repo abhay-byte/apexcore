@@ -224,26 +224,6 @@ fun SetupDialog(
 
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(scheme.surfaceContainerLow.copy(alpha = 0.9f))
-                    .border(1.dp, scheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(50))
-                    .clickable { openPrivacyPolicy(context) }
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) {
-                Text(
-                    text = "PRIVACY POLICY",
-                    color = scheme.onSurfaceVariant,
-                    fontSize = 10.sp,
-                    fontFamily = PlusJakartaSans,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Box(
-                modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(scheme.surfaceContainerLow.copy(alpha = 0.9f))
@@ -435,6 +415,7 @@ private fun openShizuku(context: Context) {
 }
 
 /** Opens the public privacy policy in the browser (Play User Data — must be always reachable). */
+@Deprecated("Use in-app PrivacyPolicyScreen; kept for Settings fallback")
 fun openPrivacyPolicy(context: Context) {
     try {
         val intent = Intent(Intent.ACTION_VIEW).apply {

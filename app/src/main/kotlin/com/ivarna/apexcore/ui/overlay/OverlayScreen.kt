@@ -29,15 +29,38 @@ import com.ivarna.apexcore.ui.theme.PlusJakartaSans
 import com.ivarna.apexcore.ui.theme.ZenDimens
 import kotlinx.coroutines.delay
 
+/** Deprecated but valid for own-package service on API 34+; used only as prefs truth check. */
+private fun isOverlayServiceRunningFallback(context: Context): Boolean = try {
+    @Suppress("DEPRECATION")
+    val am = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+    am.getRunningServices(Int.MAX_VALUE).any { it.service.className == GameOverlayService::class.java.name }
+} catch (_: Throwable) {
+    false
+}
+
 @Composable
 fun OverlayScreen(context: Context = LocalContext.current) {
     var hasPermission by remember { mutableStateOf(android.provider.Settings.canDrawOverlays(context)) }
     var testOverlayActive by remember { mutableStateOf(false) }
     val scheme = MaterialTheme.colorScheme
+    val prefs = remember { context.getSharedPreferences("apexcore", Context.MODE_PRIVATE) }
 
     LaunchedEffect(Unit) {
         while (true) {
             hasPermission = android.provider.Settings.canDrawOverlays(context)
+            val prefRunning = prefs.getBoolean(GameOverlayService.PREF_OVERLAY_RUNNING, false)
+            val running = GameOverlayService.isRunning ||
+                (prefRunning && hasPermission && isOverlayServiceRunningFallback(context))
+            // External kill / system stop: service dead but prefs still true → clear drift
+            if (!running && prefRunning) {
+                prefs.edit()
+                    .remove(GameOverlayService.PREF_OVERLAY_RUNNING)
+                    .remove(GameOverlayService.PREF_OVERLAY_PKG)
+                    .apply()
+                testOverlayActive = false
+            } else {
+                testOverlayActive = running
+            }
             delay(1000)
         }
     }
@@ -140,7 +163,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
         Spacer(modifier = Modifier.height(28.dp))
 
         Text(
-            text = "TEST HUD OVERLAY",
+            text = "HUD OVERLAY",
             color = scheme.onSurface,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
@@ -151,7 +174,7 @@ fun OverlayScreen(context: Context = LocalContext.current) {
 
         GlassCard {
             Text(
-                text = "Launch a dummy monitor to test placement, transparency, and drag gestures directly on this screen.",
+                text = "Launch a preview overlay to check placement, transparency, and drag gestures.",
                 color = scheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodyMedium,
                 lineHeight = 16.sp

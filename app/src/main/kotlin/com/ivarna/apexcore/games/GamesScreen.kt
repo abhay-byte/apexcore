@@ -489,7 +489,7 @@ fun GamesScreen(
                                             .clip(RoundedCornerShape(ZenDimens.roundedSm))
                                             .background(demandColor.copy(alpha = 0.15f))
                                             .border(1.dp, demandColor.copy(alpha = 0.4f), RoundedCornerShape(ZenDimens.roundedSm))
-                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                            .padding(horizontal = 10.dp, vertical = 5.dp)
                                     ) {
                                         Text(
                                             text = demand,

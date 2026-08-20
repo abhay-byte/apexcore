@@ -123,6 +123,11 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
         exitWatcher?.cancel()
         gamePkg = intent?.getStringExtra(EXTRA_PKG)
         startForeground(NOTIF_ID, buildNotification())
+        getSharedPreferences("apexcore", Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(PREF_OVERLAY_RUNNING, true)
+            .putString(PREF_OVERLAY_PKG, gamePkg)
+            .apply()
 
         if (overlayView.parent == null) {
             wm.addView(overlayView, createLayoutParams())
@@ -182,6 +187,7 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
             }
         }
         isRunning = false
+        clearOverlayPrefs()
         super.onDestroy()
     }
 
@@ -414,7 +420,18 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
         try {
             if (overlayView.parent != null) wm.removeView(overlayView)
         } catch (_: Throwable) {}
+        clearOverlayPrefs()
         stopSelf()
+    }
+
+    private fun clearOverlayPrefs() {
+        try {
+            getSharedPreferences("apexcore", Context.MODE_PRIVATE)
+                .edit()
+                .remove(PREF_OVERLAY_RUNNING)
+                .remove(PREF_OVERLAY_PKG)
+                .apply()
+        } catch (_: Throwable) {}
     }
 
     private fun createLayoutParams(): WindowManager.LayoutParams {
@@ -589,6 +606,10 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
         private const val HISTORY_POINTS = 48
         const val EXTRA_PKG = "game_pkg"
 
+        /** Prefs keys — file "apexcore", written async via apply(). */
+        const val PREF_OVERLAY_RUNNING = "overlay_running"
+        const val PREF_OVERLAY_PKG = "overlay_pkg"
+
         @Volatile
         var isRunning: Boolean = false
 
@@ -610,6 +631,11 @@ class GameOverlayService : Service(), Choreographer.FrameCallback, LifecycleOwne
         }
 
         fun stop(context: Context) {
+            context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
+                .edit()
+                .remove(PREF_OVERLAY_RUNNING)
+                .remove(PREF_OVERLAY_PKG)
+                .apply()
             context.stopService(Intent(context, GameOverlayService::class.java))
         }
     }

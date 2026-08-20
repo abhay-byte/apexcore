@@ -46,7 +46,6 @@ import com.ivarna.apexcore.fps.privilege.PrivilegeMode
 import com.ivarna.apexcore.fps.util.GpuVendor
 import com.ivarna.apexcore.freeze.RootFreezeBackend
 import com.ivarna.apexcore.freeze.ShizukuFreezeBackend
-import com.ivarna.apexcore.openPrivacyPolicy
 import com.ivarna.apexcore.ui.components.GlassCard
 import com.ivarna.apexcore.ui.components.StatusPebble
 import com.ivarna.apexcore.ui.theme.LocalZenSemantics
@@ -67,6 +66,7 @@ fun SettingsScreen(
     preferredBackend: String? = null,
     onSetupClick: () -> Unit,
     onShowOnboarding: () -> Unit = {},
+    onPrivacyClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -225,7 +225,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(10.dp))
 
         GlassCard(
-            onClick = { openPrivacyPolicy(context) }
+            onClick = onPrivacyClick
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

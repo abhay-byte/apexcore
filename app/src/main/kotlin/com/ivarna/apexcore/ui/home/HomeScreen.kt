@@ -88,7 +88,6 @@ fun HomeScreen(
     onPurgeAnimComplete: () -> Unit,
     onBoostClick: () -> Unit,
     onSetupClick: () -> Unit,
-    onRamFreeClick: () -> Unit,
     onPinClick: () -> Unit,
     onTuneClick: () -> Unit
 ) {
@@ -279,16 +278,6 @@ fun HomeScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
             }
-
-            HomeAnimatedEntryRow(
-                title = "RAM Free",
-                subtitle = "Force system reclaim",
-                icon = ZenIcons.WaterDrop,
-                enabled = state != State.BOOSTING,
-                onClick = onRamFreeClick
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
 
             HomeAnimatedEntryRow(
                 title = "Pin Apps",
