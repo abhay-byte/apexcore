@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>IRONWORK Redesign — Implementation Plan</title>
+<style>
+body {
+  max-width: 960px;
+  margin: 40px auto;
+  padding: 0 24px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.6;
+  color: #24292f;
+  background-color: #fdfdfd;
+}
+h1, h2, h3, h4 { color: #111; border-bottom: 1px solid #e1e4e8; padding-bottom: 6px; }
+h1 { margin-top: 0; }
+pre {
+  overflow-x: auto;
+  background: #f6f8fa;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  padding: 16px;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+code {
+  background: #f3f4f6;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 90%;
+  font-family: ui-monospace, SFMono-Regular, monospace;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0;
+}
+table, th, td {
+  border: 1px solid #d0d7de;
+}
+th, td {
+  padding: 8px 12px;
+  text-align: left;
+}
+th {
+  background-color: #f6f8fa;
+}
+blockquote {
+  margin: 0;
+  padding: 0 16px;
+  color: #57606a;
+  border-left: 4px solid #d0d7de;
+}
+</style>
+</head>
+<body>
+<h1>IRONWORK Redesign — Implementation Plan</h1>
+<table>
+<tr><td><strong>Doc No.</strong></td><td>AC-PLAN-IRONWORK · PASS 1 · ITER 1</td></tr>
+<tr><td><strong>Spec</strong></td><td>AC-DS-004 REV D (<code>docs/design/new_design.md</code>) + Packs I-III (<code>new_implementation_part_1/2/3.md</code>)</td></tr>
+<tr><td><strong>UI/UX Structure</strong></td><td><code>docs/ui-ux.md</code></td></tr>
+<tr><td><strong>Status</strong></td><td>APPROVED BY PLAN REVIEWER — PENDING USER APPROVAL</td></tr>
+</table>
+
+<h2>Overview & Full Implementation Plan</h2>
+<p>Below is the complete plan verbatim:</p>
+<pre>
+# IRONWORK Redesign — Implementation Plan
+
+| | |
+|---|---|
+| **Doc No.** | AC-PLAN-IRONWORK · PASS 1 · ITER 1 |
+| **Spec** | AC-DS-004 REV D (`docs/design/new_design.md`) + Packs I-III (`new_implementation_part_1/2/3.md`) |
+| **UI/UX Structure** | `docs/ui-ux.md` |
+| **Status** | READY FOR REVIEW |
+
+---
+
+## 0. Research Sources
+
+- Local spec: `docs/design/new_design.md` (full IRONWORK AC-DS-004, 14 sections, 12 page redesigns)
+- Local packs: `docs/design/new_implementation_part_1.md` (IronTokens, Clack, Plates, Buttons, StampLabel, InstrumentDial, Scales, Ticker, ToolRow, Controls), `new_implementation_part_2.md` (Skin, Chrome, Ink, PressureRoom, FieldManual, Toolbox), `new_implementation_part_3.md` (errata 15 fixes, IronTheme, IronModels, FeedbackExtras, Purge flight, BenchViewModel, GameOverlayService, icon/splash, Gradle, tests, DebugBench)
+- Local IA: `docs/ui-ux.md` (10 pages + dialogs + HUD, file map)
+- Repo archaeology:
+  - `app/src/main/kotlin/com/ivarna/apexcore/MainActivity.kt` — AppStage SPLASH→ONBOARDING→MAIN, FreezeFramework + Shizuku binder listener, `WindowCompat.setDecorFitsSystemWindows(window,false)`
+  - `app/src/main/kotlin/com/ivarna/apexcore/ui/shell/MainScreen.kt` — tab host (HOME/GAMES/OVERLAY/SETTINGS), full-screen overlays (RamFree/Tune/Privacy), haze chrome, GlobalBackendDropdown, setup/pin/onboarding sheets
+  - `app/src/main/kotlin/com/ivarna/apexcore/ui/theme/Color.kt` — Zen Organic tokens (sage/teal, light+Dark), to be superseded
+  - `app/build.gradle.kts` — compose-bom 2024.11.00, activity-compose 1.9.3, minSdk 24 target 36, haze 1.0.0, no splashscreen/profileinstaller yet
+  - `app/src/main/AndroidManifest.xml` — no `enableOnBackInvokedCallback`, theme `Theme.App`, permissions include SYSTEM_ALERT_WINDOW/KILL_BACKGROUND_PROCESSES, services: GameOverlayService, RamFillerService(:ramfiller)
+  - `app/src/main/kotlin/com/ivarna/apexcore/` — 95 files: fps/, freeze/ (12), games/ (8), ram/ (5), thermal/, tune/ (12), ui/components (8), ui/home (5), ui/onboarding, ui/overlay, ui/settings, ui/shell, ui/splash, ui/theme
+  - `docs/plans/` existing plans (apexcore-fixes, T12-*, font-rotation)
+
+---
+
+## 1. Architecture Discovery
+
+### 1.1 Current architecture (authoritative files)
+
+- **Entry:** `MainActivity.kt` owns `AppStage` (ordinal-saved), `ThemeMode` + `lightTankBg`, `ApexCoreTheme(darkTheme)`, `AnimatedContent` stage transition 350ms fade. `onResume` re-detects FreezeFramework.
+- **Shell:** `ui/shell/MainScreen.kt` is tab host + overlay router. State: `State(IDLE/BOOSTING/RESULT)`, `Tab(4)`, `backendName`, `lastResult: FreezeResult?`, `showRamFree/Tune/Privacy`, `globalBackendPref` (prefs key `preferred_backend`), `hazeState`. Content uses `Modifier.haze()`, chrome uses `hazeChild()`. Top/Bottom chrome are `ZenTopBar` / `ZenBottomNav` with `AnimatedVisibility` slide+fade.
+- **Home:** `ui/home/HomeScreen.kt` — MemoryLeafPair, StatusPebble line, elevation banner, PebbleButton vs UnifiedResultCard, ToolRows, DeviceThermalCard.
+- **Games:** `games/GamesScreen.kt` — Search field, Segment GAMES/ALL APPS, HorizontalPager carousel (center + adjacent previews), resource demand meter, ALLOCATE & LAUNCH + shutter animation, dialogs: AddGamePicker/WhitelistPicker.
+- **Overlay:** `ui/overlay/OverlayScreen.kt` — GlassCard permission + HUD preview START/STOP via `GameOverlayService`.
+- **Settings:** `ui/settings/SettingsScreen.kt` — ThemeSegmentedControl, Light tank glass switch, ActiveModeCard, diagnostics rows, legal/about/tour.
+- **Tune:** `ui/tune/TuneScreen.kt` — full-screen, LazyColumn categories, MachinedToggle per TuneSpec, session stamp.
+- **Ram:** `ram/RamFreeScreen.kt` + `RamFillerManager/Service` — gauge, progress phases (PreFreeze/Filling/Holding/Releasing/Done), mode selector.
+- **Privacy:** `ui/legal/PrivacyPolicyScreen.kt` — LazyColumn markdown render from `assets/privacy_policy.md`.
+- **Dialogs:** `SetupDialog.kt` (probes every 1200ms), `WhitelistPickerDialog`, `AddGamePickerDialog`.
+- **HUD Service:** `games/GameOverlayService.kt` — `TYPE_APPLICATION_OVERLAY`, draggable rail, shows FpsRepository/ThermalMonitor data, not compose.
+
+### 1.2 Design→Code mapping (12 surfaces)
+
+| # | Surface | Spec § | Current file | New IRONWORK file(s) |
+|---|---|---|---|---|
+| 1 | Splash — Ignition | §7.1 | `ui/splash/SplashScreen.kt` | `ui/iron/splash/Ignition.kt` + `ui/iron/IronTokens.kt` + core-splashscreen theme |
+| 2 | Onboarding — Field Manual | §7.2 | `ui/onboarding/OnboardingScreen.kt` | `ui/iron/manual/FieldManual.kt` + `ui/iron/Ink.kt` |
+| 3 | Shell — BridgePlate + GearSelector | §7.3, §3.11-12 | `ui/shell/ZenTopBar/BottomNav` + `MainScreen.kt` | `ui/iron/shell/IronShell.kt` (BridgePlate, GearSelector, IronShell wrapper) |
+| 4 | Home — The Bench | §7.4 | `ui/home/HomeScreen.kt` | `ui/iron/home/TheBench.kt` + `ui/iron/InstrumentDial.kt` + `Scales.kt` + `Effects.kt` + `TickerLine.kt` |
+| 5 | Games — The Rack | §7.5 | `games/GamesScreen.kt` | `ui/iron/games/LaunchMatrix.kt` + `ShutterOverlay.kt` |
+| 6 | Overlay — Optics Bench | §7.6 | `ui/overlay/OverlayScreen.kt` | `ui/iron/overlay/OpticsBench.kt` |
+| 7 | Settings — Toolbox | §7.7 | `ui/settings/SettingsScreen.kt` | `ui/iron/settings/Toolbox.kt` |
+| 8 | Tune — Tuning Room | §7.8 | `ui/tune/TuneScreen.kt` | `ui/iron/tune/TuningRoom.kt` |
+| 9 | Ram Free — Pressure Room | §7.9 | `ram/RamFreeScreen.kt` | `ui/iron/ram/PressureRoom.kt` |
+| 10 | Privacy — The Ledger | §7.10 | `ui/legal/PrivacyPolicyScreen.kt` | `ui/iron/legal/LedgerScreen.kt` |
+| 11 | Dialogs → BenchSheets | §7.11 | `SetupDialog`, `WhitelistPickerDialog`, `AddGamePickerDialog` | `ui/iron/sheets/BenchSheet.kt` + `Sheets.kt` (KeySelector, PinSheet, AddSheet) |
+| 12 | Floating HUD — Phantom Rail | §7.12 | `games/GameOverlayService.kt` + `games/GameOverlayService.RailView` | `games/GameOverlayService.kt` (rewired) + `games/RailView.kt` (compose-less View, callbacks, window owns sizing) |
+
+Plus cross-cutting: App Icon (§7.13), Error/Toast/Context (§8, §37), DebugBench (§14, §45).
+
+---
+
+## 2. Component Library (to build in `ui/iron/`)
+
+All components use IRONWORK tokens (§2). Build order respects dependencies.
+
+- **IronTokens** (§2.1-2.5, §4): Colors, type, shapes, motion springs, grain tile, SerialNumber.
+- **Clack + HapticGate** (§5): Clack with 80ms battery gate, 13 haptic verbs.
+- **Primitives** (§2.1, 2.5, 2.6): LedDot (5 states), RisoText, EngravedText, Screw, Glyphs, Doodles.
+- **Plates** (§3.1, 3.2, 3.13): EngravedPlate, PaperPlate, StatRow, SerialFooter.
+- **ChamferButton** (§3.3): 56/44dp, chamfer cut, busy barber-pole stripes.
+- **StampLabel** (§3.4): Border + inset, stamp slam, TalkBack status semantics.
+- **InstrumentDial** (§3.5): Canvas drawWithCache hero dial, ignition sweep, Vellum palette.
+- **PressureScale & ThermometerStrip** (§3.6/3.7): Linear ruler scale and dual needle strip.
+- **TickerLine** (§3.8): Marquee ticker + LED, polite live region.
+- **ToolRow** (§3.9): 64dp engraved slot row + long-press context sheet.
+- **MachinedToggle & MachinedSegment** (§3.10): Knob wobble + brass block slider.
+- **GearSelector & BridgePlate** (§3.11/3.12): Bottom navigation & top bar.
+- **BenchSheet** (§3.14): Bottom sheets with predictive back scrub.
+- **OdometerCounter & ShavingsParticles** (§3.15/3.16): Debris physics + digit rollers.
+- **SearchSlot & IndexRail** (§3.17): Search field & alphabet scrubber.
+- **FeedbackExtras** (§37): CeremonyGate, StampToast, ErrorSlip, ContextSheet.
+</pre>
+</body>
+</html>

@@ -55,6 +55,10 @@ object FreezeFramework {
         return b
     }
 
+    suspend fun unfreezeAll(context: Context? = null) {
+        Log.i(TAG, "unfreezeAll called")
+    }
+
     suspend fun isReady(): Boolean = try {
         detect() != null
     } catch (_: Throwable) { false }

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Zen Organic brand — launcher adaptive background -->
-    <color name="ic_launcher_background">#f3faff</color>
+    <color name="ic_launcher_bg">#101113</color>
+    <color name="ic_launcher_background">#101113</color>
 </resources>

@@ -1,0 +1,21 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+
+    <!-- chamfered plate -->
+    <path android:fillColor="#17191C"
+        android:pathData="M28,24 L74,24 L84,34 L84,80 Q84,84 80,84 L28,84 Q24,84 24,80 L24,28 Q24,24 28,24 Z"/>
+    <!-- engraved hairline -->
+    <path android:strokeColor="#2B2F34" android:strokeWidth="1"
+        android:fillColor="#00000000"
+        android:pathData="M29,25 L73.5,25 L83,34.5 L83,79 Q83,83 79,83 L29,83 Q25,83 25,79 L25,29 Q25,25 29,25 Z"/>
+    <!-- 16 tick ring -->
+    <path android:strokeColor="#CFC6AE" android:strokeWidth="1.5" android:fillColor="#00000000"
+        android:pathData="M73,54 L77,54 M71.55,61.27 L75.25,62.8 M67.44,67.44 L70.27,70.27 M61.27,71.55 L62.8,75.25 M54,73 L54,77 M46.73,71.55 L45.2,75.25 M40.56,67.44 L37.73,70.27 M36.45,61.27 L32.75,62.8 M35,54 L31,54 M36.45,46.73 L32.75,45.2 M40.56,40.56 L37.73,37.73 M46.73,36.45 L45.2,32.75 M54,35 L54,31 M61.27,36.45 L62.8,32.75 M67.44,40.56 L70.27,37.73 M71.55,46.73 L75.25,45.2"/>
+    <!-- signal needle + counterweight tail -->
+    <path android:strokeColor="#FF5A1F" android:strokeWidth="3"
+        android:pathData="M49.4,58.6 L66.7,41.3"/>
+    <!-- brass pivot + ink center -->
+    <path android:fillColor="#D9A75A" android:pathData="M54,49 a5,5 0 1,0 0,10 a5,5 0 1,0 0,-10 z"/>
+    <path android:fillColor="#201C16" android:pathData="M54,52.5 a1.5,1.5 0 1,0 0,3 a1.5,1.5 0 1,0 0,-3 z"/>
+</vector>

@@ -2,46 +2,56 @@ package com.ivarna.apexcore.ui.shell
 
 import android.content.Context
 import androidx.compose.animation.*
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.ivarna.apexcore.SetupDialog
-import com.ivarna.apexcore.SetupDialogHelper
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ivarna.apexcore.fps.FpsStack
 import com.ivarna.apexcore.freeze.FreezeFramework
-import com.ivarna.apexcore.freeze.FreezeResult
 import com.ivarna.apexcore.freeze.RootFreezeBackend
 import com.ivarna.apexcore.freeze.ShizukuFreezeBackend
-import com.ivarna.apexcore.games.GamesScreen
+import com.ivarna.apexcore.freeze.WhitelistStore
+import com.ivarna.apexcore.games.GameInfo
+import com.ivarna.apexcore.games.GameLauncher
 import com.ivarna.apexcore.games.GameManager
-import com.ivarna.apexcore.games.WhitelistPickerDialog
-import com.ivarna.apexcore.ram.RamFreeScreen
-import com.ivarna.apexcore.ui.home.HomeScreen
-import com.ivarna.apexcore.ui.legal.PrivacyPolicyScreen
-import com.ivarna.apexcore.ui.onboarding.OnboardingScreen
-import com.ivarna.apexcore.ui.overlay.OverlayScreen
-import com.ivarna.apexcore.ui.settings.SettingsScreen
-import com.ivarna.apexcore.ui.theme.*
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
+import com.ivarna.apexcore.games.GameOverlayService
+import com.ivarna.apexcore.ui.iron.*
+import com.ivarna.apexcore.ui.iron.games.AppCardData
+import com.ivarna.apexcore.ui.iron.games.Demand
+import com.ivarna.apexcore.ui.iron.games.LaunchMatrixScreen
+import com.ivarna.apexcore.ui.iron.home.BenchViewModel
+import com.ivarna.apexcore.ui.iron.home.TheBench
+import com.ivarna.apexcore.ui.iron.legal.MdBlock
+import com.ivarna.apexcore.ui.iron.legal.TheLedger
+import com.ivarna.apexcore.ui.iron.manual.FieldManual
+import com.ivarna.apexcore.ui.iron.overlay.OpticsBench
+import com.ivarna.apexcore.ui.iron.overlay.OpticsUiState
+import com.ivarna.apexcore.ui.iron.overlay.RailEdge
+import com.ivarna.apexcore.ui.iron.overlay.RailSize
+import com.ivarna.apexcore.ui.iron.ram.PressurePhase
+import com.ivarna.apexcore.ui.iron.ram.PressureRoom
+import com.ivarna.apexcore.ui.iron.ram.PressureUiState
+import com.ivarna.apexcore.ui.iron.ram.RamModeUi
+import com.ivarna.apexcore.ui.iron.settings.DiagnosticUi
+import com.ivarna.apexcore.ui.iron.settings.RunningModeUi
+import com.ivarna.apexcore.ui.iron.settings.Toolbox
+import com.ivarna.apexcore.ui.iron.shell.BackendBenchSheet
+import com.ivarna.apexcore.ui.iron.shell.GearTab
+import com.ivarna.apexcore.ui.iron.shell.IronShell
+import com.ivarna.apexcore.ui.iron.shell.IronSlot
+import com.ivarna.apexcore.ui.iron.sheets.AddGameSheet
+import com.ivarna.apexcore.ui.iron.sheets.PinAppsSheet
+import com.ivarna.apexcore.ui.iron.sheets.SystemAccessSheet
+import com.ivarna.apexcore.ui.iron.tune.TuneCategoryUi
+import com.ivarna.apexcore.ui.iron.tune.TuneOptionUi
+import com.ivarna.apexcore.ui.iron.tune.TuningRoom
+import com.ivarna.apexcore.ui.theme.ThemeMode
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalAnimationApi::class)
 @Composable
 fun MainScreen(
     gameManager: GameManager,
@@ -51,389 +61,627 @@ fun MainScreen(
     onLightTankBgChange: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
+    val benchVm: BenchViewModel = viewModel()
+    val benchUi by benchVm.ui.collectAsState()
+    val toast = rememberStampToast()
 
-    var state by remember { mutableStateOf(State.IDLE) }
-    var currentTabOrdinal by rememberSaveable { mutableIntStateOf(Tab.HOME.ordinal) }
-    val currentTab = Tab.entries[currentTabOrdinal]
-    var backendName by remember { mutableStateOf("Detecting…") }
-    var showSetupDialog by rememberSaveable { mutableStateOf(false) }
-    var showPinPicker by rememberSaveable { mutableStateOf(false) }
-    var showOnboardingReplay by rememberSaveable { mutableStateOf(false) }
-    var lastResult by remember { mutableStateOf<FreezeResult?>(null) }
-    var showRamFree by rememberSaveable { mutableStateOf(false) }
-    var showTuneScreen by rememberSaveable { mutableStateOf(false) }
-    var showPrivacyPolicy by rememberSaveable { mutableStateOf(false) }
-    var globalBackendPref by rememberSaveable {
-        mutableStateOf(
-            context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
-                .getString("preferred_backend", null)?.takeIf { it == "shizuku" || it == "root" }
-        )
+    var gearTab by rememberSaveable { mutableStateOf(GearTab.HOME) }
+    var ironSlot by rememberSaveable { mutableStateOf(IronSlot.NONE) }
+    var showBackendSheet by rememberSaveable { mutableStateOf(false) }
+    var showSetupSheet by rememberSaveable { mutableStateOf(false) }
+    var showPinSheet by rememberSaveable { mutableStateOf(false) }
+    var showAddGameSheet by rememberSaveable { mutableStateOf(false) }
+    var showReplayManual by rememberSaveable { mutableStateOf(false) }
+
+    var shizukuStatus by remember { mutableStateOf(KeyStatus()) }
+    var rootStatus by remember { mutableStateOf(KeyStatus()) }
+
+    fun probeKeys() {
+        scope.launch {
+            val sReady = try { ShizukuFreezeBackend().isReady() } catch (_: Throwable) { false }
+            shizukuStatus = KeyStatus(
+                ready = sReady,
+                checking = false,
+                statusLine = if (sReady) "Connected · wireless debugging" else "Service not running"
+            )
+            val rReady = try { RootFreezeBackend().isReady() } catch (_: Throwable) { false }
+            rootStatus = KeyStatus(
+                ready = rReady,
+                checking = false,
+                statusLine = if (rReady) "su granted" else "su not granted"
+            )
+            benchVm.redetect()
+        }
     }
-    var showGlobalDropdown by remember { mutableStateOf(false) }
-    var detectionDone by rememberSaveable { mutableStateOf(false) }
-
-    // Purge animation states
-    var isPurgeAnimActive by remember { mutableStateOf(false) }
-    var freedRamText by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        // Cold-start: migrate legacy "standard" pref → needs setup; apply preferred backend
-        val prefs = context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
-        var prefBackend = prefs.getString("preferred_backend", null)
-        if (prefBackend == "standard") {
-            prefs.edit().remove("preferred_backend").apply()
-            prefBackend = null
-        }
-        val preferredName = when (prefBackend) {
-            "shizuku" -> "Shizuku"
-            "root" -> "Root"
-            else -> null
-        }
-        FreezeFramework.setPreferredBackend(preferredName)
-        // FPS stack follows same mode (Root / Shizuku / Auto)
-        FpsStack.get(context).syncPreferredBackend(prefBackend)
-
-        val backend = FreezeFramework.detect()
-        detectionDone = true
-        backendName = backend?.name ?: "SETUP REQUIRED"
-
-        // Initialize TuneManager so recovery runs if launched from Home
-        com.ivarna.apexcore.tune.TuneManager.get(context)
-
-        val setupPrefs = context.getSharedPreferences(SetupDialogHelper.PREFS, Context.MODE_PRIVATE)
-        if (!setupPrefs.getBoolean(SetupDialogHelper.KEY_SHOWN, false) && backend == null) {
-            showSetupDialog = true
-        }
+        probeKeys()
     }
 
-    val activeBackend by FreezeFramework.activeBackend.collectAsState(initial = null)
-    LaunchedEffect(activeBackend) {
-        // Elevated→null mid-session (revoke / grant loss) must flip the chip back to
-        // setup; before the first probe settles, keep "Detecting…" (no flash).
-        val backend = activeBackend
-        if (backend != null) {
-            backendName = backend.name
-        } else if (detectionDone) {
-            backendName = "SETUP REQUIRED"
-            showTuneScreen = false
-        }
+    val ironThemeMode = when (themeMode) {
+        ThemeMode.LIGHT -> com.ivarna.apexcore.ui.iron.ThemeMode.VELLUM
+        ThemeMode.DARK -> com.ivarna.apexcore.ui.iron.ThemeMode.GRAPHITE
+        else -> com.ivarna.apexcore.ui.iron.ThemeMode.SYSTEM
+    }
+    val finish = ironThemeMode.resolve(isSystemInDarkTheme())
+
+    val prefs = remember { context.getSharedPreferences("apexcore", Context.MODE_PRIVATE) }
+    val prefStr = prefs.getString("preferred_backend", null)
+    val preferredBackend = when (prefStr) {
+        "shizuku" -> BackendChoice.SHIZUKU
+        "root" -> BackendChoice.ROOT
+        else -> null
     }
 
-    // Shared HazeState — content uses .haze(), chrome uses .hazeChild() (finalbenchmark pattern)
-    val hazeState = remember { HazeState() }
+    // Games state
+    var gamesList by remember { mutableStateOf<List<AppCardData>>(emptyList()) }
+    var allAppsList by remember { mutableStateOf<List<AppCardData>>(emptyList()) }
+    var allAppsLoading by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        // Content is the blur source — edge-to-edge (incl. under status bar + top chrome)
-        // so frost has real pixels to sample. Screens reserve top/bottom clearance.
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .haze(state = hazeState)
-        ) {
-            if (showRamFree) {
-                RamFreeScreen(
-                    onBack = { showRamFree = false },
-                    modifier = Modifier.weight(1f)
-                )
-            } else if (showTuneScreen) {
-                com.ivarna.apexcore.ui.tune.TuneScreen(
-                    onBack = { showTuneScreen = false },
-                    modifier = Modifier.weight(1f)
-                )
-            } else if (showPrivacyPolicy) {
-                PrivacyPolicyScreen(
-                    onBack = { showPrivacyPolicy = false },
-                    modifier = Modifier.weight(1f)
-                )
-            } else {
-                AnimatedContent(
-                    targetState = currentTab,
-                    transitionSpec = {
-                        // Nav order: HOME → GAMES → OVERLAY → SETTINGS (left → right)
-                        val goingRight = targetState.ordinal > initialState.ordinal
-                        if (goingRight) {
-                            slideInHorizontally { width -> width } + fadeIn() togetherWith
-                                slideOutHorizontally { width -> -width } + fadeOut()
-                        } else {
-                            slideInHorizontally { width -> -width } + fadeIn() togetherWith
-                                slideOutHorizontally { width -> width } + fadeOut()
+    fun refreshGames() {
+        scope.launch {
+            val loaded = gameManager.load()
+            gamesList = loaded.map { info ->
+                AppCardData(
+                    name = info.name,
+                    pkg = info.pkg,
+                    demand = Demand.MEDIUM,
+                    tint = Iron.Signal500,
+                    icon = {
+                        val iconDrawable = try {
+                            context.packageManager.getApplicationIcon(info.pkg)
+                        } catch (_: Throwable) { null }
+                        if (iconDrawable != null) {
+                            val dr = com.google.accompanist.drawablepainter.rememberDrawablePainter(iconDrawable)
+                            Image(
+                                painter = dr,
+                                contentDescription = info.name,
+                                modifier = Modifier.fillMaxSize()
+                            )
                         }
-                    },
-                    modifier = Modifier.weight(1f)
-                ) { tab ->
-                    when (tab) {
-                        Tab.HOME -> HomeScreen(
-                            state = state,
-                            backendName = backendName,
-                            lastResult = lastResult,
-                            isPurgeAnimActive = isPurgeAnimActive,
-                            freedRamText = freedRamText,
-                            lightTankBg = lightTankBg,
-                            onPurgeAnimComplete = {
-                                isPurgeAnimActive = false
-                                state = State.RESULT
-                            },
-                            onBoostClick = {
-                                if (state == State.BOOSTING || isPurgeAnimActive) return@HomeScreen
-                                if (state == State.RESULT) {
-                                    state = State.IDLE
-                                    freedRamText = ""
-                                    return@HomeScreen
-                                }
-                                coroutineScope.launch {
-                                    if (!FreezeFramework.isReady()) {
-                                        // Decision E: no freezeAll without Shizuku/Root — setup instead
-                                        showSetupDialog = true
-                                        return@launch
-                                    }
-                                    state = State.BOOSTING
-                                    isPurgeAnimActive = true
-                                    val result = FreezeFramework.freezeAll(context)
-                                    lastResult = result
-                                    val freedMb = result.freedKb / 1024f
-                                    val swapFreedMb = result.swapFreedKb / 1024f
-                                    freedRamText = if (swapFreedMb > 0f) {
-                                        "+%d MB RAM (+%d MB Swap)".format(freedMb.toInt(), swapFreedMb.toInt())
-                                    } else {
-                                        "+%d MB".format(freedMb.toInt())
-                                    }
-                                }
-                            },
-                            onSetupClick = { showSetupDialog = true },
-                            onPinClick = { showPinPicker = true },
-                            onTuneClick = { showTuneScreen = true }
-                        )
-                        Tab.GAMES -> GamesScreen(gameManager = gameManager)
-                        Tab.OVERLAY -> OverlayScreen()
-                        Tab.SETTINGS -> SettingsScreen(
-                            themeMode = themeMode,
-                            onThemeModeChange = onThemeModeChange,
-                            lightTankBg = lightTankBg,
-                            onLightTankBgChange = onLightTankBgChange,
-                            activeBackendName = backendName,
-                            preferredBackend = globalBackendPref,
-                            onSetupClick = { showSetupDialog = true },
-                            onShowOnboarding = { showOnboardingReplay = true },
-                            onPrivacyClick = { showPrivacyPolicy = true }
-                        )
                     }
-                }
+                )
             }
         }
+    }
 
-        // Frosted top bar + status bar — absolute top, full-bleed haze strip
-        AnimatedVisibility(
-            visible = !showRamFree && !showTuneScreen && !showPrivacyPolicy,
-            modifier = Modifier.align(Alignment.TopCenter),
-            enter = fadeIn() + slideInVertically { -it / 2 },
-            exit = fadeOut() + slideOutVertically { -it / 2 }
-        ) {
-            ZenTopBar(
-                hazeState = hazeState,
-                backendChip = {
-                    GlobalBackendDropdown(
-                        currentPref = globalBackendPref,
-                        backendName = backendName,
-                        showDropdown = showGlobalDropdown,
-                        onToggleDropdown = { showGlobalDropdown = !showGlobalDropdown },
-                        onSelectPref = { pref ->
-                            globalBackendPref = pref
-                            context.getSharedPreferences("apexcore", Context.MODE_PRIVATE)
-                                .edit().putString("preferred_backend", pref).apply()
-                            showGlobalDropdown = false
-                            val preferredName = when (pref) {
-                                "shizuku" -> "Shizuku"
-                                "root" -> "Root"
-                                else -> null
-                            }
-                            FreezeFramework.setPreferredBackend(preferredName)
-                            // FPS privilege mode tracks top-bar selection
-                            FpsStack.get(context).syncPreferredBackend(pref)
-                            coroutineScope.launch {
-                                try {
-                                    FreezeFramework.detect()
-                                } catch (_: Throwable) {}
-                            }
-                        },
-                        onOpenSetup = { showSetupDialog = true }
+    LaunchedEffect(Unit) {
+        refreshGames()
+    }
+
+    // Overlay state
+    var overlayGranted by remember { mutableStateOf(android.provider.Settings.canDrawOverlays(context)) }
+    var overlayPreview by remember { mutableStateOf(GameOverlayService.isRunning) }
+    var railSize by remember { mutableStateOf<RailSize>(RailSize.M) }
+    var railOpacity by remember { mutableFloatStateOf(0.94f) }
+    var railEdge by remember { mutableStateOf<RailEdge>(RailEdge.LEFT) }
+
+    LaunchedEffect(Unit) {
+        overlayGranted = android.provider.Settings.canDrawOverlays(context)
+        val s = prefs.getString("hud_size", "M")
+        railSize = when (s) { "S" -> RailSize.S; "L" -> RailSize.L; else -> RailSize.M }
+        railOpacity = prefs.getFloat("hud_opacity", 0.94f)
+        railEdge = if (prefs.getString("hud_edge", "LEFT") == "RIGHT") RailEdge.RIGHT else RailEdge.LEFT
+    }
+
+    // Tune state
+    val tuneManager = remember { com.ivarna.apexcore.tune.TuneManager.get(context) }
+    var tuneCategories by remember { mutableStateOf<List<TuneCategoryUi>>(emptyList()) }
+    var isTuneProbing by remember { mutableStateOf(false) }
+    val tuneSessionActive by tuneManager.sessionActive.collectAsState()
+
+    fun refreshTune() {
+        scope.launch {
+            isTuneProbing = true
+            tuneManager.refreshCapabilities()
+            val caps = tuneManager.capabilities.value
+            val specs = com.ivarna.apexcore.tune.TuneSpecs.all
+            val grouped = com.ivarna.apexcore.tune.TuneCategory.entries.map { cat ->
+                val catSpecs = specs.filter { it.category == cat }
+                val options = catSpecs.map { spec ->
+                    val cap = caps[spec.id]
+                    val isAvail = cap?.available == true
+                    val isChecked = tuneManager.intent(spec.id).on
+                    TuneOptionUi(
+                        key = spec.id.name,
+                        title = spec.title,
+                        description = spec.description,
+                        available = isAvail,
+                        reason = if (!isAvail) "Not available on kernel" else null,
+                        checked = isChecked,
+                        onToggle = { checked ->
+                            tuneManager.setIntent(spec.id, com.ivarna.apexcore.tune.TuneValue(checked))
+                            refreshTune()
+                        }
                     )
                 }
-            )
-        }
-
-        // Frosted bottom island — overlays content; screens reserve bottomNavClearance
-        AnimatedVisibility(
-            visible = !showRamFree && !showTuneScreen && !showPrivacyPolicy,
-            modifier = Modifier.align(Alignment.BottomCenter),
-            enter = fadeIn() + slideInVertically { it / 2 },
-            exit = fadeOut() + slideOutVertically { it / 2 }
-        ) {
-            ZenBottomNav(
-                currentTab = currentTab,
-                onTabSelected = { currentTabOrdinal = it.ordinal },
-                hazeState = hazeState
-            )
-        }
-
-        if (showSetupDialog && FreezeFramework.resolver() != null) {
-            SetupDialog(resolver = FreezeFramework.resolver()!!, onDismiss = { showSetupDialog = false })
-        }
-
-        if (showPinPicker) {
-            WhitelistPickerDialog(
-                gameManager = gameManager,
-                onDismiss = { showPinPicker = false }
-            )
-        }
-
-        if (showOnboardingReplay) {
-            OnboardingScreen(
-                onFinish = { showOnboardingReplay = false },
-                isReplay = true
-            )
-        }
-    }
-}
-
-@Composable
-fun GlobalBackendDropdown(
-    currentPref: String?,
-    backendName: String,
-    showDropdown: Boolean,
-    onToggleDropdown: () -> Unit,
-    onSelectPref: (String) -> Unit,
-    onOpenSetup: () -> Unit
-) {
-    var dropdownReadiness by remember { mutableStateOf<Map<String, Boolean?>>(emptyMap()) }
-
-    LaunchedEffect(showDropdown) {
-        if (showDropdown) {
-            dropdownReadiness = mapOf(
-                "shizuku" to ShizukuFreezeBackend().isReady(),
-                "root" to RootFreezeBackend().isReady()
-            )
+                TuneCategoryUi(name = cat.name, options = options)
+            }
+            tuneCategories = grouped
+            isTuneProbing = false
         }
     }
 
-    val displayName = when (currentPref) {
-        "shizuku" -> "SHIZUKU"
-        "root" -> "ROOT"
-        else -> if (backendName == "Shizuku" || backendName == "Root") backendName.uppercase() else "SETUP"
+    LaunchedEffect(ironSlot) {
+        if (ironSlot == IronSlot.TUNE) {
+            refreshTune()
+        }
     }
-    // Chip color follows real backend: no elevation = warning; Shizuku/Root = elevated
-    val isElevated = backendName == "Shizuku" || backendName == "Root"
 
-    val scheme = MaterialTheme.colorScheme
-    Box {
-        // High-contrast chip: primaryContainer fill + onPrimaryContainer text when elevated
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(
-                    if (isElevated) scheme.primaryContainer
-                    else scheme.secondaryContainer
+    // Pressure Room State
+    var pressureState by remember {
+        mutableStateOf(
+            PressureUiState(
+                phase = PressurePhase.IDLE,
+                ramUsedMb = benchUi.mem.ramUsedMb,
+                ramTotalMb = benchUi.mem.ramTotalMb,
+                swapUsedMb = benchUi.mem.swapUsedMb,
+                swapTotalMb = benchUi.mem.swapTotalMb
+            )
+        )
+    }
+    LaunchedEffect(benchUi.mem) {
+        if (pressureState.phase == PressurePhase.IDLE) {
+            pressureState = pressureState.copy(
+                ramUsedMb = benchUi.mem.ramUsedMb,
+                ramTotalMb = benchUi.mem.ramTotalMb,
+                swapUsedMb = benchUi.mem.swapUsedMb,
+                swapTotalMb = benchUi.mem.swapTotalMb
+            )
+        }
+    }
+    var preFreeze by remember { mutableStateOf(true) }
+    val ramModes = remember { listOf(RamModeUi("STANDARD", true), RamModeUi("AGGRESSIVE", true)) }
+    var selectedRamMode by remember { mutableStateOf<RamModeUi?>(ramModes.first()) }
+
+    // Privacy Policy raw text
+    val ledgerBlocks = remember {
+        try {
+            val lines = context.assets.open("privacy_policy.md").bufferedReader().use { it.readLines() }
+            val blocks = mutableListOf<MdBlock>()
+            var inCode = false
+            val codeLines = mutableListOf<String>()
+            val tableRows = mutableListOf<List<String>>()
+
+            fun flushCode() {
+                if (codeLines.isNotEmpty()) {
+                    blocks.add(MdBlock.CodeBlock(codeLines.toList()))
+                    codeLines.clear()
+                }
+            }
+
+            fun flushTable() {
+                if (tableRows.isNotEmpty()) {
+                    val header = tableRows.first()
+                    val rows = if (tableRows.size > 1) tableRows.drop(1) else emptyList()
+                    blocks.add(MdBlock.Table(header, rows))
+                    tableRows.clear()
+                }
+            }
+
+            fun parseSpans(text: String): List<com.ivarna.apexcore.ui.iron.legal.MdSpan> {
+                // simple span parser: bold **text**, italic *text*, code `text`, link [label](url)
+                val spans = mutableListOf<com.ivarna.apexcore.ui.iron.legal.MdSpan>()
+                var remaining = text
+                val regex = Regex("""(\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))""")
+                var lastIdx = 0
+                regex.findAll(text).forEach { match ->
+                    val start = match.range.first
+                    val end = match.range.last + 1
+                    if (start > lastIdx) {
+                        spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(text.substring(lastIdx, start)))
+                    }
+                    val bold = match.groups[2]?.value
+                    val italic = match.groups[3]?.value
+                    val code = match.groups[4]?.value
+                    val linkLabel = match.groups[5]?.value
+                    val linkUrl = match.groups[6]?.value
+
+                    when {
+                        bold != null -> spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(bold, bold = true))
+                        italic != null -> spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(italic, italic = true))
+                        code != null -> spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(code, code = true))
+                        linkLabel != null && linkUrl != null -> spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(linkLabel, linkLabel = linkLabel, linkUrl = linkUrl))
+                        else -> spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(match.value))
+                    }
+                    lastIdx = end
+                }
+                if (lastIdx < text.length) {
+                    spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(text.substring(lastIdx)))
+                }
+                return if (spans.isEmpty()) listOf(com.ivarna.apexcore.ui.iron.legal.MdSpan(text)) else spans
+            }
+
+            for (line in lines) {
+                val trimmed = line.trim()
+                if (trimmed.startsWith("```")) {
+                    if (inCode) {
+                        flushCode()
+                        inCode = false
+                    } else {
+                        flushTable()
+                        inCode = true
+                    }
+                    continue
+                }
+
+                if (inCode) {
+                    codeLines.add(line)
+                    continue
+                }
+
+                if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+                    // separator line check |---|
+                    if (trimmed.replace("|", "").replace("-", "").replace(":", "").isBlank()) {
+                        continue
+                    }
+                    val cols = trimmed.split("|").map { it.trim() }.filter { it.isNotEmpty() }
+                    tableRows.add(cols)
+                    continue
+                } else {
+                    flushTable()
+                }
+
+                if (trimmed.isBlank()) {
+                    continue
+                }
+
+                if (trimmed.startsWith("#")) {
+                    val level = trimmed.takeWhile { it == '#' }.length
+                    val headingText = trimmed.drop(level).trim()
+                    blocks.add(MdBlock.Heading(level, headingText))
+                    continue
+                }
+
+                if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
+                    val bulletText = trimmed.drop(2).trim()
+                    blocks.add(MdBlock.Bullet(parseSpans(bulletText)))
+                    continue
+                }
+
+                blocks.add(MdBlock.Paragraph(parseSpans(trimmed)))
+            }
+            flushCode()
+            flushTable()
+            blocks
+        } catch (_: Throwable) {
+            emptyList<MdBlock>()
+        }
+    }
+
+    fun openShizukuApp() {
+        val pm = context.packageManager
+        val candidates = listOf("moe.shizuku.privileged.api", "moe.shizuku.manager", "moe.shizuku.api")
+        var launched = false
+        for (pkg in candidates) {
+            val intent = pm.getLeanbackLaunchIntentForPackage(pkg) ?: pm.getLaunchIntentForPackage(pkg)
+            if (intent != null) {
+                try {
+                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(intent)
+                    launched = true
+                    break
+                } catch (_: Throwable) {}
+            }
+        }
+        if (!launched) {
+            val play = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                data = android.net.Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api")
+                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            try { context.startActivity(play) } catch (_: Throwable) {}
+        }
+    }
+
+    IronShell(
+        finish = finish,
+        tab = gearTab,
+        onTab = { gearTab = it },
+        backendName = benchUi.backendName,
+        backendLed = benchUi.backendLed,
+        onBackend = { showBackendSheet = true },
+        slot = ironSlot,
+        onSlot = { ironSlot = it },
+        home = {
+            TheBench(
+                ui = benchUi,
+                onBoost = { benchVm.boost(context) },
+                onTune = { ironSlot = IronSlot.TUNE },
+                onPins = { showPinSheet = true },
+                onRamFree = { ironSlot = IronSlot.PRESSURE },
+                onSetup = { showSetupSheet = true },
+                toast = toast
+            )
+        },
+        games = {
+            LaunchMatrixScreen(
+                games = gamesList,
+                allApps = allAppsList,
+                allLoading = allAppsLoading,
+                onAdd = {
+                    showAddGameSheet = true
+                },
+                onPin = { showPinSheet = true },
+                onLaunch = { card ->
+                    scope.launch {
+                        GameLauncher.launch(context, card.pkg)
+                    }
+                },
+                onRemove = { card ->
+                    gameManager.remove(card.pkg)
+                    refreshGames()
+                },
+                addSheet = {
+                    if (showAddGameSheet) {
+                        var installedApps by remember { mutableStateOf<List<PickerApp>>(emptyList()) }
+                        LaunchedEffect(Unit) {
+                            val apps = gameManager.listInstallableApps(context)
+                            installedApps = apps.map { app ->
+                                PickerApp(
+                                    name = app.name,
+                                    pkg = app.pkg,
+                                    icon = {
+                                        val dr = try { context.packageManager.getApplicationIcon(app.pkg) } catch (_: Throwable) { null }
+                                        if (dr != null) {
+                                            Image(
+                                                painter = com.google.accompanist.drawablepainter.rememberDrawablePainter(dr),
+                                                contentDescription = app.name,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        AddGameSheet(
+                            visible = true,
+                            onDismiss = { showAddGameSheet = false },
+                            apps = installedApps,
+                            alreadyAdded = gamesList.map { it.pkg }.toSet(),
+                            onAdd = { added ->
+                                gameManager.addAll(added.map { app -> GameInfo(app.pkg, app.name, false) })
+                                refreshGames()
+                            }
+                        )
+                    }
+                },
+                pinSheet = {
+                    if (showPinSheet) {
+                        var allInstalled by remember { mutableStateOf<List<PickerApp>>(emptyList()) }
+                        LaunchedEffect(Unit) {
+                            val apps = gameManager.listInstallableApps(context)
+                            allInstalled = apps.map { app ->
+                                PickerApp(
+                                    name = app.name,
+                                    pkg = app.pkg,
+                                    icon = {
+                                        val dr = try { context.packageManager.getApplicationIcon(app.pkg) } catch (_: Throwable) { null }
+                                        if (dr != null) {
+                                            Image(
+                                                painter = com.google.accompanist.drawablepainter.rememberDrawablePainter(dr),
+                                                contentDescription = app.name,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                        var pinnedSet by remember { mutableStateOf(WhitelistStore.allPinned(context)) }
+                        PinAppsSheet(
+                            visible = true,
+                            onDismiss = { showPinSheet = false },
+                            apps = allInstalled,
+                            pinned = pinnedSet,
+                            onTogglePin = { pkg ->
+                                val nowPinned = !pinnedSet.contains(pkg)
+                                WhitelistStore.setPinned(context, pkg, nowPinned)
+                                pinnedSet = WhitelistStore.allPinned(context)
+                            }
+                        )
+                    }
+                }
+            )
+        },
+        optics = {
+            OpticsBench(
+                state = OpticsUiState(
+                    permissionGranted = overlayGranted,
+                    previewRunning = overlayPreview,
+                    size = railSize,
+                    opacity = railOpacity,
+                    edge = railEdge
+                ),
+                onGrant = {
+                    val intent = android.content.Intent(
+                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        android.net.Uri.parse("package:${context.packageName}")
+                    ).apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
+                    try { context.startActivity(intent) } catch (_: Throwable) {}
+                },
+                onTogglePreview = { on ->
+                    overlayPreview = on
+                    if (on) {
+                        GameOverlayService.start(context, context.packageName)
+                    } else {
+                        GameOverlayService.stop(context)
+                    }
+                },
+                onSize = { s ->
+                    railSize = s
+                    prefs.edit().putString("hud_size", s.name).apply()
+                },
+                onOpacity = { o ->
+                    railOpacity = o
+                    prefs.edit().putFloat("hud_opacity", o).apply()
+                },
+                onEdge = { e ->
+                    railEdge = e
+                    prefs.edit().putString("hud_edge", e.name).apply()
+                }
+            )
+        },
+        toolbox = {
+            Toolbox(
+                themeMode = ironThemeMode,
+                onThemeMode = { mode ->
+                    val legacyMode = when (mode) {
+                        com.ivarna.apexcore.ui.iron.ThemeMode.VELLUM -> ThemeMode.LIGHT
+                        com.ivarna.apexcore.ui.iron.ThemeMode.GRAPHITE -> ThemeMode.DARK
+                        else -> ThemeMode.SYSTEM
+                    }
+                    onThemeModeChange(legacyMode)
+                },
+                paperInserts = lightTankBg,
+                onPaperInserts = onLightTankBgChange,
+                runningMode = RunningModeUi(
+                    backend = benchUi.backendName,
+                    preferred = preferredBackend?.name ?: "AUTO",
+                    fpsPrivilege = "PRIVILEGED",
+                    gpuVendor = "AUTO"
+                ),
+                diagnostics = listOf(
+                    DiagnosticUi(
+                        name = "SHIZUKU",
+                        statusLine = shizukuStatus.statusLine,
+                        led = if (shizukuStatus.ready) LedState.READY else LedState.BLOCKED,
+                        actionLabel = if (!shizukuStatus.ready) "SETUP" else null,
+                        action = { openShizukuApp() }
+                    ),
+                    DiagnosticUi(
+                        name = "ROOT",
+                        statusLine = rootStatus.statusLine,
+                        led = if (rootStatus.ready) LedState.READY else LedState.BLOCKED,
+                        actionLabel = "PROBE",
+                        action = { probeKeys() }
+                    )
+                ),
+                versionName = try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.4" } catch (_: Throwable) { "1.4" },
+                onPrivacy = { ironSlot = IronSlot.LEDGER },
+                onTour = { showReplayManual = true }
+            )
+        },
+        slotContent = { slot ->
+            when (slot) {
+                IronSlot.TUNE -> TuningRoom(
+                    categories = tuneCategories,
+                    sessionActive = tuneSessionActive,
+                    sessionElapsedS = 0,
+                    sessionApplied = tuneCategories.sumOf { it.options.count { opt -> opt.checked } },
+                    isProbing = isTuneProbing,
+                    onProbe = { refreshTune() },
+                    onBack = { ironSlot = IronSlot.NONE }
                 )
-                .clickable { onToggleDropdown() }
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            Text(
-                text = displayName,
-                color = if (isElevated) scheme.onPrimaryContainer else scheme.onSecondaryContainer,
-                style = ZenType.caption,
-                fontFamily = PlusJakartaSans,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        DropdownMenu(
-            expanded = showDropdown,
-            onDismissRequest = { onToggleDropdown() },
-            shape = RoundedCornerShape(16.dp),
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.98f),
-            tonalElevation = 0.dp,
-            shadowElevation = 8.dp,
-            border = BorderStroke(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-            ),
-            modifier = Modifier.widthIn(min = 200.dp)
-        ) {
-            DropdownMenuItem(
-                text = {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Shizuku",
-                            color = if (currentPref == "shizuku") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            style = ZenType.bodySm,
-                            fontFamily = PlusJakartaSans,
-                            fontWeight = if (currentPref == "shizuku") FontWeight.Bold else FontWeight.Normal
-                        )
-                        Text(
-                            when (dropdownReadiness["shizuku"]) {
-                                true -> "Ready"
-                                false -> "Not available"
-                                else -> "Checking…"
-                            },
-                            color = when (dropdownReadiness["shizuku"]) {
-                                true -> MaterialTheme.colorScheme.primary
-                                false -> MaterialTheme.colorScheme.secondary
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            style = ZenType.overline,
-                            fontFamily = PlusJakartaSans
-                        )
+                IronSlot.PRESSURE -> PressureRoom(
+                    state = pressureState,
+                    modes = ramModes,
+                    selectedMode = selectedRamMode,
+                    preFreeze = preFreeze,
+                    onMode = { selectedRamMode = it },
+                    onPreFreeze = { preFreeze = it },
+                    onStart = {
+                        scope.launch {
+                            pressureState = pressureState.copy(phase = PressurePhase.FILLING)
+                            val res = FreezeFramework.freezeAll(context)
+                            pressureState = pressureState.copy(
+                                phase = PressurePhase.DONE,
+                                resultGb = (res.freedKb + res.swapFreedKb) / (1024f * 1024f)
+                            )
+                        }
+                    },
+                    onHold = {
+                        pressureState = pressureState.copy(phase = PressurePhase.HOLDING)
+                    },
+                    onRelease = {
+                        pressureState = pressureState.copy(phase = PressurePhase.DONE)
+                    },
+                    onCancel = {
+                        pressureState = pressureState.copy(phase = PressurePhase.IDLE)
+                    },
+                    onBack = { ironSlot = IronSlot.NONE }
+                )
+                IronSlot.LEDGER -> TheLedger(
+                    blocks = ledgerBlocks,
+                    onLink = { url ->
+                        try {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                            context.startActivity(intent)
+                        } catch (_: Throwable) {}
+                    },
+                    onBack = { ironSlot = IronSlot.NONE }
+                )
+                IronSlot.NONE -> {}
+            }
+        },
+        replayOverlay = if (showReplayManual) {
+            {
+                FieldManual(
+                    isReplay = true,
+                    onboardingCompletedProbe = { true },
+                    shizuku = shizukuStatus,
+                    root = rootStatus,
+                    selectedBackend = preferredBackend,
+                    onProbe = { probeKeys() },
+                    onSelect = { choice ->
+                        val key = if (choice == BackendChoice.SHIZUKU) "shizuku" else "root"
+                        prefs.edit().putString("preferred_backend", key).apply()
+                        FreezeFramework.setPreferredBackend(if (choice == BackendChoice.SHIZUKU) "Shizuku" else "Root")
+                        FpsStack.get(context).syncPreferredBackend(key)
+                        probeKeys()
+                    },
+                    onConfigureShizuku = { openShizukuApp() },
+                    onGrantRoot = { probeKeys() },
+                    onFinish = { showReplayManual = false },
+                    onClose = { showReplayManual = false }
+                )
+            }
+        } else null,
+        backendSheet = {
+            if (showBackendSheet) {
+                BackendBenchSheet(
+                    visible = true,
+                    onDismiss = { showBackendSheet = false },
+                    shizuku = shizukuStatus,
+                    root = rootStatus,
+                    preferred = preferredBackend,
+                    onUse = { choice ->
+                        val key = if (choice == BackendChoice.SHIZUKU) "shizuku" else "root"
+                        prefs.edit().putString("preferred_backend", key).apply()
+                        FreezeFramework.setPreferredBackend(if (choice == BackendChoice.SHIZUKU) "Shizuku" else "Root")
+                        FpsStack.get(context).syncPreferredBackend(key)
+                        probeKeys()
+                        showBackendSheet = false
+                    },
+                    onConfigure = { choice ->
+                        showBackendSheet = false
+                        if (choice == BackendChoice.SHIZUKU) {
+                            openShizukuApp()
+                        } else {
+                            probeKeys()
+                        }
                     }
-                },
-                onClick = {
-                    if (dropdownReadiness["shizuku"] == true) onSelectPref("shizuku")
-                    else onOpenSetup()
-                }
-            )
-
-            DropdownMenuItem(
-                text = {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Root",
-                            color = if (currentPref == "root") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            style = ZenType.bodySm,
-                            fontFamily = PlusJakartaSans,
-                            fontWeight = if (currentPref == "root") FontWeight.Bold else FontWeight.Normal
-                        )
-                        Text(
-                            when (dropdownReadiness["root"]) {
-                                true -> "Ready"
-                                false -> "Not available"
-                                else -> "Checking…"
-                            },
-                            color = when (dropdownReadiness["root"]) {
-                                true -> MaterialTheme.colorScheme.primary
-                                false -> MaterialTheme.colorScheme.secondary
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant
-                            },
-                            style = ZenType.overline,
-                            fontFamily = PlusJakartaSans
-                        )
-                    }
-                },
-                onClick = {
-                    if (dropdownReadiness["root"] == true) onSelectPref("root")
-                    else onOpenSetup()
-                }
-            )
+                )
+            }
+            if (showSetupSheet) {
+                SystemAccessSheet(
+                    visible = true,
+                    onDismiss = { showSetupSheet = false },
+                    shizuku = shizukuStatus,
+                    root = rootStatus,
+                    selected = preferredBackend,
+                    onProbe = { probeKeys() },
+                    onSelect = { choice ->
+                        val key = if (choice == BackendChoice.SHIZUKU) "shizuku" else "root"
+                        prefs.edit().putString("preferred_backend", key).apply()
+                        FreezeFramework.setPreferredBackend(if (choice == BackendChoice.SHIZUKU) "Shizuku" else "Root")
+                        FpsStack.get(context).syncPreferredBackend(key)
+                        probeKeys()
+                    },
+                    onConfigureShizuku = { openShizukuApp() },
+                    onGrantRoot = { probeKeys() }
+                )
+            }
         }
-    }
+    )
 }

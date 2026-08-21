@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+
+    <!-- 16 tick ring -->
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="1.5" android:fillColor="#00000000"
+        android:pathData="M73,54 L77,54 M71.55,61.27 L75.25,62.8 M67.44,67.44 L70.27,70.27 M61.27,71.55 L62.8,75.25 M54,73 L54,77 M46.73,71.55 L45.2,75.25 M40.56,67.44 L37.73,70.27 M36.45,61.27 L32.75,62.8 M35,54 L31,54 M36.45,46.73 L32.75,45.2 M40.56,40.56 L37.73,37.73 M46.73,36.45 L45.2,32.75 M54,35 L54,31 M61.27,36.45 L62.8,32.75 M67.44,40.56 L70.27,37.73 M71.55,46.73 L75.25,45.2"/>
+    <!-- signal needle + counterweight tail -->
+    <path android:strokeColor="#FFFFFF" android:strokeWidth="3"
+        android:pathData="M49.4,58.6 L66.7,41.3"/>
+    <!-- brass pivot + ink center -->
+    <path android:fillColor="#FFFFFF" android:pathData="M54,49 a5,5 0 1,0 0,10 a5,5 0 1,0 0,-10 z"/>
+    <path android:fillColor="#000000" android:pathData="M54,52.5 a1.5,1.5 0 1,0 0,3 a1.5,1.5 0 1,0 0,-3 z"/>
+</vector>

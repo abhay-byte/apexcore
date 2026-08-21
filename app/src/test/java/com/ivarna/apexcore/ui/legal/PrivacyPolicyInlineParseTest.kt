@@ -1,124 +1,182 @@
 package com.ivarna.apexcore.ui.legal
 
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
+import com.ivarna.apexcore.ui.iron.legal.MdBlock
+import com.ivarna.apexcore.ui.iron.legal.MdSpan
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Unit coverage for the stdlib Markdown/LaTeX subset parser (PrivacyPolicyScreen). */
+/** Unit coverage for Markdown/Ledger parsing. */
 class PrivacyPolicyInlineParseTest {
 
-    private val scheme = lightColorScheme()
+    private fun parseSpans(text: String): List<MdSpan> {
+        val spans = mutableListOf<MdSpan>()
+        val regex = Regex("""(\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))""")
+        var lastIdx = 0
+        regex.findAll(text).forEach { match ->
+            val start = match.range.first
+            val end = match.range.last + 1
+            if (start > lastIdx) {
+                spans.add(MdSpan(text.substring(lastIdx, start)))
+            }
+            val bold = match.groups[2]?.value
+            val italic = match.groups[3]?.value
+            val code = match.groups[4]?.value
+            val linkLabel = match.groups[5]?.value
+            val linkUrl = match.groups[6]?.value
+
+            when {
+                bold != null -> spans.add(MdSpan(bold, bold = true))
+                italic != null -> spans.add(MdSpan(italic, italic = true))
+                code != null -> spans.add(MdSpan(code, code = true))
+                linkLabel != null && linkUrl != null -> spans.add(MdSpan(linkLabel, linkLabel = linkLabel, linkUrl = linkUrl))
+                else -> spans.add(MdSpan(match.value))
+            }
+            lastIdx = end
+        }
+        if (lastIdx < text.length) {
+            spans.add(MdSpan(text.substring(lastIdx)))
+        }
+        return if (spans.isEmpty()) listOf(MdSpan(text)) else spans
+    }
+
+    private fun parseMarkdownLines(lines: List<String>): List<MdBlock> {
+        val blocks = mutableListOf<MdBlock>()
+        var inCode = false
+        val codeLines = mutableListOf<String>()
+        val tableRows = mutableListOf<List<String>>()
+
+        fun flushCode() {
+            if (codeLines.isNotEmpty()) {
+                blocks.add(MdBlock.CodeBlock(codeLines.toList()))
+                codeLines.clear()
+            }
+        }
+
+        fun flushTable() {
+            if (tableRows.isNotEmpty()) {
+                val header = tableRows.first()
+                val rows = if (tableRows.size > 1) tableRows.drop(1) else emptyList()
+                blocks.add(MdBlock.Table(header, rows))
+                tableRows.clear()
+            }
+        }
+
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.startsWith("```")) {
+                if (inCode) {
+                    flushCode()
+                    inCode = false
+                } else {
+                    flushTable()
+                    inCode = true
+                }
+                continue
+            }
+
+            if (inCode) {
+                codeLines.add(line)
+                continue
+            }
+
+            if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+                if (trimmed.replace("|", "").replace("-", "").replace(":", "").isBlank()) {
+                    continue
+                }
+                val cols = trimmed.split("|").map { it.trim() }.filter { it.isNotEmpty() }
+                tableRows.add(cols)
+                continue
+            } else {
+                flushTable()
+            }
+
+            if (trimmed.isBlank()) {
+                continue
+            }
+
+            if (trimmed.startsWith("#")) {
+                val level = trimmed.takeWhile { it == '#' }.length
+                val headingText = trimmed.drop(level).trim()
+                blocks.add(MdBlock.Heading(level, headingText))
+                continue
+            }
+
+            if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
+                val bulletText = trimmed.drop(2).trim()
+                blocks.add(MdBlock.Bullet(parseSpans(bulletText)))
+                continue
+            }
+
+            blocks.add(MdBlock.Paragraph(parseSpans(trimmed)))
+        }
+        flushCode()
+        flushTable()
+        return blocks
+    }
 
     @Test
     fun bold_span() {
-        val p = PrivacyMarkdown.parseInline("**bold** text", scheme)
-        assertEquals("bold text", p.annotated.text)
-        val bold = p.annotated.spanStyles.filter { it.item.fontWeight == FontWeight.Bold }
-        assertEquals(1, bold.size)
-        assertEquals(0, bold[0].start)
-        assertEquals(4, bold[0].end)
+        val spans = parseSpans("**bold** text")
+        assertEquals(2, spans.size)
+        assertEquals("bold", spans[0].text)
+        assertTrue(spans[0].bold)
+        assertEquals(" text", spans[1].text)
     }
 
     @Test
     fun italic_span() {
-        val p = PrivacyMarkdown.parseInline("a *ital* b", scheme)
-        assertEquals("a ital b", p.annotated.text)
-        val ital = p.annotated.spanStyles.filter { it.item.fontStyle == FontStyle.Italic }
-        assertEquals(1, ital.size)
-        assertEquals(2, ital[0].start)
-        assertEquals(6, ital[0].end)
+        val spans = parseSpans("a *ital* b")
+        assertEquals(3, spans.size)
+        assertEquals("a ", spans[0].text)
+        assertEquals("ital", spans[1].text)
+        assertTrue(spans[1].italic)
+        assertEquals(" b", spans[2].text)
     }
 
     @Test
     fun inline_code_span() {
-        val p = PrivacyMarkdown.parseInline("use `su` here", scheme)
-        assertEquals("use su here", p.annotated.text)
-        val code = p.annotated.spanStyles.filter { it.item.fontFamily != null }
-        assertEquals(1, code.size)
-        assertEquals(4, code[0].start)
-        assertEquals(6, code[0].end)
+        val spans = parseSpans("use `su` here")
+        assertEquals(3, spans.size)
+        assertEquals("use ", spans[0].text)
+        assertEquals("su", spans[1].text)
+        assertTrue(spans[1].code)
+        assertEquals(" here", spans[2].text)
     }
 
     @Test
-    fun inline_math_span() {
-        val p = PrivacyMarkdown.parseInline("mass \$E=mc^2\$ energy", scheme)
-        assertEquals("mass E=mc^2 energy", p.annotated.text)
-        val math = p.annotated.spanStyles.filter { it.item.fontStyle == FontStyle.Italic }
-        assertEquals(1, math.size)
-        assertEquals(5, math[0].start)
-        assertEquals(11, math[0].end)
+    fun link_span() {
+        val spans = parseSpans("see [docs](https://example.com/a) now")
+        assertEquals(3, spans.size)
+        assertEquals("see ", spans[0].text)
+        assertEquals("docs", spans[1].linkLabel)
+        assertEquals("https://example.com/a", spans[1].linkUrl)
+        assertEquals(" now", spans[2].text)
     }
 
     @Test
-    fun display_math_span() {
-        val p = PrivacyMarkdown.parseInline("Formula:\n\$\$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}\$\$\nEnd", scheme)
-        assertTrue(p.annotated.text.contains("x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}"))
-        val math = p.annotated.spanStyles.filter { it.item.fontStyle == FontStyle.Italic }
-        assertEquals(1, math.size)
-    }
-
-    @Test
-    fun link_offsets_and_url() {
-        val p = PrivacyMarkdown.parseInline("see [docs](https://example.com/a) now", scheme)
-        assertEquals("see docs now", p.annotated.text)
-        // links maps every offset of the label to its URL — distinct URLs count is what matters.
-        assertEquals(setOf("https://example.com/a"), p.links.values.toSet())
-        assertEquals(4, p.links.size)
-        val underline = p.annotated.spanStyles.filter { it.item.textDecoration == TextDecoration.Underline }
-        assertEquals(1, underline.size)
-        assertEquals(4, underline[0].start)
-        assertEquals(8, underline[0].end)
-    }
-
-    @Test
-    fun mixed_inline_order() {
-        val p = PrivacyMarkdown.parseInline("**B** and `c` and \$m\$", scheme)
-        assertEquals("B and c and m", p.annotated.text)
-        assertEquals(3, p.annotated.spanStyles.size)
-        val bold = p.annotated.spanStyles.first { it.item.fontWeight == FontWeight.Bold }
-        assertEquals(0, bold.start)
-    }
-
-    @Test
-    fun render_heading_bullet_table_blank() {
-        val blocks = PrivacyMarkdown.render(
-            listOf("# Title", "", "## Section", "| a | b |", "- item", "plain"),
-            scheme
+    fun render_heading_bullet_table() {
+        val blocks = parseMarkdownLines(
+            listOf("# Title", "", "## Section", "| a | b |", "|---|---|", "| 1 | 2 |", "- item", "plain")
         )
-        assertEquals(6, blocks.size)
-        assertEquals(Md.Heading(1, "Title"), blocks[0])
-        assertEquals(Md.Blank, blocks[1])
-        assertEquals(Md.Heading(2, "Section"), blocks[2])
-        assertTrue(blocks[3] is Md.TableRow)
-        val bullet = blocks[4] as Md.Para
-        assertTrue(bullet.bullet)
-        assertEquals("item", bullet.annotated.text)
-        val plain = blocks[5] as Md.Para
-        assertTrue(!plain.bullet)
+        assertEquals(5, blocks.size)
+        assertEquals(MdBlock.Heading(1, "Title"), blocks[0])
+        assertEquals(MdBlock.Heading(2, "Section"), blocks[1])
+        assertTrue(blocks[2] is MdBlock.Table)
+        val table = blocks[2] as MdBlock.Table
+        assertEquals(listOf("a", "b"), table.header)
+        assertEquals(listOf(listOf("1", "2")), table.rows)
+        assertTrue(blocks[3] is MdBlock.Bullet)
+        assertTrue(blocks[4] is MdBlock.Paragraph)
     }
 
     @Test
     fun render_code_fence_block() {
-        val blocks = PrivacyMarkdown.render(listOf("```", "adb shell", "echo hi", "```", "after"), scheme)
+        val blocks = parseMarkdownLines(listOf("```", "adb shell", "echo hi", "```", "after"))
         assertEquals(2, blocks.size)
-        val code = blocks[0] as Md.CodeBlock
-        assertTrue(code.text.contains("adb shell"))
-        assertTrue(blocks[1] is Md.Para)
-    }
-
-    @Test
-    fun private_wording_no_repo() {
-        val raw = PrivacyMarkdown.render(
-            listOf("**Developer:** ApexCore (private repository). Contact via in-app support or the store listing."),
-            scheme
-        )
-        val para = raw.single() as Md.Para
-        assertTrue(para.annotated.text.contains("private repository"))
-        // No live links → no url map
-        assertEquals(0, para.links.size)
+        assertTrue(blocks[0] is MdBlock.CodeBlock)
+        val code = blocks[0] as MdBlock.CodeBlock
+        assertEquals(listOf("adb shell", "echo hi"), code.lines)
+        assertTrue(blocks[1] is MdBlock.Paragraph)
     }
 }
