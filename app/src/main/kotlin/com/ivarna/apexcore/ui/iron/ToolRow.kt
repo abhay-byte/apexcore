@@ -32,6 +32,14 @@ fun ToolRow(
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.985f else 1f, IronMotion.machined(), label = "row")
+    val skin = ironSkin()
+    val paper = LocalPaperSurfaces.current
+    val plate = if (paper) Iron.Bone100 else Iron.Anvil800
+    val iconBg = if (paper) {
+        if (pressed) Iron.Bone50 else Iron.Bone100
+    } else {
+        if (pressed) Iron.Anvil950 else Iron.Anvil700
+    }
 
     Row(
         modifier
@@ -42,7 +50,7 @@ fun ToolRow(
                 scaleY = scale
             }
             .clip(IronShape.Plate)
-            .background(Iron.Anvil800)
+            .background(plate)
             .combinedClickable(
                 interactionSource = interaction,
                 indication = null,
@@ -66,15 +74,15 @@ fun ToolRow(
             Modifier
                 .size(40.dp)
                 .clip(IronShape.Slot)
-                .background(if (pressed) Iron.Anvil950 else Iron.Anvil700)
+                .background(iconBg)
                 .padding(8.dp),
             contentAlignment = Alignment.Center
         ) { icon() }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, style = IronType.Title.copy(fontSize = 16.sp, lineHeight = 20.sp), color = Iron.Bone100)
-            Text(subtitle, style = IronType.Caption, color = Iron.Bone500)
+            Text(title, style = IronType.Title.copy(fontSize = 16.sp, lineHeight = 20.sp), color = skin.text)
+            Text(subtitle, style = IronType.Caption, color = skin.textDim)
         }
-        trailing?.invoke() ?: ChevronGlyph(Iron.Bone500)
+        trailing?.invoke() ?: ChevronGlyph(skin.textDim)
     }
 }

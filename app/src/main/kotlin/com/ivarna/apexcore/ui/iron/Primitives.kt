@@ -23,6 +23,7 @@ enum class LedState { OFF, READY, CHECKING, BLOCKED, LIVE }
 
 @Composable
 fun LedDot(state: LedState, modifier: Modifier = Modifier, diameter: Dp = 6.dp) {
+    val phosphor = ironSkin().phosphor()
     val phase = remember { Animatable(0f) }
     LaunchedEffect(state) {
         when (state) {
@@ -42,7 +43,7 @@ fun LedDot(state: LedState, modifier: Modifier = Modifier, diameter: Dp = 6.dp) 
         val p = phase.value
         val (color, alpha) = when (state) {
             LedState.OFF      -> Iron.Bone500 to 0.4f
-            LedState.READY    -> Iron.Phosphor400 to 1f
+            LedState.READY    -> phosphor to 1f
             LedState.CHECKING -> Iron.Signal500 to (0.35f + 0.65f * (0.5f - 0.5f * cos(p * 2f * Math.PI)).toFloat())
             LedState.BLOCKED  -> Iron.Ember500 to when {
                 p < 0.15f -> 1f
@@ -50,7 +51,7 @@ fun LedDot(state: LedState, modifier: Modifier = Modifier, diameter: Dp = 6.dp) 
                 p < 0.45f -> 1f
                 else -> 0.15f
             }
-            LedState.LIVE     -> Iron.Phosphor400 to (0.7f + 0.3f * (0.5f - 0.5f * cos(p * 2f * Math.PI)).toFloat())
+            LedState.LIVE     -> phosphor to (0.7f + 0.3f * (0.5f - 0.5f * cos(p * 2f * Math.PI)).toFloat())
         }
         drawCircle(color, radius = size.minDimension / 2f, alpha = alpha)
     }
@@ -60,7 +61,11 @@ fun LedDot(state: LedState, modifier: Modifier = Modifier, diameter: Dp = 6.dp) 
 @Composable
 fun RisoText(text: String, style: TextStyle, modifier: Modifier = Modifier, color: Color = Iron.Bone100) {
     val count = LocalRisoCount.current
-    SideEffect { count.intValue++ }
+    DisposableEffect(Unit) {
+        count.intValue++
+        if (count.intValue > 1) android.util.Log.w("IRONWORK", "riso count=${count.intValue} (max 1)")
+        onDispose { count.intValue-- }
+    }
     Box(modifier) {
         Text(
             text,

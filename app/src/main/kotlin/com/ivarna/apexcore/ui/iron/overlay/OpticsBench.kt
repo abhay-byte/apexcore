@@ -57,14 +57,17 @@ fun OpticsBench(
     onSize: (RailSize) -> Unit,
     onOpacity: (Float) -> Unit,
     onEdge: (RailEdge) -> Unit,
+    active: Boolean = true,
 ) {
     val serial = rememberSerial()
+    val skin = ironSkin()
 
     var fps by remember { mutableIntStateOf(144) }
     val ram = remember { mutableStateListOf(*(FloatArray(40) { 0.5f }).toTypedArray()) }
     val cpu = remember { mutableStateListOf(*(FloatArray(8) { 0.3f }).toTypedArray()) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(active) {
+        if (!active) return@LaunchedEffect
         while (true) {
             fps = 118 + (0..26).random()
             ram.removeAt(0)
@@ -74,21 +77,22 @@ fun OpticsBench(
         }
     }
 
+    IronScreen("HUD") {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
         Spacer(Modifier.height(12.dp))
-        Text("OPTICS", style = IronType.Display.copy(fontSize = 26.sp), color = Iron.Bone100)
-        Text("Configure the in-game telemetry rail", style = IronType.Caption, color = Iron.Bone500)
+        Text("OPTICS", style = IronType.Display.copy(fontSize = 26.sp), color = skin.text)
+        Text("Configure the in-game telemetry rail", style = IronType.Caption, color = skin.textDim)
         Spacer(Modifier.height(12.dp))
 
-        EngravedPlate {
+        IronSurface {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("PERMISSION", style = IronType.Label, color = Iron.Bone100)
+                    Text("PERMISSION", style = IronType.Label, color = skin.text)
                     Text(
                         if (state.permissionGranted)
                             "ApexCore may draw over other apps."
                         else "Draw-over-apps permission required for the HUD.",
-                        style = IronType.Caption, color = Iron.Bone500
+                        style = IronType.Caption, color = skin.textDim
                     )
                 }
                 if (state.permissionGranted) StampLabel("GRANTED", StampInk.Phosphor, slam = false)
@@ -101,38 +105,39 @@ fun OpticsBench(
         }
         Spacer(Modifier.height(14.dp))
 
-        EngravedPlate {
-            Text("PREVIEW", style = IronType.Label, color = Iron.Bone100)
+        IronSurface {
+            Text("PREVIEW", style = IronType.Label, color = skin.text)
             Text(
                 "Drag the rail. Feel the magnet snap. Double-tap to expand.",
-                style = IronType.Caption, color = Iron.Bone500
+                style = IronType.Caption, color = skin.textDim
             )
             Spacer(Modifier.height(12.dp))
             PhantomRailPreview(fps, ram.toList(), cpu.toList(), state)
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("PREVIEW SERVICE", style = IronType.Label, color = Iron.Bone100, modifier = Modifier.weight(1f))
+                Text("PREVIEW SERVICE", style = IronType.Label, color = skin.text, modifier = Modifier.weight(1f))
                 MachinedToggle(state.previewRunning, onTogglePreview)
             }
         }
         Spacer(Modifier.height(14.dp))
 
-        EngravedPlate {
-            Text("FIT", style = IronType.Label, color = Iron.Bone100)
+        IronSurface {
+            Text("FIT", style = IronType.Label, color = skin.text)
             Spacer(Modifier.height(10.dp))
-            Text("SIZE", style = IronType.MonoSm, color = Iron.Bone500)
+            Text("SIZE", style = IronType.MonoSm, color = skin.textDim)
             Spacer(Modifier.height(6.dp))
             MachinedSegment(listOf("S", "M", "L"), state.size.ordinal, onSelect = { onSize(RailSize.entries[it]) })
             Spacer(Modifier.height(14.dp))
-            Text("OPACITY", style = IronType.MonoSm, color = Iron.Bone500)
+            Text("OPACITY", style = IronType.MonoSm, color = skin.textDim)
             Spacer(Modifier.height(6.dp))
             OpacityRuler(state.opacity, onOpacity)
             Spacer(Modifier.height(14.dp))
-            Text("EDGE", style = IronType.MonoSm, color = Iron.Bone500)
+            Text("EDGE", style = IronType.MonoSm, color = skin.textDim)
             Spacer(Modifier.height(6.dp))
             MachinedSegment(listOf("LEFT", "RIGHT"), state.edge.ordinal, onSelect = { onEdge(RailEdge.entries[it]) })
         }
         SerialFooter(5, "OPTICS", serial)
+    }
     }
 }
 
@@ -239,7 +244,7 @@ private fun RailPanel(
             .padding(vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("$fps", style = IronType.MonoLg.copy(fontSize = size.fpsSp), color = Iron.Phosphor400)
+        Text("$fps", style = IronType.MonoLg.copy(fontSize = size.fpsSp), color = ironSkin().phosphor())
         Text("FPS", style = IronType.MonoSm, color = Iron.Bone500)
         Spacer(Modifier.height(6.dp))
         Canvas(Modifier.width(size.panelW - 16.dp).height(22.dp)) {

@@ -51,6 +51,7 @@ fun TuningRoom(
     val clack = rememberClack()
     val serial = rememberSerial()
     val density = LocalDensity.current
+    val skin = ironSkin()
     val running = sessionActive
 
     val view = LocalView.current
@@ -106,12 +107,12 @@ fun TuningRoom(
                     .padding(vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                BackArrow(Iron.Bone300, onBack)
+                BackArrow(skin.textDim, onBack)
                 Spacer(Modifier.width(8.dp))
                 Text(
                     "TUNING ROOM",
                     style = IronType.Display.copy(fontSize = 22.sp),
-                    color = Iron.Bone100,
+                    color = skin.text,
                     modifier = Modifier.weight(1f)
                 )
                 if (isProbing) {
@@ -121,10 +122,10 @@ fun TuningRoom(
                 }
             }
 
-            Text("Real kernel & session tuning.", style = IronType.Body, color = Iron.Bone300)
+            Text("Real kernel & session tuning.", style = IronType.Body, color = skin.text)
             Text(
                 "Capability-gated parameters safely applied during game sessions and restored on exit.",
-                style = IronType.Caption, color = Iron.Bone500
+                style = IronType.Caption, color = skin.textDim
             )
             Spacer(Modifier.height(10.dp))
 
@@ -134,7 +135,7 @@ fun TuningRoom(
                     Spacer(Modifier.width(10.dp))
                     Text(
                         "LIVE · $sessionApplied APPLIED · %02d:%02d".format(sessionElapsedS / 60, sessionElapsedS % 60),
-                        style = IronType.Mono, color = Iron.Phosphor400
+                        style = IronType.Mono, color = ironSkin().phosphor()
                     )
                 }
                 Spacer(Modifier.height(10.dp))
@@ -191,16 +192,17 @@ private fun DrawerHeader(name: String, available: Int) {
                 .background(Iron.Brass400)
         )
         Spacer(Modifier.width(8.dp))
-        EngravedText(name, IronType.Label, color = Iron.Bone300)
+        EngravedText(name, IronType.Label, color = ironSkin().textDim)
         Spacer(Modifier.width(10.dp))
-        Text("$available AVAILABLE", style = IronType.MonoSm, color = Iron.Bone500)
+        Text("$available AVAILABLE", style = IronType.MonoSm, color = ironSkin().textDim)
         Spacer(Modifier.width(10.dp))
-        HorizontalDivider(Modifier.weight(1f), color = Iron.Anvil600, thickness = 1.dp)
+        HorizontalDivider(Modifier.weight(1f), color = ironSkin().hairline, thickness = 1.dp)
     }
 }
 
 @Composable
 private fun TuneRow(opt: TuneOptionUi) {
+    val skin = ironSkin()
     Row(
         Modifier
             .fillMaxWidth()
@@ -212,11 +214,11 @@ private fun TuneRow(opt: TuneOptionUi) {
                 .weight(1f)
                 .then(if (!opt.available) Modifier.alpha(0.55f) else Modifier)
         ) {
-            Text(opt.title, style = IronType.Title.copy(fontSize = 15.sp), color = Iron.Bone100)
+            Text(opt.title, style = IronType.Title.copy(fontSize = 15.sp), color = skin.text)
             Text(
                 opt.reason ?: opt.description,
                 style = IronType.Caption,
-                color = if (opt.reason != null) Iron.Ember500 else Iron.Bone500
+                color = if (opt.reason != null) Iron.Ember500 else skin.textDim
             )
         }
         Spacer(Modifier.width(12.dp))

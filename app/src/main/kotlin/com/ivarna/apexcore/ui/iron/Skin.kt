@@ -34,6 +34,8 @@ data class IronSkin(
     }
 }
 
+fun IronSkin.phosphor(): Color = if (isPaper) Iron.Phosphor600 else Iron.Phosphor400
+
 @Composable
 fun ironSkin(): IronSkin =
     if (LocalIronFinish.current == IronFinish.VELLUM) IronSkin.Vellum else IronSkin.Graphite

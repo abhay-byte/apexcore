@@ -30,6 +30,12 @@ fun OdometerCounter(
     style: TextStyle = IronType.MonoLg,
     onSettled: () -> Unit = {},
 ) {
+    val reduced = LocalReducedMotion.current
+    if (reduced) {
+        LaunchedEffect(text) { onSettled() }
+        Text(text, style = style, modifier = modifier)
+        return
+    }
     val density = LocalDensity.current
     val digitH = with(density) { style.lineHeight.toDp() }
     val n = text.length
@@ -123,6 +129,8 @@ fun ShavingsLayer(
     modifier: Modifier = Modifier,
     floorFromBottom: Dp = 140.dp,
 ) {
+    val reduced = LocalReducedMotion.current
+    if (reduced) return
     val density = LocalDensity.current
     var h by remember { mutableFloatStateOf(0f) }
     var tick by remember { mutableIntStateOf(0) }

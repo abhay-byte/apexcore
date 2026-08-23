@@ -17,8 +17,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
 import com.ivarna.apexcore.ui.iron.*
 
 enum class GearTab(val label: String) { HOME("HOME"), GAMES("GAMES"), HUD("HUD"), TOOLS("TOOLS") }
@@ -31,7 +33,6 @@ fun GearTabGlyph(tab: GearTab, tint: Color, modifier: Modifier = Modifier) = whe
     GearTab.TOOLS -> CaliperGlyph(tint, modifier)
 }
 
-/* ── §3.11 GearSelector ── */
 @Composable
 fun GearSelector(
     selected: GearTab,
@@ -73,7 +74,6 @@ fun GearSelector(
     }
 }
 
-/* ── §3.12 BridgePlate ── */
 @Composable
 fun BridgePlate(
     backendName: String,
@@ -92,7 +92,7 @@ fun BridgePlate(
         Screw()
         Spacer(Modifier.width(10.dp))
         Column {
-            RisoText("APEXCORE", IronType.Label.copy(fontSize = 14.sp))
+            EngravedText("APEXCORE", IronType.Label.copy(fontSize = 14.sp))
             Text("MK·II", style = IronType.MonoSm, color = Iron.Bone500)
         }
         Spacer(Modifier.weight(1f))
@@ -115,7 +115,6 @@ fun BridgePlate(
     }
 }
 
-/* ── §7.3 Tab transition: horizontal slide + fade, 240ms, ease.wind ── */
 @Composable
 fun GearTabTransition(targetState: GearTab, content: @Composable (GearTab) -> Unit) {
     AnimatedContent(
@@ -135,7 +134,6 @@ enum class IronSlot { NONE, TUNE, PRESSURE, LEDGER }
 
 @Composable
 fun IronShell(
-    finish: IronFinish,
     tab: GearTab, onTab: (GearTab) -> Unit,
     backendName: String, backendLed: LedState, onBackend: () -> Unit,
     slot: IronSlot, onSlot: (IronSlot) -> Unit,
@@ -147,12 +145,32 @@ fun IronShell(
     replayOverlay: (@Composable () -> Unit)? = null,
     backendSheet: (@Composable () -> Unit)? = null,
 ) {
-    Crossfade(finish, animationSpec = tween(220), label = "finish") { f ->
-        CompositionLocalProvider(LocalIronFinish provides f) {
-            Box(Modifier.fillMaxSize().background(ironSkin().canvas).ironGrain(0.04f)) {
-                Column(Modifier.fillMaxSize()) {
-                    BridgePlate(backendName, backendLed, onBackend)
-                    Box(Modifier.weight(1f)) {
+    val gate = rememberCeremonyGate()
+    val canvas by animateColorAsState(ironSkin().canvas, tween(220), label = "finishCanvas")
+
+    // Status/nav bars sit on the Bridge/Gear chassis (always Anvil900) while tabs are visible,
+    // so bars must stay LIGHT even in Vellum. Full-screen slot/replay surfaces decide otherwise.
+    val view = LocalView.current
+    val shellSkin = ironSkin()
+    if (!view.isInEditMode) SideEffect {
+        view.context.findActivity()?.window?.let { w ->
+            val c = WindowCompat.getInsetsController(w, view)
+            val lightBars = when {
+                replayOverlay != null -> !shellSkin.isPaper    // overlay surface rules
+                slot != IronSlot.NONE -> shellSkin.isPaper     // slot canvas fills the screen
+                else -> true                                   // chassis bridge/gear always dark
+            }
+            c.isAppearanceLightStatusBars = lightBars
+            c.isAppearanceLightNavigationBars = lightBars
+        }
+    }
+
+    CompositionLocalProvider(LocalCeremonyGate provides gate) {
+        Box(Modifier.fillMaxSize().background(canvas).ironGrain(0.04f)) {
+            Column(Modifier.fillMaxSize()) {
+                BridgePlate(backendName, backendLed, onBackend)
+                Box(Modifier.weight(1f)) {
+                    if (replayOverlay == null) {
                         GearTabTransition(tab) { t ->
                             when (t) {
                                 GearTab.HOME -> home()
@@ -162,19 +180,18 @@ fun IronShell(
                             }
                         }
                     }
-                    GearSelector(tab, onTab)
                 }
-                FullScreenSlot(visible = slot != IronSlot.NONE, onDismiss = { onSlot(IronSlot.NONE) }) {
-                    slotContent(slot)
-                }
-                replayOverlay?.invoke()
-                backendSheet?.invoke()
+                GearSelector(tab, onTab)
             }
+            FullScreenSlot(visible = slot != IronSlot.NONE, onDismiss = { onSlot(IronSlot.NONE) }) {
+                slotContent(slot)
+            }
+            replayOverlay?.invoke()
+            backendSheet?.invoke()
         }
     }
 }
 
-/** Slide-up slot with predictive-back scrub of the slide-down (§6.1). */
 @Composable
 fun FullScreenSlot(visible: Boolean, onDismiss: () -> Unit, content: @Composable () -> Unit) {
     var scrub by remember { mutableFloatStateOf(0f) }
@@ -199,12 +216,11 @@ fun FullScreenSlot(visible: Boolean, onDismiss: () -> Unit, content: @Composable
                     scaleX = s
                     scaleY = s
                 }
-                .background(ironSkin().canvas).ironGrain(0.04f)
+                .background(ironSkin().canvas)
         ) { content() }
     }
 }
 
-/** §3.12 — Bridge chip opens this: same readiness data as Settings. */
 @Composable
 fun BackendBenchSheet(
     visible: Boolean,

@@ -39,6 +39,8 @@ class CeremonyGate {
     }
 }
 
+val LocalCeremonyGate = staticCompositionLocalOf { CeremonyGate() }
+
 @Composable
 fun rememberCeremonyGate(): CeremonyGate = remember { CeremonyGate() }
 
@@ -50,6 +52,10 @@ class StampToastState {
     fun show(text: String) {
         message = text
     }
+
+    fun clear() {
+        message = null
+    }
 }
 
 @Composable
@@ -58,8 +64,7 @@ fun rememberStampToast(): StampToastState {
     LaunchedEffect(s.message) {
         if (s.message != null) {
             delay(1400)
-            s.show("")
-            // message becomes null via clear
+            s.clear()
         }
     }
     return s

@@ -14,6 +14,7 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -24,6 +25,8 @@ fun TickerLine(
     collapsed: Boolean = false,
     onDoubleTap: (() -> Unit)? = null,
 ) {
+    val reduced = LocalReducedMotion.current
+    val skin = ironSkin()
     Row(
         modifier
             .fillMaxWidth()
@@ -50,12 +53,13 @@ fun TickerLine(
                 Text(
                     t,
                     style = IronType.Mono,
-                    color = Iron.Bone300,
+                    color = skin.text,
                     maxLines = 1,
-                    modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE)
+                    overflow = if (reduced) TextOverflow.Ellipsis else TextOverflow.Clip,
+                    modifier = if (reduced) Modifier else Modifier.basicMarquee(iterations = Int.MAX_VALUE)
                 )
             }
         }
-        Text("  ▸▸", style = IronType.MonoSm, color = Iron.Bone500)
+        Text("  ▸▸", style = IronType.MonoSm, color = skin.textDim)
     }
 }

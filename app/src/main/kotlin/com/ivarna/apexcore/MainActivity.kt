@@ -73,6 +73,14 @@ class MainActivity : ComponentActivity() {
             var paperInserts by rememberSaveable {
                 mutableStateOf(ThemePreferences.getLightTankBg(this@MainActivity))
             }
+            var mechanicalMotion by rememberSaveable {
+                mutableStateOf(ThemePreferences.getMechanicalMotion(this@MainActivity))
+            }
+            val motionOverride = when (mechanicalMotion) {
+                "full" -> false
+                "reduced" -> true
+                else -> null
+            }
 
             var shizukuStatus by remember { mutableStateOf(KeyStatus()) }
             var rootStatus by remember { mutableStateOf(KeyStatus()) }
@@ -98,7 +106,11 @@ class MainActivity : ComponentActivity() {
                 probeBackends()
             }
 
-            IronTheme(themeMode = themeMode, paperInserts = paperInserts) {
+            IronTheme(
+                themeMode = themeMode,
+                paperInserts = paperInserts,
+                reducedMotionOverride = motionOverride
+            ) {
                 AnimatedContent(
                     targetState = appStage,
                     transitionSpec = {
@@ -175,7 +187,7 @@ class MainActivity : ComponentActivity() {
                         AppStage.MAIN -> {
                             MainScreen(
                                 gameManager = gameManager,
-                                themeMode = com.ivarna.apexcore.ui.theme.ThemeMode.entries[themeModeOrdinal],
+                                themeMode = ThemeMode.entries[themeModeOrdinal],
                                 onThemeModeChange = { mode ->
                                     themeModeOrdinal = mode.ordinal
                                     ThemePreferences.set(this@MainActivity, mode)
@@ -184,6 +196,11 @@ class MainActivity : ComponentActivity() {
                                 onLightTankBgChange = { enabled ->
                                     paperInserts = enabled
                                     ThemePreferences.setLightTankBg(this@MainActivity, enabled)
+                                },
+                                mechanicalMotion = mechanicalMotion,
+                                onMechanicalMotionChange = { value ->
+                                    mechanicalMotion = value
+                                    ThemePreferences.setMechanicalMotion(this@MainActivity, value)
                                 }
                             )
                         }

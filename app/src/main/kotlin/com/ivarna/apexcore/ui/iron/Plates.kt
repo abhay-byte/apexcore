@@ -50,7 +50,6 @@ fun EngravedPlate(
             }
             .clip(IronShape.Plate)
             .background(if (pressed && onClick != null) Iron.Anvil800 else Iron.Anvil700)
-            .ironGrain(0.04f)
             .drawWithCache {
                 val i = 3.dp.toPx()
                 val inner = Path().apply {
@@ -140,7 +139,6 @@ fun PaperPlate(
             )
             .clip(shape)
             .background(Iron.Bone100)
-            .ironGrain(0.05f)
     ) {
         Column(Modifier.padding(padding), content = content)
     }
@@ -173,12 +171,13 @@ fun SerialFooter(
     modifier: Modifier = Modifier,
     onDebugTap: (() -> Unit)? = null
 ) {
+    val skin = ironSkin()
     var taps by remember { mutableIntStateOf(0) }
     var firstAt by remember { mutableLongStateOf(0L) }
     Text(
         "PLATE %02d · %s · S/N %s · REV %s".format(plateNo, screen, serial, rev),
         style = IronType.MonoSm,
-        color = Iron.Bone500,
+        color = skin.textDim,
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 24.dp)

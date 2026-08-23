@@ -14,8 +14,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
 import com.ivarna.apexcore.ui.iron.*
 import com.ivarna.apexcore.ui.onboarding.OnboardingPreferences
 import kotlinx.coroutines.delay
@@ -31,17 +33,31 @@ fun Ignition(onSplashFinished: (showOnboarding: Boolean) -> Unit) {
     val appear = remember { Animatable(0f) }
 
     LaunchedEffect(Unit) {
-        if (!reduced) {
+        if (reduced) {
+            appear.animateTo(1f, tween(200))
+            delay(200)
+        } else {
             launch {
                 sweep.animateTo(1f, tween(300, easing = LinearEasing))
                 sweep.animateTo(0.45f, IronMotion.needle())
             }
+            appear.animateTo(1f, tween(360, easing = IronMotion.EaseWind))
+            delay(550)
         }
-        appear.animateTo(1f, tween(360, easing = IronMotion.EaseWind))
-        delay(550)
         onSplashFinished(!OnboardingPreferences.isOnboardingCompleted(context))
     }
 
+    IronScreen("IGNITION") {
+    // splash canvas is always Anvil900 → bars stay light in every finish
+    val view = LocalView.current
+    if (!view.isInEditMode) SideEffect {
+        val a = view.context.findActivity()
+        a?.window?.let { w ->
+            val c = WindowCompat.getInsetsController(w, view)
+            c.isAppearanceLightStatusBars = false
+            c.isAppearanceLightNavigationBars = false
+        }
+    }
     Box(Modifier.fillMaxSize().background(Iron.Anvil900).ironGrain(0.04f)) {
         Column(
             Modifier.align(Alignment.Center)
@@ -99,5 +115,6 @@ fun Ignition(onSplashFinished: (showOnboarding: Boolean) -> Unit) {
             Spacer(Modifier.height(4.dp))
             Text("MK·II", style = IronType.MonoSm, color = Iron.Brass400)
         }
+    }
     }
 }

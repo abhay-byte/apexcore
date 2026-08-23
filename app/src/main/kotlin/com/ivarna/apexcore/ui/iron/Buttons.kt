@@ -32,23 +32,28 @@ fun ChamferButton(
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.97f else 1f, IronMotion.machined(), label = "press")
     val shape = remember { ChamferShape() }
+    val skin = ironSkin()
 
-    val transition = rememberInfiniteTransition(label = "stripe")
-    val stripe by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "stripeFloat"
-    )
+    val stripe = remember { Animatable(0f) }
+    LaunchedEffect(busy) {
+        if (!busy) {
+            stripe.snapTo(0f)
+            return@LaunchedEffect
+        }
+        while (true) {
+            stripe.snapTo(0f)
+            stripe.animateTo(1f, tween(1200, easing = LinearEasing))
+        }
+    }
 
     LaunchedEffect(pressed) {
         if (pressed && enabled) {
             if (variant == ChamferVariant.Primary) clack.confirm() else clack.row()
         }
     }
+
+    val outlineColor = if (skin.isPaper) Iron.Ink600 else Iron.Bone300
+    val labelColor = if (variant == ChamferVariant.Primary) Iron.Ink900 else outlineColor
 
     Box(
         modifier
@@ -65,7 +70,7 @@ fun ChamferButton(
             )
             .then(
                 if (variant == ChamferVariant.Outline)
-                    Modifier.border(2.dp, Iron.Bone300, shape)
+                    Modifier.border(2.dp, outlineColor, shape)
                 else Modifier
             )
             .drawWithCache {
@@ -84,7 +89,7 @@ fun ChamferButton(
                         clipPath(path) {
                             val gap = 24.dp.toPx()
                             val w = 8.dp.toPx()
-                            var x = -size.height + stripe * gap
+                            var x = -size.height + stripe.value * gap
                             while (x < size.width + size.height) {
                                 drawLine(
                                     Iron.Ink900.copy(alpha = 0.18f),
@@ -104,7 +109,7 @@ fun ChamferButton(
         Text(
             text,
             style = IronType.Label,
-            color = if (variant == ChamferVariant.Primary) Iron.Ink900 else Iron.Bone300
+            color = labelColor
         )
     }
 }

@@ -16,17 +16,16 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import kotlin.random.Random
 
-/* ── LocalPaperSurfaces: §10 — metal chassis, swap only content surfaces ── */
 val LocalPaperSurfaces = staticCompositionLocalOf { false }
 
-/* ── Riso audit: §1.5 rule 1 — exactly one riso per screen ── */
 val LocalRisoCount = staticCompositionLocalOf { mutableIntStateOf(0) }
 
 @Composable
-inline fun IronScreen(name: String, crossinline content: @Composable () -> Unit) {
-    val count = LocalRisoCount.current
-    remember(name) { count.intValue = 0; true }
-    content()
+fun IronScreen(name: String, content: @Composable () -> Unit) {
+    val count = remember(name) { mutableIntStateOf(0) }
+    CompositionLocalProvider(LocalRisoCount provides count) {
+        content()
+    }
 }
 
 @Composable
@@ -39,21 +38,19 @@ fun IronTheme(
     val ctx = LocalContext.current
     val finish = themeMode.resolve(isSystemInDarkTheme())
 
-    // §9 — cap font scale at the spec ceiling (1.3×)
     val d = LocalDensity.current
     val capped = remember(d, d.fontScale) {
         if (d.fontScale > 1.3f) Density(d.density, fontScale = 1.3f) else d
     }
 
-    // §4.4 — auto-reduce when system animator scale == 0
     val systemReduced = remember {
         Settings.Global.getFloat(
             ctx.contentResolver,
             Settings.Global.ANIMATOR_DURATION_SCALE, 1f
         ) == 0f
     }
+    val reduced = systemReduced || (reducedMotionOverride == true)
 
-    // status/nav bar icon tint per finish
     val view = LocalView.current
     if (!view.isInEditMode) SideEffect {
         ctx.findActivity()?.window?.let { w ->
@@ -67,13 +64,12 @@ fun IronTheme(
     CompositionLocalProvider(
         LocalIronFinish provides finish,
         LocalPaperSurfaces provides (finish == IronFinish.VELLUM || paperInserts),
-        LocalReducedMotion provides (reducedMotionOverride ?: systemReduced),
+        LocalReducedMotion provides reduced,
         LocalRisoCount provides mutableIntStateOf(0),
         LocalDensity provides capped,
     ) { content() }
 }
 
-/* ── Errata #1/#2: fixed grain — one ImageBitmap, Compose shader ── */
 object Grain {
     val image: ImageBitmap by lazy {
         val s = 128
@@ -89,15 +85,21 @@ object Grain {
     }
 }
 
-fun Modifier.ironGrain(alpha: Float = 0.04f): Modifier = this.drawWithCache {
+internal fun Modifier.ironGrainInternal(alpha: Float, paper: Boolean): Modifier = this.drawWithCache {
     val brush = ShaderBrush(ImageShader(Grain.image, TileMode.Repeated, TileMode.Repeated))
+    val blend = if (paper) BlendMode.Multiply else BlendMode.Screen
     onDrawWithContent {
         drawContent()
-        drawRect(brush = brush, alpha = alpha)
+        drawRect(brush = brush, alpha = alpha, blendMode = blend)
     }
 }
 
-/** §2.3 — tablet: content column max 480dp, centered. */
+@Composable
+fun Modifier.ironGrain(alpha: Float = 0.04f): Modifier {
+    val paper = ironSkin().isPaper
+    return ironGrainInternal(alpha, paper)
+}
+
 @Composable
 fun IronContentFrame(content: @Composable () -> Unit) {
     Box(

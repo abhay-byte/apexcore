@@ -25,6 +25,8 @@ fun MachinedToggle(
     enabled: Boolean = true,
 ) {
     val clack = rememberClack()
+    val reduced = LocalReducedMotion.current
+    val phosphor = ironSkin().phosphor()
     val travel = 24.dp
     val x = remember { Animatable(if (checked) 1f else 0f) }
     val wob = remember { Animatable(0f) }
@@ -32,6 +34,7 @@ fun MachinedToggle(
     LaunchedEffect(checked, enabled) {
         if (!enabled) return@LaunchedEffect
         x.animateTo(if (checked) 1f else 0f, IronMotion.machined())
+        if (reduced) return@LaunchedEffect
         wob.snapTo(0f)
         wob.animateTo(0f, keyframes {
             durationMillis = 90
@@ -47,11 +50,11 @@ fun MachinedToggle(
             .background(
                 when {
                     !enabled -> Iron.Anvil800
-                    checked  -> Iron.Phosphor400.copy(alpha = 0.30f)
+                    checked  -> phosphor.copy(alpha = 0.30f)
                     else     -> Iron.Anvil600
                 }
             )
-            .border(1.dp, if (checked) Iron.Phosphor400.copy(alpha = 0.4f) else Iron.Anvil600, IronShape.Slot)
+            .border(1.dp, if (checked) phosphor.copy(alpha = 0.4f) else Iron.Anvil600, IronShape.Slot)
             .toggleable(
                 value = checked,
                 role = Role.Switch,
@@ -95,7 +98,6 @@ fun MachinedSegment(
             .clip(IronShape.Slot)
             .background(Iron.Anvil950)
             .border(1.dp, Iron.Anvil600, IronShape.Slot)
-            .ironGrain(0.03f)
     ) {
         val w = maxWidth / options.size
         val blockX by animateDpAsState(w * selected, IronMotion.block(), label = "segBlock")

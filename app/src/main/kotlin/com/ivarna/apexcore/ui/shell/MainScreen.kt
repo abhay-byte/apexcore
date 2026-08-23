@@ -3,7 +3,6 @@ package com.ivarna.apexcore.ui.shell
 import android.content.Context
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -49,7 +48,6 @@ import com.ivarna.apexcore.ui.iron.sheets.SystemAccessSheet
 import com.ivarna.apexcore.ui.iron.tune.TuneCategoryUi
 import com.ivarna.apexcore.ui.iron.tune.TuneOptionUi
 import com.ivarna.apexcore.ui.iron.tune.TuningRoom
-import com.ivarna.apexcore.ui.theme.ThemeMode
 import kotlinx.coroutines.launch
 
 @Composable
@@ -58,7 +56,9 @@ fun MainScreen(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     onThemeModeChange: (ThemeMode) -> Unit = {},
     lightTankBg: Boolean = true,
-    onLightTankBgChange: (Boolean) -> Unit = {}
+    onLightTankBgChange: (Boolean) -> Unit = {},
+    mechanicalMotion: String = "auto",
+    onMechanicalMotionChange: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -98,13 +98,6 @@ fun MainScreen(
     LaunchedEffect(Unit) {
         probeKeys()
     }
-
-    val ironThemeMode = when (themeMode) {
-        ThemeMode.LIGHT -> com.ivarna.apexcore.ui.iron.ThemeMode.VELLUM
-        ThemeMode.DARK -> com.ivarna.apexcore.ui.iron.ThemeMode.GRAPHITE
-        else -> com.ivarna.apexcore.ui.iron.ThemeMode.SYSTEM
-    }
-    val finish = ironThemeMode.resolve(isSystemInDarkTheme())
 
     val prefs = remember { context.getSharedPreferences("apexcore", Context.MODE_PRIVATE) }
     val prefStr = prefs.getString("preferred_backend", null)
@@ -235,119 +228,9 @@ fun MainScreen(
     val ramModes = remember { listOf(RamModeUi("STANDARD", true), RamModeUi("AGGRESSIVE", true)) }
     var selectedRamMode by remember { mutableStateOf<RamModeUi?>(ramModes.first()) }
 
-    // Privacy Policy raw text
-    val ledgerBlocks = remember {
-        try {
-            val lines = context.assets.open("privacy_policy.md").bufferedReader().use { it.readLines() }
-            val blocks = mutableListOf<MdBlock>()
-            var inCode = false
-            val codeLines = mutableListOf<String>()
-            val tableRows = mutableListOf<List<String>>()
-
-            fun flushCode() {
-                if (codeLines.isNotEmpty()) {
-                    blocks.add(MdBlock.CodeBlock(codeLines.toList()))
-                    codeLines.clear()
-                }
-            }
-
-            fun flushTable() {
-                if (tableRows.isNotEmpty()) {
-                    val header = tableRows.first()
-                    val rows = if (tableRows.size > 1) tableRows.drop(1) else emptyList()
-                    blocks.add(MdBlock.Table(header, rows))
-                    tableRows.clear()
-                }
-            }
-
-            fun parseSpans(text: String): List<com.ivarna.apexcore.ui.iron.legal.MdSpan> {
-                // simple span parser: bold **text**, italic *text*, code `text`, link [label](url)
-                val spans = mutableListOf<com.ivarna.apexcore.ui.iron.legal.MdSpan>()
-                var remaining = text
-                val regex = Regex("""(\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))""")
-                var lastIdx = 0
-                regex.findAll(text).forEach { match ->
-                    val start = match.range.first
-                    val end = match.range.last + 1
-                    if (start > lastIdx) {
-                        spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(text.substring(lastIdx, start)))
-                    }
-                    val bold = match.groups[2]?.value
-                    val italic = match.groups[3]?.value
-                    val code = match.groups[4]?.value
-                    val linkLabel = match.groups[5]?.value
-                    val linkUrl = match.groups[6]?.value
-
-                    when {
-                        bold != null -> spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(bold, bold = true))
-                        italic != null -> spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(italic, italic = true))
-                        code != null -> spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(code, code = true))
-                        linkLabel != null && linkUrl != null -> spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(linkLabel, linkLabel = linkLabel, linkUrl = linkUrl))
-                        else -> spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(match.value))
-                    }
-                    lastIdx = end
-                }
-                if (lastIdx < text.length) {
-                    spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(text.substring(lastIdx)))
-                }
-                return if (spans.isEmpty()) listOf(com.ivarna.apexcore.ui.iron.legal.MdSpan(text)) else spans
-            }
-
-            for (line in lines) {
-                val trimmed = line.trim()
-                if (trimmed.startsWith("```")) {
-                    if (inCode) {
-                        flushCode()
-                        inCode = false
-                    } else {
-                        flushTable()
-                        inCode = true
-                    }
-                    continue
-                }
-
-                if (inCode) {
-                    codeLines.add(line)
-                    continue
-                }
-
-                if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
-                    // separator line check |---|
-                    if (trimmed.replace("|", "").replace("-", "").replace(":", "").isBlank()) {
-                        continue
-                    }
-                    val cols = trimmed.split("|").map { it.trim() }.filter { it.isNotEmpty() }
-                    tableRows.add(cols)
-                    continue
-                } else {
-                    flushTable()
-                }
-
-                if (trimmed.isBlank()) {
-                    continue
-                }
-
-                if (trimmed.startsWith("#")) {
-                    val level = trimmed.takeWhile { it == '#' }.length
-                    val headingText = trimmed.drop(level).trim()
-                    blocks.add(MdBlock.Heading(level, headingText))
-                    continue
-                }
-
-                if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
-                    val bulletText = trimmed.drop(2).trim()
-                    blocks.add(MdBlock.Bullet(parseSpans(bulletText)))
-                    continue
-                }
-
-                blocks.add(MdBlock.Paragraph(parseSpans(trimmed)))
-            }
-            flushCode()
-            flushTable()
-            blocks
-        } catch (_: Throwable) {
-            emptyList<MdBlock>()
-        }
+    // Privacy Policy raw text — parsed only while the Ledger slot is open (§5.1 lazy parse)
+    val ledgerBlocks = remember(ironSlot) {
+        if (ironSlot == IronSlot.LEDGER) parsePrivacyBlocks(context) else emptyList()
     }
 
     fun openShizukuApp() {
@@ -375,7 +258,6 @@ fun MainScreen(
     }
 
     IronShell(
-        finish = finish,
         tab = gearTab,
         onTab = { gearTab = it },
         backendName = benchUi.backendName,
@@ -391,7 +273,8 @@ fun MainScreen(
                 onPins = { showPinSheet = true },
                 onRamFree = { ironSlot = IronSlot.PRESSURE },
                 onSetup = { showSetupSheet = true },
-                toast = toast
+                toast = toast,
+                active = gearTab == GearTab.HOME && !showReplayManual
             )
         },
         games = {
@@ -486,6 +369,7 @@ fun MainScreen(
         },
         optics = {
             OpticsBench(
+                active = gearTab == GearTab.HUD && !showReplayManual,
                 state = OpticsUiState(
                     permissionGranted = overlayGranted,
                     previewRunning = overlayPreview,
@@ -524,17 +408,12 @@ fun MainScreen(
         },
         toolbox = {
             Toolbox(
-                themeMode = ironThemeMode,
-                onThemeMode = { mode ->
-                    val legacyMode = when (mode) {
-                        com.ivarna.apexcore.ui.iron.ThemeMode.VELLUM -> ThemeMode.LIGHT
-                        com.ivarna.apexcore.ui.iron.ThemeMode.GRAPHITE -> ThemeMode.DARK
-                        else -> ThemeMode.SYSTEM
-                    }
-                    onThemeModeChange(legacyMode)
-                },
+                themeMode = themeMode,
+                onThemeMode = onThemeModeChange,
                 paperInserts = lightTankBg,
                 onPaperInserts = onLightTankBgChange,
+                mechanicalMotion = mechanicalMotion,
+                onMechanicalMotion = onMechanicalMotionChange,
                 runningMode = RunningModeUi(
                     backend = benchUi.backendName,
                     preferred = preferredBackend?.name ?: "AUTO",
@@ -684,4 +563,118 @@ fun MainScreen(
             }
         }
     )
+}
+
+private fun parsePrivacyBlocks(context: Context): List<MdBlock> {
+    return try {
+        val lines = context.assets.open("privacy_policy.md").bufferedReader().use { it.readLines() }
+        val blocks = mutableListOf<MdBlock>()
+        var inCode = false
+        val codeLines = mutableListOf<String>()
+        val tableRows = mutableListOf<List<String>>()
+
+        fun flushCode() {
+            if (codeLines.isNotEmpty()) {
+                blocks.add(MdBlock.CodeBlock(codeLines.toList()))
+                codeLines.clear()
+            }
+        }
+
+        fun flushTable() {
+            if (tableRows.isNotEmpty()) {
+                val header = tableRows.first()
+                val rows = if (tableRows.size > 1) tableRows.drop(1) else emptyList()
+                blocks.add(MdBlock.Table(header, rows))
+                tableRows.clear()
+            }
+        }
+
+        fun parseSpans(text: String): List<com.ivarna.apexcore.ui.iron.legal.MdSpan> {
+            // simple span parser: bold **text**, italic *text*, code `text`, link [label](url)
+            val spans = mutableListOf<com.ivarna.apexcore.ui.iron.legal.MdSpan>()
+            var remaining = text
+            val regex = Regex("""(\*\*([^*]+)\*\*|\*([^*]+)\*|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\))""")
+            var lastIdx = 0
+            regex.findAll(text).forEach { match ->
+                val start = match.range.first
+                val end = match.range.last + 1
+                if (start > lastIdx) {
+                    spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(text.substring(lastIdx, start)))
+                }
+                val bold = match.groups[2]?.value
+                val italic = match.groups[3]?.value
+                val code = match.groups[4]?.value
+                val linkLabel = match.groups[5]?.value
+                val linkUrl = match.groups[6]?.value
+
+                when {
+                    bold != null -> spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(bold, bold = true))
+                    italic != null -> spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(italic, italic = true))
+                    code != null -> spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(code, code = true))
+                    linkLabel != null && linkUrl != null -> spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(linkLabel, linkLabel = linkLabel, linkUrl = linkUrl))
+                    else -> spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(match.value))
+                }
+                lastIdx = end
+            }
+            if (lastIdx < text.length) {
+                spans.add(com.ivarna.apexcore.ui.iron.legal.MdSpan(text.substring(lastIdx)))
+            }
+            return if (spans.isEmpty()) listOf(com.ivarna.apexcore.ui.iron.legal.MdSpan(text)) else spans
+        }
+
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.startsWith("```")) {
+                if (inCode) {
+                    flushCode()
+                    inCode = false
+                } else {
+                    flushTable()
+                    inCode = true
+                }
+                continue
+            }
+
+            if (inCode) {
+                codeLines.add(line)
+                continue
+            }
+
+            if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+                // separator line check |---|
+                if (trimmed.replace("|", "").replace("-", "").replace(":", "").isBlank()) {
+                    continue
+                }
+                val cols = trimmed.split("|").map { it.trim() }.filter { it.isNotEmpty() }
+                tableRows.add(cols)
+                continue
+            } else {
+                flushTable()
+            }
+
+            if (trimmed.isBlank()) {
+                continue
+            }
+
+            if (trimmed.startsWith("#")) {
+                val level = trimmed.takeWhile { it == '#' }.length
+                val headingText = trimmed.drop(level).trim()
+                blocks.add(MdBlock.Heading(level, headingText))
+                continue
+            }
+
+            if (trimmed.startsWith("* ") || trimmed.startsWith("- ")) {
+                val bulletText = trimmed.drop(2).trim()
+                blocks.add(MdBlock.Bullet(parseSpans(bulletText)))
+                continue
+            }
+
+            blocks.add(MdBlock.Paragraph(parseSpans(trimmed)))
+        }
+        flushCode()
+        flushTable()
+        blocks
+    } catch (_: Throwable) {
+        emptyList<MdBlock>()
+    }
 }

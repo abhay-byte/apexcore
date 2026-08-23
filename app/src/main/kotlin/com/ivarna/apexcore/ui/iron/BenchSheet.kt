@@ -68,7 +68,6 @@ fun BenchSheet(
                     }
                     .clip(IronShape.Plate)
                     .background(Iron.Anvil800)
-                    .ironGrain(0.04f)
                     .pointerInput(Unit) {
                         detectVerticalDragGestures(
                             onVerticalDrag = { change, dy ->

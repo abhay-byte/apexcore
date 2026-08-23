@@ -73,6 +73,7 @@ fun PressureRoom(
 ) {
     val clack = rememberClack()
     val serial = rememberSerial()
+    val skin = ironSkin()
     val running = state.phase in runningPhases
 
     val view = LocalView.current
@@ -108,10 +109,10 @@ fun PressureRoom(
 
     Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-            BackArrow(Iron.Bone300, onBack)
+            BackArrow(skin.textDim, onBack)
             Spacer(Modifier.width(8.dp))
             Text(
-                "PRESSURE ROOM", style = IronType.Display.copy(fontSize = 22.sp), color = Iron.Bone100,
+                "PRESSURE ROOM", style = IronType.Display.copy(fontSize = 22.sp), color = skin.text,
                 modifier = Modifier.weight(1f)
             )
             Box {
@@ -128,8 +129,8 @@ fun PressureRoom(
                 ) {
                     LedDot(if (selectedMode?.ready == true) LedState.READY else LedState.BLOCKED)
                     Spacer(Modifier.width(6.dp))
-                    Text(selectedMode?.name ?: "MODE", style = IronType.MonoSm, color = Iron.Bone300)
-                    Text("  ▾", style = IronType.MonoSm, color = Iron.Bone500)
+                    Text(selectedMode?.name ?: "MODE", style = IronType.MonoSm, color = skin.textDim)
+                    Text("  ▾", style = IronType.MonoSm, color = skin.textDim)
                 }
                 if (modeMenu) {
                     IronDropdown(onDismiss = { modeMenu = false }) {
@@ -156,7 +157,7 @@ fun PressureRoom(
 
         Spacer(Modifier.height(6.dp))
 
-        EngravedText("STATE RAILWAY", IronType.Label, color = Iron.Bone500)
+        EngravedText("STATE RAILWAY", IronType.Label, color = skin.textDim)
         Spacer(Modifier.height(8.dp))
         StateRailway(state.phase)
 
@@ -168,10 +169,10 @@ fun PressureRoom(
             state.resultGb?.let {
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("RESULT", style = IronType.MonoSm, color = Iron.Bone500)
+                    Text("RESULT", style = IronType.MonoSm, color = skin.textDim)
                     Spacer(Modifier.width(10.dp))
                     OdometerCounter("+%.1f".format(it), style = IronType.Mono.copy(fontSize = 26.sp))
-                    Text(" GB RECLAIMED", style = IronType.Mono, color = Iron.Phosphor400)
+                    Text(" GB RECLAIMED", style = IronType.Mono, color = ironSkin().phosphor())
                 }
             }
         }
@@ -180,8 +181,8 @@ fun PressureRoom(
 
         Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("PRE-FREEZE BEFORE FILL", style = IronType.Label, color = Iron.Bone100)
-                Text("Purge user apps before pressure test", style = IronType.Caption, color = Iron.Bone500)
+                Text("PRE-FREEZE BEFORE FILL", style = IronType.Label, color = skin.text)
+                Text("Purge user apps before pressure test", style = IronType.Caption, color = skin.textDim)
             }
             MachinedToggle(preFreeze, onPreFreeze)
         }
@@ -288,6 +289,7 @@ private val railLabels = listOf("PRE", "FILL", "HOLD", "REL", "DONE")
 @Composable
 fun StateRailway(phase: PressurePhase) {
     val clack = rememberClack()
+    val phosphor = ironSkin().phosphor()
     val idx = when (phase) {
         PressurePhase.IDLE -> -1
         PressurePhase.PREFREEZE -> 0
@@ -314,7 +316,7 @@ fun StateRailway(phase: PressurePhase) {
             ) { i ->
                 Text(
                     if (i < 0) "STANDBY" else railLabels[i], style = IronType.Mono,
-                    color = if (i < 0) Iron.Bone500 else Iron.Phosphor400
+                    color = if (i < 0) Iron.Bone500 else phosphor
                 )
             }
         }
@@ -328,10 +330,10 @@ fun StateRailway(phase: PressurePhase) {
                 repeat(5) { i ->
                     val cx = segWpx * (i + 0.5f)
                     when {
-                        idx > i -> drawCircle(Iron.Phosphor400, 5.dp.toPx(), Offset(cx, cy))
+                        idx > i -> drawCircle(phosphor, 5.dp.toPx(), Offset(cx, cy))
                         idx == i -> {
-                            drawCircle(Iron.Phosphor400, 5.dp.toPx(), Offset(cx, cy))
-                            drawCircle(Iron.Phosphor400.copy(alpha = 0.5f), 8.dp.toPx(),
+                            drawCircle(phosphor, 5.dp.toPx(), Offset(cx, cy))
+                            drawCircle(phosphor.copy(alpha = 0.5f), 8.dp.toPx(),
                                 Offset(cx, cy), style = Stroke(1.5.dp.toPx()))
                         }
                         else -> drawCircle(Iron.Anvil500, 5.dp.toPx(), Offset(cx, cy),
@@ -358,7 +360,7 @@ fun StateRailway(phase: PressurePhase) {
                             style = IronType.MonoSm,
                             color = when {
                                 i == idx -> Iron.Bone100
-                                idx > i -> Iron.Phosphor400
+                                idx > i -> phosphor
                                 else -> Iron.Bone500
                             }
                         )

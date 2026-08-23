@@ -53,14 +53,17 @@ fun FieldManual(
     val pagerState = rememberPagerState(initialPage = 0) { 5 }
     val page = pagerState.currentPage
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(page) {
+        if (page != 4) return@LaunchedEffect
         while (true) {
             onProbe()
             delay(1200)
         }
     }
 
-    Box(Modifier.fillMaxSize().background(Iron.Bone50).ironGrain(0.05f)) {
+    IronScreen("MANUAL") {
+    val skin = ironSkin()
+    Box(Modifier.fillMaxSize().background(skin.canvas).ironGrain(0.05f)) {
         Row(Modifier.fillMaxSize()) {
             BindingLane()
             Column(
@@ -71,14 +74,14 @@ fun FieldManual(
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (isReplay) BackArrow(Iron.Ink900, onClose)
-                    else BackArrow(Iron.Ink900, {
+                    if (isReplay) BackArrow(skin.text, onClose)
+                    else BackArrow(skin.text, {
                         if (page > 0) scope.launch { pagerState.animateScrollToPage(page - 1) } else onClose()
                     })
                     Spacer(Modifier.weight(1f))
                     RulerPager(5, page)
                     Spacer(Modifier.weight(1f))
-                    if (!isReplay) Text("SKIP", style = IronType.MonoSm, color = Iron.Ink600,
+                    if (!isReplay) Text("SKIP", style = IronType.MonoSm, color = skin.textDim,
                         modifier = Modifier.clickableNoIndication { clack.row(); onFinish(null) })
                     else Spacer(Modifier.width(40.dp))
                 }
@@ -101,20 +104,23 @@ fun FieldManual(
             }
         }
     }
+    }
 }
 
 @Composable
 private fun BindingLane() {
+    val dash = inkColor()
+    val stitch = ironSkin().text
     Canvas(Modifier.width(22.dp).fillMaxHeight()) {
         val cx = 12.dp.toPx()
         var y = 0f
         while (y < size.height) {
-            drawLine(Iron.Ink600, Offset(cx, y), Offset(cx, y + 5.dp.toPx()), 1.5.dp.toPx())
+            drawLine(dash, Offset(cx, y), Offset(cx, y + 5.dp.toPx()), 1.5.dp.toPx())
             y += 9.dp.toPx()
         }
         var sy = 14.dp.toPx()
         while (sy < size.height) {
-            drawLine(Iron.Ink900, Offset(cx - 5.dp.toPx(), sy), Offset(cx + 5.dp.toPx(), sy), 2.dp.toPx())
+            drawLine(stitch, Offset(cx - 5.dp.toPx(), sy), Offset(cx + 5.dp.toPx(), sy), 2.dp.toPx())
             sy += 26.dp.toPx()
         }
     }
@@ -126,7 +132,7 @@ private fun RulerPager(count: Int, active: Int) {
         repeat(count) { i ->
             Box(
                 Modifier.size(4.dp, 16.dp).clip(IronShape.Slot)
-                    .background(if (i == active) Iron.Ink900 else Iron.Ink900.copy(alpha = 0.2f))
+                    .background(if (i == active) ironSkin().text else ironSkin().text.copy(alpha = 0.2f))
             )
         }
     }
@@ -154,16 +160,16 @@ private fun CoverPage(pagerState: androidx.compose.foundation.pager.PagerState) 
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { FigArtwork(0) }
         }
         Spacer(Modifier.height(24.dp))
-        RisoText("APEXCORE", IronType.Display.copy(fontSize = 30.sp), color = Iron.Ink900)
+        RisoText("APEXCORE", IronType.Display.copy(fontSize = 30.sp), color = ironSkin().text)
         Text(
-            "FIELD-GRADE PERFORMANCE INSTRUMENTS", style = IronType.MonoSm, color = Iron.Ink600,
+            "FIELD-GRADE PERFORMANCE INSTRUMENTS", style = IronType.MonoSm, color = ironSkin().textDim,
             modifier = Modifier.padding(top = 6.dp), letterSpacing = 2.sp
         )
         Spacer(Modifier.height(28.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             DoodleStar()
             Spacer(Modifier.width(10.dp))
-            Text("hello, operator.", style = IronType.Hand, color = Iron.Ink600)
+            Text("hello, operator.", style = IronType.Hand, color = ironSkin().textDim)
         }
     }
 }
@@ -184,20 +190,20 @@ private fun FigurePage(
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { FigArtwork(page) }
             }
             Spacer(Modifier.height(20.dp))
-            Text(kicker, style = IronType.MonoSm, color = Iron.Signal700, letterSpacing = 1.5.sp)
+            Text(kicker, style = IronType.MonoSm, color = accentColor(), letterSpacing = 1.5.sp)
             Spacer(Modifier.height(6.dp))
-            Text(title, style = IronType.Title.copy(fontSize = 24.sp), color = Iron.Ink900)
+            Text(title, style = IronType.Title.copy(fontSize = 24.sp), color = ironSkin().text)
             Spacer(Modifier.height(10.dp))
-            Text(body, style = IronType.Body, color = Iron.Ink600, modifier = Modifier.padding(horizontal = 8.dp))
+            Text(body, style = IronType.Body, color = ironSkin().textDim, modifier = Modifier.padding(horizontal = 8.dp))
         }
         Column(
             Modifier.align(Alignment.BottomEnd).padding(end = 4.dp, bottom = 12.dp)
                 .manualParallax(pagerState, page, 0.7f, reduced),
             horizontalAlignment = Alignment.End
         ) {
-            DoodleArrow(Iron.Signal700, Modifier.graphicsLayer { rotationZ = 200f })
+            DoodleArrow(accentColor(), Modifier.graphicsLayer { rotationZ = 200f })
             Text(
-                marginNotes[page], style = IronType.Hand, color = Iron.Ink600,
+                marginNotes[page], style = IronType.Hand, color = ironSkin().textDim,
                 modifier = Modifier.graphicsLayer { rotationZ = -4f }
             )
         }
@@ -213,24 +219,24 @@ private fun KeyPage(
     onConfigureShizuku: () -> Unit, onGrantRoot: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)) {
-        Text("04 · SYSTEM ACCESS", style = IronType.MonoSm, color = Iron.Signal700, letterSpacing = 1.5.sp)
+        Text("04 · SYSTEM ACCESS", style = IronType.MonoSm, color = accentColor(), letterSpacing = 1.5.sp)
         Spacer(Modifier.height(6.dp))
-        Text("Elevate Your Control", style = IronType.Title.copy(fontSize = 24.sp), color = Iron.Ink900)
+        Text("Elevate Your Control", style = IronType.Title.copy(fontSize = 24.sp), color = ironSkin().text)
         Spacer(Modifier.height(8.dp))
         Text(
             "Deep freeze needs a key. Pick Shizuku or Root — change it any time in Settings.",
-            style = IronType.Body, color = Iron.Ink600
+            style = IronType.Body, color = ironSkin().textDim
         )
         Spacer(Modifier.height(16.dp))
         KeyCard(
             BackendChoice.SHIZUKU, shizuku, selected == BackendChoice.SHIZUKU,
-            onPaper = true, badge = "RECOMMENDED",
+            badge = "RECOMMENDED",
             onUse = { onSelect(BackendChoice.SHIZUKU) }, onConfigure = onConfigureShizuku
         )
         Spacer(Modifier.height(12.dp))
         KeyCard(
             BackendChoice.ROOT, root, selected == BackendChoice.ROOT,
-            onPaper = true, badge = null,
+            badge = null,
             onUse = { onSelect(BackendChoice.ROOT) }, onConfigure = onGrantRoot
         )
         Spacer(Modifier.height(12.dp))
@@ -241,7 +247,7 @@ private fun KeyPage(
         ) {
             DoodleStar()
             Spacer(Modifier.width(8.dp))
-            Text(marginNotes[4], style = IronType.Hand, color = Iron.Ink600)
+            Text(marginNotes[4], style = IronType.Hand, color = ironSkin().textDim)
         }
     }
 }
@@ -251,17 +257,17 @@ fun KeyCard(
     choice: BackendChoice,
     status: KeyStatus,
     selected: Boolean,
-    onPaper: Boolean,
     onUse: () -> Unit,
     onConfigure: () -> Unit,
     modifier: Modifier = Modifier,
     badge: String? = null,
+    onPaper: Boolean = ironSkin().isPaper,
 ) {
     val clack = rememberClack()
     val borderC = if (onPaper) Iron.Ink600 else Iron.Anvil500
     val textC = if (onPaper) Iron.Ink900 else Iron.Bone100
     val dimC = if (onPaper) Iron.Ink600 else Iron.Bone500
-    Box(modifier.fillMaxWidth().border(1.5.dp, borderC, IronShape.Plate).ironGrain(0.06f)) {
+    Box(modifier.fillMaxWidth().border(1.5.dp, borderC, IronShape.Plate)) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (choice == BackendChoice.SHIZUKU) SkeletonKeyGlyph(textC) else AllenKeyGlyph(textC)

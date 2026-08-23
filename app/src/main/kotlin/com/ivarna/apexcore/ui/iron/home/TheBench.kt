@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -35,12 +36,16 @@ fun TheBench(
     onRamFree: () -> Unit,
     onSetup: () -> Unit,
     toast: StampToastState,
+    active: Boolean = true,
 ) {
     val clack = rememberClack()
     val serial = rememberSerial()
     val density = LocalDensity.current
     val clipboard = LocalClipboardManager.current
-    val ceremonyGate = rememberCeremonyGate()
+    val ceremonyGate = LocalCeremonyGate.current
+    val reduced = LocalReducedMotion.current
+    val skin = ironSkin()
+    var tickerWide by rememberSaveable { mutableStateOf(true) }
 
     var phase by remember { mutableStateOf(BenchPhase.IDLE) }
     var workOrder by remember { mutableStateOf<WorkOrderData?>(null) }
@@ -65,6 +70,7 @@ fun TheBench(
     val ramTotalGb = ui.mem.ramTotalMb / 1024f
 
     fun purge() {
+        if (!active) return
         if (!ui.elevated) {
             clack.no()
             return
@@ -79,6 +85,12 @@ fun TheBench(
         ceremonyGate.run {
             stampText = null
             odometerText = null
+            if (reduced) {
+                phase = BenchPhase.RESULT
+                workOrder = ui.lastOrder
+                clack.purgeDone()
+                return@run
+            }
             windUp = 0.12f
             delay(180)
             clack.thud()
@@ -105,11 +117,12 @@ fun TheBench(
     }
 
     val thresholdPx = with(density) { 120.dp.toPx() }
-    val pullConnection = remember(clack) {
+    val pullConnection = remember(clack, active) {
         object : NestedScrollConnection {
             var pull by mutableFloatStateOf(0f)
             private var armed = false
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (!active) return Offset.Zero
                 if (source == NestedScrollSource.UserInput && available.y > 0f) {
                     pull = (pull + available.y * 0.5f).coerceAtMost(thresholdPx * 1.3f)
                     if (pull >= thresholdPx && !armed) {
@@ -132,6 +145,7 @@ fun TheBench(
         }
     }
 
+    IronScreen("HOME") {
     Box(
         Modifier
             .fillMaxSize()
@@ -156,7 +170,11 @@ fun TheBench(
                     workOrder != null -> "ALREADY OPTIMIZED" to LedState.READY
                     else -> "READY TO PURGE BLOAT" to LedState.READY
                 }
-                TickerLine(txt, led)
+                 TickerLine(
+                    txt, led,
+                    collapsed = !tickerWide,
+                    onDoubleTap = { tickerWide = !tickerWide }
+                )
             }
 
             if (!ui.elevated) item {
@@ -178,6 +196,7 @@ fun TheBench(
                         freedFraction = ui.freedFraction,
                         boosting = phase == BenchPhase.BOOSTING,
                         over = windUp,
+                        active = active,
                         label = "RAM",
                         valueText = "%.1f / %.1f GB".format(ramUsedGb, ramTotalGb),
                         onLongPress = {
@@ -240,17 +259,17 @@ fun TheBench(
             if (ui.elevated) item {
                 Spacer(Modifier.height(12.dp))
                 ToolRow("Game optimisation", "Kernel & session parameters",
-                    { GaugeGlyph(Iron.Bone300) }, onTune)
+                    { GaugeGlyph(skin.textDim) }, onTune)
             }
             item {
                 Spacer(Modifier.height(8.dp))
                 ToolRow("Pin Apps", "Protect apps from being frozen",
-                    { LoupeGlyph(Iron.Bone300) }, onPins)
+                    { LoupeGlyph(skin.textDim) }, onPins)
             }
             item {
                 Spacer(Modifier.height(8.dp))
                 ToolRow("Pressure Room", "Force safe RAM reclaim",
-                    { RailGlyph(Iron.Bone300) }, onRamFree)
+                    { RailGlyph(skin.textDim) }, onRamFree)
             }
 
             item {
@@ -285,6 +304,7 @@ fun TheBench(
         }
 
         StampToastHost(state = toast)
+    }
     }
 }
 

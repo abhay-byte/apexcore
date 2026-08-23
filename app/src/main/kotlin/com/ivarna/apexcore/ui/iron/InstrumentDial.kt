@@ -9,6 +9,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
@@ -48,6 +49,12 @@ fun dialPalette(): DialPalette =
         needle = Iron.Bone100, idleNeedle = Iron.Bone500, freed = Iron.Phosphor400,
     )
 
+/** Cached tick geometry — built once per size, never per frame (§11.1). */
+private data class DialTick(val start: Offset, val end: Offset, val major: Boolean)
+
+/** Cached numeral layout + precomputed position. */
+private data class DialNumeral(val layout: TextLayoutResult, val pos: Offset)
+
 @Composable
 fun InstrumentDial(
     value: Float,
@@ -61,50 +68,60 @@ fun InstrumentDial(
     over: Float = 0f,
     numerals: Boolean = true,
     ignition: Boolean = true,
+    active: Boolean = true,
     onLongPress: (() -> Unit)? = null,
 ) {
     val clack = rememberClack()
     val reduced = LocalReducedMotion.current
+    val finish = LocalIronFinish.current
     val rest = -0.025f
     val needle = remember { Animatable(if (energized) 0f else rest) }
     val freed = remember { Animatable(0f) }
     var swept by rememberSaveable { mutableStateOf(false) }
     val pal = dialPalette()
+    val spec = if (reduced) tween<Float>(150, easing = LinearEasing) else IronMotion.needle()
 
-    LaunchedEffect(energized, ignition) {
+    LaunchedEffect(finish) {
+        if (!ignition) return@LaunchedEffect
+        swept = false
+    }
+
+    LaunchedEffect(energized, ignition, swept) {
         if (energized && ignition && !swept) {
             swept = true
             if (!reduced) {
                 launch { repeat(3) { delay(80); clack.tick() } }
                 needle.animateTo(1f, tween(300, easing = LinearEasing))
             }
-            needle.animateTo(value, IronMotion.needle())
+            needle.animateTo(value, spec)
         }
     }
 
     LaunchedEffect(value, energized) {
         if (!ignition || swept) {
-            needle.animateTo(if (energized) value else rest, IronMotion.needle())
+            needle.animateTo(if (energized) value else rest, spec)
         }
     }
-    LaunchedEffect(freedFraction) { freed.animateTo(freedFraction, IronMotion.needle()) }
+    LaunchedEffect(freedFraction) { freed.animateTo(freedFraction, spec) }
 
     var drift by remember { mutableFloatStateOf(0.5f) }
     var huntP by remember { mutableFloatStateOf(0f) }
     var shimP by remember { mutableFloatStateOf(0f) }
 
-    LaunchedEffect(energized, boosting) {
-        if (energized && !boosting && !reduced) {
-            val t0 = System.nanoTime()
-            while (true) {
-                drift = ((System.nanoTime() - t0) / 4e9f) % 1f
-                delay(100)
-            }
-        } else drift = 0.5f
+    LaunchedEffect(energized, boosting, active) {
+        if (!active || !energized || boosting || reduced) {
+            drift = 0.5f
+            return@LaunchedEffect
+        }
+        val t0 = System.nanoTime()
+        while (true) {
+            drift = ((System.nanoTime() - t0) / 4e9f) % 1f
+            delay(100)
+        }
     }
 
-    LaunchedEffect(boosting) {
-        if (!boosting || reduced) return@LaunchedEffect
+    LaunchedEffect(boosting, active) {
+        if (!boosting || reduced || !active) return@LaunchedEffect
         val t0 = System.nanoTime()
         while (true) {
             huntP = ((System.nanoTime() - t0) / 1.1e9f) % 1f
@@ -115,53 +132,86 @@ fun InstrumentDial(
 
     val measurer = rememberTextMeasurer()
 
+    // §3.5 a11y — description changes (⇒ TalkBack re-announce) only on ≥5% steps
+    val announcedPct = remember(value) { (((value * 100).toInt() / 5).coerceAtLeast(0)) * 5 }
+
     Box(
         modifier
             .size(diameter)
-            .semantics { contentDescription = "$label ${(value * 100).toInt()} percent" }
+            .semantics { contentDescription = "$label $announcedPct percent" }
             .pointerInput(onLongPress) {
                 if (onLongPress != null) detectTapGestures(onLongPress = { onLongPress() })
             }
     ) {
         Canvas(
-            Modifier.fillMaxSize()
-        ) {
-            val r = size.minDimension / 2f
-            val center = Offset(size.width / 2f, size.height / 2f)
-            val ringR = r * 0.78f
-            val arcR = ringR - r * 0.07f
-            val startDeg = 150f
-            val sweepDeg = 240f
-            val arcW = r * 0.022f
+            Modifier
+                .fillMaxSize()
+                .drawWithCache {
+                    // ── cache scope: once per size/palette, zero per-frame allocation (§11.1)
+                    val r = size.minDimension / 2f
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    val ringR = r * 0.78f
+                    val arcR = ringR - r * 0.07f
+                    val startDeg = 150f
+                    val sweepDeg = 240f
+                    val arcW = r * 0.022f
 
-            val needlePath = Path().apply {
-                val b = r * 0.03f
-                moveTo(r * 0.70f, 0f)
-                lineTo(-r * 0.20f, b)
-                lineTo(-r * 0.28f, b * 0.5f)
-                lineTo(-r * 0.28f, -b * 0.5f)
-                lineTo(-r * 0.20f, -b)
-                close()
-            }
+                    val ticks = List(65) { i ->
+                        val a = Math.toRadians((startDeg + sweepDeg * i / 64f).toDouble())
+                        val len = if (i % 8 == 0) r * 0.075f else r * 0.045f
+                        DialTick(
+                            Offset(center.x + cos(a).toFloat() * ringR, center.y + sin(a).toFloat() * ringR),
+                            Offset(center.x + cos(a).toFloat() * (ringR + len), center.y + sin(a).toFloat() * (ringR + len)),
+                            i % 8 == 0
+                        )
+                    }
 
-            val nv = needle.value + over +
-                (if (boosting) sin(huntP * 2f * PI).toFloat() * 0.012f else 0f) +
-                (if (energized && !boosting) (drift - 0.5f) * 0.004f else 0f)
+                    val needlePath = Path().apply {
+                        val b = r * 0.03f
+                        moveTo(r * 0.70f, 0f)
+                        lineTo(-r * 0.20f, b)
+                        lineTo(-r * 0.28f, b * 0.5f)
+                        lineTo(-r * 0.28f, -b * 0.5f)
+                        lineTo(-r * 0.20f, -b)
+                        close()
+                    }
 
-            val minorC = if (energized) pal.minor else pal.idleNeedle.copy(alpha = 0.35f)
-            val majorC = if (energized) pal.major else pal.idleNeedle.copy(alpha = 0.5f)
+                    val numeralOut: List<DialNumeral> = if (numerals) {
+                        listOf(0, 25, 50, 75, 100).map { n ->
+                            val ang = Math.toRadians((startDeg + sweepDeg * n / 100f).toDouble())
+                            val rr = r * 0.94f
+                            val l = measurer.measure(
+                                "$n",
+                                TextStyle(fontFamily = PlexMono, fontWeight = FontWeight.Medium, fontSize = 11.sp, color = pal.numeral)
+                            )
+                            DialNumeral(
+                                l,
+                                Offset(
+                                    center.x + cos(ang).toFloat() * rr - l.size.width / 2f,
+                                    center.y + sin(ang).toFloat() * rr - l.size.height / 2f
+                                )
+                            )
+                        }
+                    } else emptyList()
 
-            for (i in 0..64) {
-                val a = Math.toRadians((startDeg + sweepDeg * i / 64f).toDouble())
-                val len = if (i % 8 == 0) r * 0.075f else r * 0.045f
-                val c = if (i % 8 == 0) majorC else minorC
-                drawLine(
-                    c,
-                    Offset(center.x + cos(a).toFloat() * ringR, center.y + sin(a).toFloat() * ringR),
-                    Offset(center.x + cos(a).toFloat() * (ringR + len), center.y + sin(a).toFloat() * (ringR + len)),
-                    if (i % 8 == 0) r * 0.010f else r * 0.006f
-                )
-            }
+                    val restStopAngle = Math.toRadians((startDeg + sweepDeg * rest).toDouble())
+
+                    // ── draw scope: reads only animated state → redraw-only invalidation ──
+                    onDrawBehind {
+                        val nv = needle.value + over +
+                            (if (boosting) sin(huntP * 2f * PI).toFloat() * 0.012f else 0f) +
+                            (if (energized && !boosting) (drift - 0.5f) * 0.004f else 0f)
+
+                        val minorC = if (energized) pal.minor else pal.idleNeedle.copy(alpha = 0.35f)
+                        val majorC = if (energized) pal.major else pal.idleNeedle.copy(alpha = 0.5f)
+
+                        for (t in ticks) {
+                            drawLine(
+                                if (t.major) majorC else minorC,
+                                t.start, t.end,
+                                if (t.major) r * 0.010f else r * 0.006f
+                            )
+                        }
 
             val arcBox = Size(arcR * 2f, arcR * 2f)
             val arcTL = Offset(center.x - arcR, center.y - arcR)
@@ -186,18 +236,17 @@ fun InstrumentDial(
                 )
             }
 
-            if (!energized) {
-                val ra = Math.toRadians((startDeg + sweepDeg * rest).toDouble())
-                drawLine(
-                    Iron.Brass400,
-                    Offset(
-                        center.x + cos(ra).toFloat() * (ringR - r * 0.045f),
-                        center.y + sin(ra).toFloat() * (ringR - r * 0.045f)
-                    ),
-                    Offset(center.x + cos(ra).toFloat() * ringR, center.y + sin(ra).toFloat() * ringR),
-                    r * 0.010f
-                )
-            }
+                        if (!energized) {
+                            drawLine(
+                                Iron.Brass400,
+                                Offset(
+                                    center.x + cos(restStopAngle).toFloat() * (ringR - r * 0.045f),
+                                    center.y + sin(restStopAngle).toFloat() * (ringR - r * 0.045f)
+                                ),
+                                Offset(center.x + cos(restStopAngle).toFloat() * ringR, center.y + sin(restStopAngle).toFloat() * ringR),
+                                r * 0.010f
+                            )
+                        }
 
             withTransform({
                 rotate(startDeg + sweepDeg * nv, pivot = center)
@@ -208,24 +257,10 @@ fun InstrumentDial(
                 drawCircle(Iron.Ink900, r * 0.018f, Offset.Zero)
             }
 
-            if (numerals) {
-                listOf(0, 25, 50, 75, 100).forEach { n ->
-                    val ang = Math.toRadians((startDeg + sweepDeg * n / 100f).toDouble())
-                    val rr = r * 0.94f
-                    val l = measurer.measure(
-                        "$n",
-                        TextStyle(fontFamily = PlexMono, fontWeight = FontWeight.Medium, fontSize = 11.sp, color = pal.numeral)
-                    )
-                    drawText(
-                        l,
-                        topLeft = Offset(
-                            center.x + cos(ang).toFloat() * rr - l.size.width / 2f,
-                            center.y + sin(ang).toFloat() * rr - l.size.height / 2f
-                        )
-                    )
+                        numeralOut.forEach { n -> drawText(n.layout, topLeft = n.pos) }
+                    }
                 }
-            }
-        }
+        ) {}
 
         if (valueText.isNotEmpty() || label.isNotEmpty()) {
             Column(

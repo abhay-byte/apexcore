@@ -47,6 +47,7 @@ fun TheLedger(
     onLink: (String) -> Unit,
     onBack: () -> Unit,
 ) {
+    IronScreen("LEDGER") {
     Box(Modifier.fillMaxSize().background(Iron.Bone50).ironGrain(0.05f)) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             Row(
@@ -59,8 +60,12 @@ fun TheLedger(
                 Spacer(Modifier.width(8.dp))
                 Text(
                     "THE LEDGER", style = IronType.Display.copy(fontSize = 20.sp), color = Iron.Ink900,
-                    modifier = Modifier.weight(1f)
+                    maxLines = 1, softWrap = false
                 )
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(start = 44.dp, bottom = 6.dp)
+            ) {
                 StampLabel("PRINTED OFFLINE · NO NETWORK", StampInk.Brass, slam = false)
             }
             HorizontalDivider(color = Iron.Ink600.copy(alpha = 0.3f), thickness = 1.dp)
@@ -82,6 +87,7 @@ fun TheLedger(
                 }
             }
         }
+    }
     }
 }
 
@@ -123,7 +129,6 @@ private fun Block(b: MdBlock, onLink: (String) -> Unit) {
                     .fillMaxWidth()
                     .clip(IronShape.Plate)
                     .background(Iron.Anvil800)
-                    .ironGrain(0.05f)
                     .padding(12.dp)
             ) {
                 Column {
