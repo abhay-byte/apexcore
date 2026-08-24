@@ -2,6 +2,38 @@
 
 ---
 
+## Version 1.3 (Build 4) — Performance & Polish
+
+**Release Date:** August 24, 2026  
+**Target SDK:** 36 (Android 16 Ready)  
+**Min SDK:** 24 (Android 7.0+)
+
+### Highlights
+
+Version 1.3 is a performance and polish release focused on 60fps UI, theme correctness, and accurate store assets.
+
+---
+
+### Key Improvements
+
+#### 1. TuningRoom 60fps Scroll
+* Hoisted category sorting out of `LazyColumn`, switched to keyed `items` with `contentType`, disabled shadow `RenderNode` for list plates, and removed `mutableState` write on every scroll delta in `NestedScrollConnection` – eliminates jank when scrolling Game Optimisation.
+
+#### 2. Home → Games → Pin Navigation
+* Deferred Pin sheet 260ms after `GearTabTransition`, cached `PackageManager` scan 4s in `GameManager`, async `AppIconCache` for `getApplicationIcon`, disabled `RenderEffect` blur in Games carousel, optimized `LazyColumn` keys in sheets.
+
+#### 3. Vellum Theme Correctness
+* `EngravedPlate` now adaptive (`skin.plate`/`hairline`), `TuningRoom` uses `PaperPlate` on Vellum for readable dark-on-light titles.
+* `BridgePlate` and `GearSelector` use white (`#FFFFFF`) on Vellum with dark glyphs/text for contrast; `Paper` status/nav bars white with dark icons (`isAppearanceLightStatusBars=true`).
+
+#### 4. Accurate Icon PNGs
+* Regenerated `docs/storelisting/icon*.png` and `app_icon_*.png` (512/1024/256/192/144/96/72/48) accurately from `ic_launcher_foreground.xml` + `ic_launcher_background.xml` via `rsvg-convert`, 25% zoom centered then +5.4 viewport shift right/top.
+
+#### 5. Version Bump
+* `versionCode 3→4`, `versionName 1.2→1.3` in `app/build.gradle.kts` and fallback in `MainScreen.kt`; toolbox displays 1.3.
+
+---
+
 ## Version 1.2 (Build 3) — Real Game Optimisation Engine
 
 **Release Date:** August 18, 2026  
