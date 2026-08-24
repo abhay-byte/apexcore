@@ -131,27 +131,31 @@ fun PaperPlate(
     modifier: Modifier = Modifier,
     deckleTop: Boolean = false,
     padding: PaddingValues = PaddingValues(16.dp),
+    withShadow: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = if (deckleTop) remember { DeckleShape() } else IronShape.Plate
+    // For scroll-heavy lists (TuningRoom) disable shadow to avoid RenderNode allocation stutter
+    val shadowMod = if (withShadow) Modifier.shadow(
+        8.dp, shape, clip = false,
+        ambientColor = Iron.Ink900.copy(alpha = 0.35f),
+        spotColor = Iron.Ink900.copy(alpha = 0.35f)
+    ) else Modifier
+    val behindMod = if (withShadow) Modifier.drawWithCache {
+        val p = Path().apply {
+            addRoundRect(RoundRect(0f, 0f, this@drawWithCache.size.width, this@drawWithCache.size.height, CornerRadius(4.dp.toPx())))
+        }
+        val dp1Px = 1.dp.toPx()
+        onDrawBehind {
+            withTransform({ translate(0f, dp1Px) }) {
+                drawPath(p, Iron.Ink900.copy(alpha = 0.35f))
+            }
+        }
+    } else Modifier
     Box(
         modifier
-            .drawWithCache {
-                val p = Path().apply {
-                    addRoundRect(RoundRect(0f, 0f, this@drawWithCache.size.width, this@drawWithCache.size.height, CornerRadius(4.dp.toPx())))
-                }
-                val dp1Px = 1.dp.toPx()
-                onDrawBehind {
-                    withTransform({ translate(0f, dp1Px) }) {
-                        drawPath(p, Iron.Ink900.copy(alpha = 0.35f))
-                    }
-                }
-            }
-            .shadow(
-                8.dp, shape, clip = false,
-                ambientColor = Iron.Ink900.copy(alpha = 0.35f),
-                spotColor = Iron.Ink900.copy(alpha = 0.35f)
-            )
+            .then(behindMod)
+            .then(shadowMod)
             .clip(shape)
             .background(Iron.Bone100)
     ) {

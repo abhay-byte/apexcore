@@ -71,10 +71,11 @@ fun TuningRoom(
         }
     }
 
-    var pull by remember { mutableFloatStateOf(0f) }
     val thresholdPx = with(density) { 96.dp.toPx() }
-    val probeConnection = remember {
+    // Keep pull as plain var inside connection – avoid mutableState recomposition on every scroll delta (stutter source)
+    val probeConnection = remember(thresholdPx) {
         object : NestedScrollConnection {
+            var pull = 0f
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
                 if (source == NestedScrollSource.UserInput && available.y > 0f) {
                     pull = (pull + available.y * 0.5f).coerceAtMost(thresholdPx * 1.2f)
@@ -144,18 +145,41 @@ fun TuningRoom(
                 Spacer(Modifier.height(10.dp))
             }
 
-            LazyColumn(Modifier.weight(1f)) {
-                val sorted = categories.sortedByDescending { it.availableCount }
-                sorted.forEach { cat ->
-                    item(key = cat.name) {
-                        DrawerHeader(cat.name, cat.availableCount)
-                        Spacer(Modifier.height(8.dp))
-                        // Adaptive plate: PaperPlate on Vellum for contrast, Engraved on Graphite
-                        val plate: @Composable (@Composable ColumnScope.() -> Unit) -> Unit = { c ->
-                            if (skin.isPaper) PaperPlate(Modifier.fillMaxWidth(), padding = PaddingValues(16.dp), content = c)
-                            else EngravedPlate(Modifier.fillMaxWidth(), content = c)
+            // Hoist sorting out of LazyColumn to avoid re-sort on every scroll frame (stutter)
+            val sortedCategories = remember(categories) {
+                categories.sortedByDescending { it.availableCount }
+            }
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(bottom = 12.dp),
+            ) {
+                items(
+                    count = sortedCategories.size,
+                    key = { i -> sortedCategories[i].name },
+                    contentType = { "category" }
+                ) { idx ->
+                    val cat = sortedCategories[idx]
+                    DrawerHeader(cat.name, cat.availableCount)
+                    Spacer(Modifier.height(8.dp))
+                    // Direct adaptive plate – no extra lambda allocation per item; disable shadow for scroll perf
+                    if (skin.isPaper) {
+                        PaperPlate(
+                            modifier = Modifier.fillMaxWidth(),
+                            padding = PaddingValues(16.dp),
+                            withShadow = false
+                        ) {
+                            cat.options.forEachIndexed { i, opt ->
+                                // Key per row not needed as not lazy, but keep stable content
+                                TuneRow(opt)
+                                if (i < cat.options.lastIndex) {
+                                    Spacer(Modifier.height(6.dp))
+                                    HorizontalDivider(color = skin.hairline, thickness = 1.dp)
+                                    Spacer(Modifier.height(6.dp))
+                                }
+                            }
                         }
-                        plate {
+                    } else {
+                        EngravedPlate(Modifier.fillMaxWidth()) {
                             cat.options.forEachIndexed { i, opt ->
                                 TuneRow(opt)
                                 if (i < cat.options.lastIndex) {
@@ -165,11 +189,11 @@ fun TuningRoom(
                                 }
                             }
                         }
-                        Spacer(Modifier.height(20.dp))
                     }
+                    Spacer(Modifier.height(20.dp))
                 }
-                item {
-                    PaperPlate {
+                item(key = "footer", contentType = "footer") {
+                    PaperPlate(withShadow = false) {
                         Text(
                             "Applies when you launch a game from ApexCore. Restored when the session ends. Does not disable thermal protections.",
                             style = IronType.Caption, color = Iron.Ink600
