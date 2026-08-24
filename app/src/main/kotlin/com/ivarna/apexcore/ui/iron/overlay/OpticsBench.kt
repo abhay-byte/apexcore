@@ -35,6 +35,11 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.os.Build
+import android.view.WindowManager
+import androidx.compose.ui.platform.LocalContext
+import com.ivarna.apexcore.fps.model.FpsMethod
+import com.ivarna.apexcore.fps.model.abbrev
 import com.ivarna.apexcore.ui.iron.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -65,15 +70,26 @@ fun OpticsBench(
 ) {
     val serial = rememberSerial()
     val skin = ironSkin()
+    val ctx = LocalContext.current
+    fun previewRefreshHz(): Float = try {
+        if (Build.VERSION.SDK_INT >= 30) ctx.display?.refreshRate ?: 60f
+        else @Suppress("DEPRECATION") (ctx.getSystemService(WindowManager::class.java)?.defaultDisplay?.refreshRate ?: 60f)
+    } catch (_: Throwable) { 60f }
 
-    var fps by remember { mutableIntStateOf(144) }
+    var fps by remember { mutableIntStateOf(60) }
+    var fpsMethod by remember { mutableStateOf(FpsMethod.SURFACEFLINGER) }
     val ram = remember { mutableStateListOf(*(FloatArray(40) { 0.5f }).toTypedArray()) }
     val cpu = remember { mutableStateListOf(*(FloatArray(8) { 0.3f }).toTypedArray()) }
 
     LaunchedEffect(active) {
         if (!active) return@LaunchedEffect
         while (true) {
-            fps = 118 + (0..26).random()
+            val ceiling = previewRefreshHz().toInt().coerceAtLeast(60)
+            // Never exceed display refresh — preview simulates capped live data (max variance 20 below ceiling)
+            val simulated = (ceiling - (0..18).random()).coerceIn(10, ceiling)
+            fps = simulated
+            // Cycle demo method so compact label is visible in preview
+            fpsMethod = listOf(FpsMethod.SURFACEFLINGER, FpsMethod.DMA_FENCE, FpsMethod.GFXINFO).random()
             ram.removeAt(0)
             ram.add(0.3f + (0..40).random() / 100f)
             repeat(8) { cpu[it] = 0.15f + (0..70).random() / 100f }
@@ -116,20 +132,31 @@ fun OpticsBench(
                 style = IronType.Caption, color = skin.textDim
             )
             Spacer(Modifier.height(12.dp))
-            PhantomRailPreview(fps, ram.toList(), cpu.toList(), state)
+            PhantomRailPreview(fps, ram.toList(), cpu.toList(), state, fpsMethod)
             Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("PREVIEW SERVICE", style = IronType.Label, color = skin.text, modifier = Modifier.weight(1f))
-                MachinedToggle(state.previewRunning, onTogglePreview)
+                MachinedToggle(
+                    checked = state.previewRunning,
+                    onCheckedChange = onTogglePreview,
+                    enabled = state.permissionGranted
+                )
+            }
+            if (!state.permissionGranted) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Grant draw-over permission to start the preview service",
+                    style = IronType.MonoSm, color = Iron.Signal500
+                )
             }
             Spacer(Modifier.height(12.dp))
             Row {
                 ChamferButton(
                     "START OVERLAY",
-                    { onTogglePreview(true) },
+                    { if (state.permissionGranted) onTogglePreview(true) },
                     Modifier.weight(1f),
                     tall = false,
-                    enabled = !state.previewRunning,
+                    enabled = state.permissionGranted && !state.previewRunning,
                     variant = if (state.previewRunning) ChamferVariant.Outline else ChamferVariant.Primary,
                 )
                 Spacer(Modifier.width(10.dp))
@@ -181,6 +208,7 @@ fun PhantomRailPreview(
     ram: List<Float>,
     cpu: List<Float>,
     state: OpticsUiState,
+    fpsMethod: FpsMethod = FpsMethod.SURFACEFLINGER,
 ) {
     val clack = rememberClack()
     val scope = rememberCoroutineScope()
@@ -244,7 +272,7 @@ fun PhantomRailPreview(
                         )
                     }
                 ) {
-                    RailPanel(fps, ram, cpu, state.size, state.opacity, flashDefrost.value) {
+                    RailPanel(fps, ram, cpu, state.size, state.opacity, flashDefrost.value, fpsMethod) {
                         interaction++
                         flashDefrost.value = true
                         clack.confirm()
@@ -273,6 +301,7 @@ fun PhantomRailPreview(
 private fun RailPanel(
     fps: Int, ram: List<Float>, cpu: List<Float>,
     size: RailSize, opacity: Float, defrostFlash: Boolean,
+    fpsMethod: FpsMethod = FpsMethod.SURFACEFLINGER,
     onDefrost: () -> Unit,
 ) {
     Column(
@@ -287,7 +316,13 @@ private fun RailPanel(
     ) {
         Text("$fps", style = IronType.MonoLg.copy(fontSize = size.fpsSp), color = ironSkin().phosphor())
         Text("FPS", style = IronType.MonoSm, color = Iron.Bone500)
-        Spacer(Modifier.height(6.dp))
+        // Compact method/fallback abbreviation — small mono, centered
+        Text(
+            fpsMethod.abbrev(),
+            style = IronType.MonoSm.copy(fontSize = 7.sp),
+            color = Iron.Bone500.copy(alpha = 0.85f)
+        )
+        Spacer(Modifier.height(4.dp))
         Canvas(Modifier.width(size.panelW - 16.dp).height(22.dp)) {
             val path = Path()
             ram.forEachIndexed { i, v ->

@@ -185,19 +185,32 @@ fun MainScreen(
         }
     }
 
-    // Overlay state
+    // Overlay state — polled so permission grant / external kill reflects without relaunch
     var overlayGranted by remember { mutableStateOf(android.provider.Settings.canDrawOverlays(context)) }
-    var overlayPreview by remember { mutableStateOf(GameOverlayService.isRunning) }
+    var overlayPreview by remember { mutableStateOf(GameOverlayService.isRunning && android.provider.Settings.canDrawOverlays(context)) }
     var railSize by remember { mutableStateOf<RailSize>(RailSize.M) }
     var railOpacity by remember { mutableFloatStateOf(0.94f) }
     var railEdge by remember { mutableStateOf<RailEdge>(RailEdge.LEFT) }
 
     LaunchedEffect(Unit) {
-        overlayGranted = android.provider.Settings.canDrawOverlays(context)
         val s = prefs.getString("hud_size", "M")
         railSize = when (s) { "S" -> RailSize.S; "L" -> RailSize.L; else -> RailSize.M }
         railOpacity = prefs.getFloat("hud_opacity", 0.94f)
         railEdge = if (prefs.getString("hud_edge", "LEFT") == "RIGHT") RailEdge.RIGHT else RailEdge.LEFT
+    }
+    // Continuous poll: keep HUD toggle / permission pill in sync when user returns from Settings or system kills service
+    LaunchedEffect(Unit) {
+        while (true) {
+            val granted = android.provider.Settings.canDrawOverlays(context)
+            val running = GameOverlayService.isRunning
+            if (granted != overlayGranted) overlayGranted = granted
+            // When permission is revoked, preview must show as not running; when granted, reflect service truth
+            val desiredPreview = running && granted
+            if (desiredPreview != overlayPreview) overlayPreview = desiredPreview
+            // If not granted but somehow overlayPreview was true (stale), force false
+            if (!granted && overlayPreview) overlayPreview = false
+            kotlinx.coroutines.delay(1000)
+        }
     }
 
     // Tune state
@@ -474,13 +487,29 @@ fun MainScreen(
                     try { context.startActivity(intent) } catch (_: Throwable) {}
                 },
                 onTogglePreview = { on ->
-                    overlayPreview = on
                     if (on) {
-                        // Empty pkg = follow the foreground app. Pinning our own package
-                        // made the HUD measure apexcore and pushed gfxinfo onto games.
-                        GameOverlayService.start(context, "")
+                        if (!android.provider.Settings.canDrawOverlays(context)) {
+                            overlayGranted = false
+                            overlayPreview = false
+                            // Guard — don't pretend to start; prompt permission
+                            try {
+                                android.widget.Toast.makeText(context, "Grant draw-over permission first", android.widget.Toast.LENGTH_SHORT).show()
+                            } catch (_: Throwable) {}
+                            // Re-check after toast
+                        } else {
+                            val started = GameOverlayService.start(context, "")
+                            overlayPreview = started && android.provider.Settings.canDrawOverlays(context)
+                            if (!started) {
+                                try {
+                                    android.widget.Toast.makeText(context, "Overlay permission required", android.widget.Toast.LENGTH_SHORT).show()
+                                } catch (_: Throwable) {}
+                                overlayGranted = android.provider.Settings.canDrawOverlays(context)
+                            }
+                        }
                     } else {
+                        overlayPreview = false
                         GameOverlayService.stop(context)
+                        overlayGranted = android.provider.Settings.canDrawOverlays(context)
                     }
                 },
                 onSize = { s ->

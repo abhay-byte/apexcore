@@ -12,6 +12,8 @@ import android.view.View
 import android.view.animation.DecelerateInterpolator
 import androidx.core.content.res.ResourcesCompat
 import com.ivarna.apexcore.R
+import com.ivarna.apexcore.fps.model.FpsMethod
+import com.ivarna.apexcore.fps.model.abbrev
 import kotlin.math.abs
 
 /**
@@ -22,6 +24,11 @@ import kotlin.math.abs
 class RailView(context: Context) : View(context) {
 
     var fps = 0
+        set(v) {
+            field = v.coerceAtMost(displayRefreshHz().toInt().coerceAtLeast(1))
+            if (expanded) invalidate()
+        }
+    var fpsMethod: FpsMethod = FpsMethod.NONE
         set(v) {
             field = v
             if (expanded) invalidate()
@@ -57,12 +64,26 @@ class RailView(context: Context) : View(context) {
         invalidate()
     }
 
-    fun push(fps: Int, ramFraction: Float, cpuFractions: FloatArray) {
-        this.fps = fps
+    fun push(fps: Int, ramFraction: Float, cpuFractions: FloatArray, method: FpsMethod = FpsMethod.NONE) {
+        // Hard cap to display refresh – never show > screen Hz even if upstream spikes
+        val capped = fps.coerceAtMost(displayRefreshHz().toInt().coerceAtLeast(1))
+        this.fps = capped
+        this.fpsMethod = method
         ram[ramIdx] = ramFraction
         ramIdx = (ramIdx + 1) % ram.size
         System.arraycopy(cpuFractions, 0, cpu, 0, minOf(cpuFractions.size, cpu.size))
         if (expanded) invalidate()
+    }
+
+    private fun displayRefreshHz(): Float {
+        return try {
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                display?.refreshRate ?: 60f
+            } else {
+                @Suppress("DEPRECATION")
+                (context.getSystemService(android.view.WindowManager::class.java)?.defaultDisplay?.refreshRate ?: 60f)
+            }
+        } catch (_: Throwable) { 60f }
     }
 
     private var expanded = false
@@ -84,16 +105,33 @@ class RailView(context: Context) : View(context) {
         expandAnim.cancel()
         expandAnim.setFloatValues(if (on) 0f else 1f, if (on) 1f else 0f)
         expandAnim.start()
-        performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
-        onExpand?.invoke(on)
+        // Guard haptics + window resize when view is already detached (e.g. pending
+        // auto-minimize fires after wm.removeView). isAttachedToWindow prevents
+        // IllegalArgumentException from WindowManager.updateViewLayout.
+        if (isAttachedToWindow) {
+            try { performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY) } catch (_: Throwable) {}
+            try { onExpand?.invoke(on) } catch (_: Throwable) {}
+        }
         if (on) handler.postDelayed(autoMinimize, 5000) else handler.removeCallbacks(autoMinimize)
     }
 
     fun notifyInteraction() {
         if (expanded) {
             handler.removeCallbacks(autoMinimize)
-            handler.postDelayed(autoMinimize, 5000)
+            if (isAttachedToWindow) handler.postDelayed(autoMinimize, 5000)
         }
+    }
+
+    override fun onDetachedFromWindow() {
+        handler.removeCallbacks(autoMinimize)
+        expandAnim.cancel()
+        super.onDetachedFromWindow()
+    }
+
+    /** Called by service shutdown to guarantee no pending callback fires after removal. */
+    fun cancelPendingAnimations() {
+        handler.removeCallbacks(autoMinimize)
+        expandAnim.cancel()
     }
 
     private val d = resources.displayMetrics.density
@@ -160,9 +198,19 @@ class RailView(context: Context) : View(context) {
             c.drawText("$fps", cx - fpsP.measureText("$fps") / 2f, fpsY, fpsP)
             labelP.textSize = dp(8f)
             c.drawText("FPS", cx - labelP.measureText("FPS") / 2f, fpsY + dp(11f), labelP)
+            // Compact method abbreviation (e.g., SF / DMA / GFX) — tiny mono, never wraps
+            val abbrev = fpsMethod.abbrev()
+            if (abbrev != "--" && curW > dp(40f)) {
+                val methodP = labelP
+                methodP.textSize = dp(6.5f)
+                methodP.alpha = (255 * expandT * 0.85f).toInt().coerceIn(0, 255)
+                c.drawText(abbrev, cx - methodP.measureText(abbrev) / 2f, fpsY + dp(19f), methodP)
+                labelP.textSize = dp(8f)
+                labelP.alpha = (255 * expandT).toInt().coerceIn(0, 255)
+            }
 
             path.reset()
-            val sy = fpsY + dp(22f)
+            val sy = fpsY + dp(28f)
             val sh = dp(20f)
             val sw = curW - dp(16f)
             for (i in 0 until ram.size) {

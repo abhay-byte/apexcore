@@ -147,16 +147,22 @@ class GameOverlayService : Service() {
     }
 
     private fun resizeWindow(expanded: Boolean) {
+        if (!::rail.isInitialized || !::wm.isInitialized) return
+        if (rail.parent == null || !rail.isAttachedToWindow) return
         params.width = dp(if (expanded) rail.panelWidthDp else 12)
-        wm.updateViewLayout(rail, params)
+        try { wm.updateViewLayout(rail, params) } catch (_: Throwable) {}
     }
 
     private fun moveWindow(dy: Float) {
+        if (!::rail.isInitialized || !::wm.isInitialized) return
+        if (rail.parent == null || !rail.isAttachedToWindow) return
         params.y = (params.y + dy.toInt()).coerceIn(0, displayHeight() - dp(170))
-        wm.updateViewLayout(rail, params)
+        try { wm.updateViewLayout(rail, params) } catch (_: Throwable) {}
     }
 
     private fun snapWindow() {
+        if (!::rail.isInitialized || !::wm.isInitialized) return
+        if (rail.parent == null || !rail.isAttachedToWindow) return
         val h = displayHeight()
         val snapFractions = floatArrayOf(0.20f, 0.40f, 0.60f, 0.80f)
         val target = snapFractions.map { (it * h).toInt() }.minBy { abs(it - params.y) }
@@ -164,10 +170,13 @@ class GameOverlayService : Service() {
             duration = 120
             interpolator = DecelerateInterpolator()
             addUpdateListener {
+                if (rail.parent == null || !rail.isAttachedToWindow) return@addUpdateListener
                 params.y = it.animatedValue as Int
-                wm.updateViewLayout(rail, params)
+                try { wm.updateViewLayout(rail, params) } catch (_: Throwable) {}
             }
-            doOnEnd { rail.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) }
+            doOnEnd {
+                try { if (rail.isAttachedToWindow) rail.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK) } catch (_: Throwable) {}
+            }
             start()
         }
     }
@@ -176,6 +185,18 @@ class GameOverlayService : Service() {
         if (Build.VERSION.SDK_INT >= 30)
             wm.currentWindowMetrics.bounds.height()
         else resources.displayMetrics.heightPixels
+
+    private fun displayRefreshHz(): Float {
+        return try {
+            if (Build.VERSION.SDK_INT >= 30) {
+                // Prefer current display; fallback to WindowManager's display
+                display?.refreshRate ?: wm.defaultDisplay?.refreshRate ?: 60f
+            } else {
+                @Suppress("DEPRECATION")
+                wm.defaultDisplay?.refreshRate ?: 60f
+            }
+        } catch (_: Throwable) { 60f }
+    }
 
     // Telemetry sampling runs entirely off the main thread — the old handler loop
     // runBlocking'd dumpsys/proc reads on main every 500ms and janked the overlay
@@ -190,9 +211,12 @@ class GameOverlayService : Service() {
                 try {
                     val fpsStack = FpsStack.get(applicationContext)
                     val fpsSnapshot = fpsStack.repository.getFps()
-                    val fps = if (fpsSnapshot.currentFps > 0f && fpsSnapshot.method != FpsMethod.NONE) {
-                        fpsSnapshot.currentFps.toInt()
-                    } else 0
+                    val refreshHz = displayRefreshHz()
+                    val rawFps = if (fpsSnapshot.currentFps > 0f && fpsSnapshot.method != FpsMethod.NONE) {
+                        fpsSnapshot.currentFps
+                    } else 0f
+                    val fps = rawFps.coerceAtMost(refreshHz).toInt()
+                    val method = fpsSnapshot.method
 
                     val stats = getSystemMemStats(applicationContext)
                     val ramFraction = stats.ramUsedKb.toFloat() / stats.ramTotalKb.coerceAtLeast(1)
@@ -207,7 +231,7 @@ class GameOverlayService : Service() {
                     val thermal = ThermalMonitor.getSnapshot(applicationContext).cpuTempCelsius > 45
 
                     withContext(Dispatchers.Main) {
-                        rail.push(fps, ramFraction, cpuFractions)
+                        rail.push(fps, ramFraction, cpuFractions, method)
                         rail.thermal = thermal
                     }
                 } catch (_: Throwable) {
@@ -226,15 +250,19 @@ class GameOverlayService : Service() {
 
     private fun shutdown() {
         telemetryJob?.cancel()
-        telemetryScope.cancel()
+        // Do not cancel the whole scope if we may be recreated quickly — but we must
+        // ensure no further telemetry after shutdown. Cancel current job and keep scope.
         handler.removeCallbacksAndMessages(null)
         try {
-            if (rail.parent != null) wm.removeView(rail)
+            if (::rail.isInitialized) {
+                rail.cancelPendingAnimations()
+                if (rail.parent != null) wm.removeView(rail)
+            }
         } catch (_: Throwable) {}
         isRunning = false
         prefs.edit().remove(PREF_OVERLAY_RUNNING).remove(PREF_OVERLAY_PKG).apply()
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Throwable) {}
+        try { stopSelf() } catch (_: Throwable) {}
     }
 
     override fun onDestroy() {

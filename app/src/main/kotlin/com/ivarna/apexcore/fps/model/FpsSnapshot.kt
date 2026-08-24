@@ -30,6 +30,14 @@ enum class FpsMethod {
     NONE
 }
 
+fun FpsMethod.abbrev(): String = when (this) {
+    FpsMethod.DMA_FENCE -> "DMA"
+    FpsMethod.SURFACEFLINGER -> "SF"
+    FpsMethod.GFXINFO -> "GFX"
+    FpsMethod.CHOREOGRAPHER -> "CHR"
+    FpsMethod.NONE -> "--"
+}
+
 data class PercentileResult(
     val avgFps: Float,
     val p1FrametimeMs: Float,

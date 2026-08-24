@@ -184,11 +184,11 @@ class FpsRepositoryImpl(
     }
 
     private fun resolveDisplayFps(snapshot: FpsSnapshot, refreshHz: Float): Float {
+        val refreshCeiling = refreshHz.coerceIn(1f, 240f)
         if (snapshot.method == FpsMethod.DMA_FENCE) {
-            return snapshot.currentFps.coerceIn(1f, 240f)
+            return snapshot.currentFps.coerceIn(1f, refreshCeiling)
         }
 
-        val refreshCeiling = refreshHz.coerceIn(1f, 240f)
         if (snapshot.frametimeHistogram.size >= 2) {
             val avgMs = snapshot.frametimeHistogram.average().toFloat()
             if (avgMs > 0f) {
