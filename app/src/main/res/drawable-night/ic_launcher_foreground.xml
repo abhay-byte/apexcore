@@ -5,36 +5,36 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Ink plate — offset left, chamfered top-right, stamped on paper -->
+    <!-- Anvil plate — offset left, chamfered top-right, engraved in metal -->
     <path
-        android:fillColor="#201C16"
+        android:fillColor="#17191C"
         android:pathData="M28,32 L64,32 L74,42 L74,80 Q74,84 70,84 L28,84 Q24,84 24,80 L24,36 Q24,32 28,32 Z" />
 
     <!-- Engraved hairline inset -->
     <path
-        android:strokeColor="#0B0C0D"
+        android:strokeColor="#2B2F34"
         android:strokeWidth="1"
         android:fillColor="#00000000"
         android:pathData="M29,33 L63,33 L73,43 L73,79 Q73,83 69,83 L29,83 Q25,83 25,79 L25,37 Q25,33 29,33 Z" />
 
-    <!-- 3 scale ticks on top edge (left of chamfer) — the needle has swept past these -->
+    <!-- 3 scale ticks on top edge -->
     <path
-        android:strokeColor="#EAE3D2"
+        android:strokeColor="#CFC6AE"
         android:strokeWidth="1.5"
         android:fillColor="#00000000"
         android:pathData="M42,32 L42,37" />
     <path
-        android:strokeColor="#EAE3D2"
+        android:strokeColor="#CFC6AE"
         android:strokeWidth="1"
         android:fillColor="#00000000"
         android:pathData="M52,32 L52,35" />
     <path
-        android:strokeColor="#EAE3D2"
+        android:strokeColor="#CFC6AE"
         android:strokeWidth="1.5"
         android:fillColor="#00000000"
         android:pathData="M62,32 L62,37" />
 
-    <!-- Signal-orange needle — from pivot, through the chamfer, protruding beyond the plate -->
+    <!-- Signal-orange needle — pierces through the chamfer -->
     <path
         android:strokeColor="#FF5A1F"
         android:strokeWidth="4"
@@ -42,7 +42,7 @@
         android:strokeLineCap="butt"
         android:pathData="M40,68 L74,34" />
 
-    <!-- Tick terminal at the tip — perpendicular crossbar (IRONWORK signature §2.6) -->
+    <!-- Tick terminal at the tip -->
     <path
         android:strokeColor="#FF5A1F"
         android:strokeWidth="2.5"
@@ -50,13 +50,13 @@
         android:strokeLineCap="butt"
         android:pathData="M70.8,30.8 L77.2,37.2" />
 
-    <!-- Brass pivot at the needle's origin -->
+    <!-- Brass pivot -->
     <path
         android:fillColor="#D9A75A"
         android:pathData="M40,64 a4,4 0 1,0 0,8 a4,4 0 1,0 0,-8 Z" />
 
-    <!-- Ink center in the pivot -->
+    <!-- Ink center -->
     <path
-        android:fillColor="#0B0C0D"
+        android:fillColor="#201C16"
         android:pathData="M40,66.5 a1.5,1.5 0 1,0 0,3 a1.5,1.5 0 1,0 0,-3 Z" />
 </vector>

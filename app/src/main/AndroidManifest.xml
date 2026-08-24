@@ -28,6 +28,7 @@
         android:theme="@style/Theme.ApexCore.Splash">
         <activity
             android:name=".MainActivity"
+            android:theme="@style/Theme.ApexCore.Splash"
             android:exported="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden">
             <intent-filter>
