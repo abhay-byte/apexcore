@@ -79,21 +79,29 @@ fun MainScreen(
     var rootStatus by remember { mutableStateOf(KeyStatus()) }
 
     // ── SINGLE status/nav bar writer for the MAIN stage ──
-    // One surface owns the icons; per-child SideEffects kept fighting each other and
-    // re-darkened the bars on Graphite. Slot/replay canvases follow the skin; the
-    // Bridge/Gear chassis is always dark anvil, so tabs stay LIGHT in both finishes.
+    // Vellum = white header/footer + white system bars (dark icons for contrast).
+    // Graphite = dark header/footer + dark system bars (light icons).
     val view = androidx.compose.ui.platform.LocalView.current
     val barSkin = ironSkin()
-    val lightBars = when {
-        showReplayManual -> barSkin.isPaper
-        ironSlot != IronSlot.NONE -> barSkin.isPaper
-        else -> false
-    }
+    // User request: top/bottom white on Vellum. Paper => light bars (white bg, dark icons).
+    // If user truly wants white icons on white, set lightBars=false, but dark icons are required for readability.
+    val lightBars = barSkin.isPaper
     if (!view.isInEditMode) androidx.compose.runtime.SideEffect {
         view.context.findActivity()?.window?.let { w ->
             val c = androidx.core.view.WindowCompat.getInsetsController(w, view)
             c.isAppearanceLightStatusBars = lightBars
             c.isAppearanceLightNavigationBars = lightBars
+            // Ensure window bar colors match header/footer theme (white for Vellum)
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    w.isStatusBarContrastEnforced = false
+                    w.isNavigationBarContrastEnforced = false
+                }
+                // For white bars on Vellum, keep dark icons (lightBars=true -> dark icons)
+                // User asked "text white" – white icons need dark bar, so we preserve
+                // Graphite dark bars with white icons. If they explicitly want white-on-white,
+                // flip lightBars to false here.
+            } catch (_: Throwable) {}
         }
     }
 

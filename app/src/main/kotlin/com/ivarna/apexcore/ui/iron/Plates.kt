@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/* ── §3.1 EngravedPlate ── */
+/* ── §3.1 EngravedPlate — adaptive: Graphite=anvil, Vellum=paper plate ── */
 @Composable
 fun EngravedPlate(
     modifier: Modifier = Modifier,
@@ -42,6 +42,12 @@ fun EngravedPlate(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
+    val skin = ironSkin()
+    val bg = when {
+        pressed && onClick != null -> skin.platePressed
+        else -> skin.plate
+    }
+    val stroke = skin.hairline
     Box(
         modifier
             .graphicsLayer {
@@ -50,7 +56,7 @@ fun EngravedPlate(
                 scaleY = s
             }
             .clip(IronShape.Plate)
-            .background(if (pressed && onClick != null) Iron.Anvil800 else Iron.Anvil700)
+            .background(bg)
             .drawWithCache {
                 val i = 3.dp.toPx()
                 val inner = Path().apply {
@@ -68,12 +74,12 @@ fun EngravedPlate(
                     // machined top edge: brass highlight catching light (Graphite identity; subtle on paper too).
                     val w = this@drawWithCache.size.width
                     drawLine(
-                        Iron.Brass400.copy(alpha = 0.42f),
+                        Iron.Brass400.copy(alpha = if (skin.isPaper) 0.28f else 0.42f),
                         Offset(3.dp.toPx(), 1.dp.toPx()),
                         Offset(w - 3.dp.toPx(), 1.dp.toPx()),
                         1.dp.toPx()
                     )
-                    drawPath(inner, Iron.Anvil600, style = Stroke(0.75.dp.toPx()))
+                    drawPath(inner, stroke, style = Stroke(0.75.dp.toPx()))
                 }
             }
             .then(

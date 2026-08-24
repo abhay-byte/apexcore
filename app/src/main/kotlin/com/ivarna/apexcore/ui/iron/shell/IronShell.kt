@@ -39,10 +39,15 @@ fun GearSelector(
 ) {
     val clack = rememberClack()
     val tabs = GearTab.entries
+    val skin = ironSkin()
+    val isPaper = skin.isPaper
+    // Vellum = white bar for explicit user request; Graphite = dark anvil
+    val barBg = if (isPaper) Color.White else Iron.Anvil900
+    val dividerColor = if (isPaper) skin.hairline else Iron.Anvil600
     Column(modifier) {
-        HorizontalDivider(color = Iron.Anvil600, thickness = 1.dp)
+        HorizontalDivider(color = dividerColor, thickness = 1.dp)
         BoxWithConstraints(
-            Modifier.fillMaxWidth().background(Iron.Anvil900).navigationBarsPadding().height(64.dp)
+            Modifier.fillMaxWidth().background(barBg).navigationBarsPadding().height(64.dp)
         ) {
             val w = maxWidth / tabs.size
             val indX by animateDpAsState(
@@ -51,6 +56,13 @@ fun GearSelector(
             Row(Modifier.fillMaxSize()) {
                 tabs.forEach { tab ->
                     val active = tab == selected
+                    val glyphTint = when {
+                        isPaper && active -> Iron.Ink900
+                        isPaper -> Iron.Ink600
+                        active -> Iron.Bone100
+                        else -> Iron.Bone500
+                    }
+                    val labelColor = if (isPaper) Iron.Ink600 else Iron.Bone300
                     Box(
                         Modifier.weight(1f).fillMaxHeight().clickable(
                             interactionSource = remember { MutableInteractionSource() }, indication = null
@@ -59,10 +71,10 @@ fun GearSelector(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(Modifier.graphicsLayer { translationY = if (active) -1.dp.toPx() else 0f }) {
-                                GearTabGlyph(tab, if (active) Iron.Bone100 else Iron.Bone500)
+                                GearTabGlyph(tab, glyphTint)
                             }
                             AnimatedVisibility(active, enter = fadeIn(tween(120)), exit = fadeOut(tween(120))) {
-                                Text(tab.label, style = IronType.MonoSm, color = Iron.Bone300)
+                                Text(tab.label, style = IronType.MonoSm, color = labelColor)
                             }
                         }
                     }
@@ -79,10 +91,13 @@ fun BridgePlate(
     onBackendClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val skin = ironSkin()
+    val isPaper = skin.isPaper
+    val barBg = if (isPaper) Color.White else Iron.Anvil900
     Row(
         modifier
             .fillMaxWidth()
-            .background(Iron.Anvil900)
+            .background(barBg)
             .statusBarsPadding()
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -90,22 +105,26 @@ fun BridgePlate(
         Screw()
         Spacer(Modifier.width(10.dp))
         Column {
-            EngravedText("APEXCORE", IronType.Label.copy(fontSize = 14.sp))
+            if (isPaper) {
+                Text("APEXCORE", style = IronType.Label.copy(fontSize = 14.sp), color = Iron.Ink900)
+            } else {
+                EngravedText("APEXCORE", IronType.Label.copy(fontSize = 14.sp))
+            }
         }
         Spacer(Modifier.weight(1f))
         Row(
             Modifier
                 .clip(IronShape.Slot)
-                .border(1.dp, Iron.Anvil600, IronShape.Slot)
+                .border(1.dp, if (isPaper) skin.hairline else Iron.Anvil600, IronShape.Slot)
                 .clickable(onClick = onBackendClick)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             LedDot(backendLed)
             Spacer(Modifier.width(6.dp))
-            Text(backendName, style = IronType.MonoSm, color = Iron.Bone300)
+            Text(backendName, style = IronType.MonoSm, color = if (isPaper) Iron.Ink600 else Iron.Bone300)
             Spacer(Modifier.width(4.dp))
-            Text("▾", style = IronType.MonoSm, color = Iron.Bone500)
+            Text("▾", style = IronType.MonoSm, color = if (isPaper) Iron.Ink600 else Iron.Bone500)
         }
         Spacer(Modifier.width(10.dp))
         Screw()

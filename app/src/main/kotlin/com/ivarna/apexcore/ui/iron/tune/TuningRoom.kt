@@ -150,12 +150,17 @@ fun TuningRoom(
                     item(key = cat.name) {
                         DrawerHeader(cat.name, cat.availableCount)
                         Spacer(Modifier.height(8.dp))
-                        EngravedPlate(Modifier.fillMaxWidth()) {
+                        // Adaptive plate: PaperPlate on Vellum for contrast, Engraved on Graphite
+                        val plate: @Composable (@Composable ColumnScope.() -> Unit) -> Unit = { c ->
+                            if (skin.isPaper) PaperPlate(Modifier.fillMaxWidth(), padding = PaddingValues(16.dp), content = c)
+                            else EngravedPlate(Modifier.fillMaxWidth(), content = c)
+                        }
+                        plate {
                             cat.options.forEachIndexed { i, opt ->
                                 TuneRow(opt)
                                 if (i < cat.options.lastIndex) {
                                     Spacer(Modifier.height(6.dp))
-                                    HorizontalDivider(color = Iron.Anvil600, thickness = 1.dp)
+                                    HorizontalDivider(color = skin.hairline, thickness = 1.dp)
                                     Spacer(Modifier.height(6.dp))
                                 }
                             }
