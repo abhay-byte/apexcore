@@ -163,8 +163,10 @@ private fun Rack(
 ) {
     val clack = rememberClack()
     val scope = rememberCoroutineScope()
-    // §1.4 — RenderEffect blur is API 31+; skip entirely under reduced motion
-    val blurAllowed = Build.VERSION.SDK_INT >= 31 && !LocalReducedMotion.current
+    // Blur disabled for smoothness: RenderEffect (4dp) caused GPU stalls during
+    // tab-slide (240ms) + pin-sheet (320ms) overlap. Keep path but no-op for now.
+    @Suppress("UNUSED_VARIABLE")
+    val blurAllowed = false // Build.VERSION.SDK_INT >= 31 && !LocalReducedMotion.current
     // §1.5 — pager page survives tab unmount
     var savedPage by rememberSaveable { mutableIntStateOf(0) }
     val pagerState = rememberPagerState(
@@ -181,7 +183,8 @@ private fun Rack(
     Box(
         modifier
             .fillMaxWidth()
-            .pointerInput(apps) {
+            // Use segment as key to avoid recreating gesture detector on every apps filter change (jank)
+            .pointerInput(segment) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
                     var flipped = false
@@ -212,6 +215,8 @@ private fun Rack(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 56.dp),
             pageSpacing = 12.dp,
+            key = { index -> apps.getOrNull(index)?.pkg ?: index },
+            beyondViewportPageCount = 1,
         ) { page ->
             val offset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
             val closeness = 1f - minOf(abs(offset), 1f)

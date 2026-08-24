@@ -65,8 +65,17 @@ class GameManager(context: Context) {
         }
     }
 
+    // Cache last installable scan to avoid duplicate heavy PM work during quick
+    // Home->Games->Pin navigation (which previously triggered 2-3 scans at once)
+    @Volatile private var cachedInstallable: List<GameInfo>? = null
+    @Volatile private var cachedAtMs: Long = 0L
+
     /** Scan PackageManager for installable launchable non-system apps. */
     suspend fun listInstallableApps(context: Context): List<GameInfo> = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        cachedInstallable?.let { cached ->
+            if (now - cachedAtMs < 4000) return@withContext cached
+        }
         val infoList = if (isAtLeastT) {
             pm.getInstalledApplications(
                 PackageManager.ApplicationInfoFlags.of(PackageManager.GET_META_DATA.toLong())
@@ -74,7 +83,7 @@ class GameManager(context: Context) {
         } else {
             @Suppress("DEPRECATION") pm.getInstalledApplications(PackageManager.GET_META_DATA)
         }
-        infoList.filter { app ->
+        val result = infoList.filter { app ->
             val isSystem = (app.flags and ApplicationInfo.FLAG_SYSTEM) != 0
             val isUpdatedSystem = (app.flags and ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
             app.packageName != context.packageName &&
@@ -84,6 +93,9 @@ class GameManager(context: Context) {
             val label = pm.getApplicationLabel(app)?.toString() ?: app.packageName
             GameInfo(app.packageName, label, isAutoDetected = false)
         }.sortedBy { it.name }
+        cachedInstallable = result
+        cachedAtMs = now
+        result
     }
 
     /** Accept all detected games, merging into saved list. */

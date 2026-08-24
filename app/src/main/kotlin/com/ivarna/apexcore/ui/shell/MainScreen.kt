@@ -48,6 +48,7 @@ import com.ivarna.apexcore.ui.iron.sheets.SystemAccessSheet
 import com.ivarna.apexcore.ui.iron.tune.TuneCategoryUi
 import com.ivarna.apexcore.ui.iron.tune.TuneOptionUi
 import com.ivarna.apexcore.ui.iron.tune.TuningRoom
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -139,17 +140,7 @@ fun MainScreen(
             demand = Demand.MEDIUM,
             tint = Iron.Signal500,
             icon = {
-                val iconDrawable = try {
-                    context.packageManager.getApplicationIcon(info.pkg)
-                } catch (_: Throwable) { null }
-                if (iconDrawable != null) {
-                    val dr = com.google.accompanist.drawablepainter.rememberDrawablePainter(iconDrawable)
-                    Image(
-                        painter = dr,
-                        contentDescription = info.name,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
+                AsyncAppIcon(pkg = info.pkg, contentDescription = info.name)
             }
         )
     }
@@ -313,7 +304,18 @@ fun MainScreen(
                 ui = benchUi,
                 onBoost = { benchVm.boost(context) },
                 onTune = { ironSlot = IronSlot.TUNE },
-                onPins = { gearTab = GearTab.GAMES; showPinSheet = true },
+                onPins = {
+                    if (gearTab != GearTab.GAMES) {
+                        gearTab = GearTab.GAMES
+                        scope.launch {
+                            // Let GearTabTransition (240ms) finish before heavy pin sheet composition
+                            delay(260)
+                            showPinSheet = true
+                        }
+                    } else {
+                        showPinSheet = true
+                    }
+                },
                 onRamFree = { ironSlot = IronSlot.PRESSURE },
                 onSetup = { showSetupSheet = true },
                 toast = toast,
@@ -374,23 +376,24 @@ fun MainScreen(
                 addSheet = {
                     if (showAddGameSheet) {
                         var installedApps by remember { mutableStateOf<List<PickerApp>>(emptyList()) }
-                        LaunchedEffect(Unit) {
-                            val apps = gameManager.listInstallableApps(context)
-                            installedApps = apps.map { app ->
-                                PickerApp(
-                                    name = app.name,
-                                    pkg = app.pkg,
-                                    icon = {
-                                        val dr = try { context.packageManager.getApplicationIcon(app.pkg) } catch (_: Throwable) { null }
-                                        if (dr != null) {
-                                            Image(
-                                                painter = com.google.accompanist.drawablepainter.rememberDrawablePainter(dr),
-                                                contentDescription = app.name,
-                                                modifier = Modifier.fillMaxSize()
-                                            )
-                                        }
-                                    }
-                                )
+                        LaunchedEffect(allAppsList, allAppsLoading) {
+                            if (allAppsList.isNotEmpty()) {
+                                installedApps = allAppsList.map { card ->
+                                    PickerApp(
+                                        name = card.name,
+                                        pkg = card.pkg,
+                                        icon = { AsyncAppIcon(pkg = card.pkg, contentDescription = card.name) }
+                                    )
+                                }
+                            } else if (!allAppsLoading) {
+                                val src = gameManager.listInstallableApps(context)
+                                installedApps = src.map { app ->
+                                    PickerApp(
+                                        name = app.name,
+                                        pkg = app.pkg,
+                                        icon = { AsyncAppIcon(pkg = app.pkg, contentDescription = app.name) }
+                                    )
+                                }
                             }
                         }
                         AddGameSheet(
@@ -408,23 +411,25 @@ fun MainScreen(
                 pinSheet = {
                     if (showPinSheet) {
                         var allInstalled by remember { mutableStateOf<List<PickerApp>>(emptyList()) }
-                        LaunchedEffect(Unit) {
-                            val apps = gameManager.listInstallableApps(context)
-                            allInstalled = apps.map { app ->
-                                PickerApp(
-                                    name = app.name,
-                                    pkg = app.pkg,
-                                    icon = {
-                                        val dr = try { context.packageManager.getApplicationIcon(app.pkg) } catch (_: Throwable) { null }
-                                        if (dr != null) {
-                                            Image(
-                                                painter = com.google.accompanist.drawablepainter.rememberDrawablePainter(dr),
-                                                contentDescription = app.name,
-                                                modifier = Modifier.fillMaxSize()
-                                            )
-                                        }
-                                    }
-                                )
+                        // React to allAppsList becoming available to avoid duplicate PM scan
+                        LaunchedEffect(allAppsList, allAppsLoading) {
+                            if (allAppsList.isNotEmpty()) {
+                                allInstalled = allAppsList.map { card ->
+                                    PickerApp(
+                                        name = card.name,
+                                        pkg = card.pkg,
+                                        icon = { AsyncAppIcon(pkg = card.pkg, contentDescription = card.name) }
+                                    )
+                                }
+                            } else if (!allAppsLoading) {
+                                val fetched = gameManager.listInstallableApps(context)
+                                allInstalled = fetched.map { app ->
+                                    PickerApp(
+                                        name = app.name,
+                                        pkg = app.pkg,
+                                        icon = { AsyncAppIcon(pkg = app.pkg, contentDescription = app.name) }
+                                    )
+                                }
                             }
                         }
                         var pinnedSet by remember { mutableStateOf(WhitelistStore.allPinned(context)) }

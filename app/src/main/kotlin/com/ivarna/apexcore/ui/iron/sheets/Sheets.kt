@@ -87,8 +87,11 @@ fun PinAppsSheet(
     var query by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    val visibleApps = remember(query, apps) {
-        apps.filter { it.name.contains(query, true) || it.pkg.contains(query, true) }
+    // Derived filtering: avoid recompute during sheet slide animation jank
+    val visibleApps by remember(query, apps) {
+        derivedStateOf {
+            if (query.isBlank()) apps else apps.filter { it.name.contains(query, true) || it.pkg.contains(query, true) }
+        }
     }
     val letterIndex = remember(apps) {
         val map = mutableMapOf<Char, Int>()
@@ -114,7 +117,11 @@ fun PinAppsSheet(
         Spacer(Modifier.height(12.dp))
         Row(Modifier.height(360.dp)) {
             LazyColumn(state = listState, modifier = Modifier.weight(1f)) {
-                items(visibleApps.size) { i ->
+                items(
+                    count = visibleApps.size,
+                    key = { i -> visibleApps[i].pkg },
+                    contentType = { "pinRow" }
+                ) { i ->
                     val app = visibleApps[i]
                     PickerRow(app, pinned.contains(app.pkg)) { onTogglePin(app.pkg) }
                 }
@@ -149,8 +156,10 @@ fun AddGameSheet(
     var query by remember { mutableStateOf("") }
     val picked = remember { mutableStateListOf<String>() }
     var stamped by remember { mutableStateOf(false) }
-    val visibleApps = remember(query, apps) {
-        apps.filter { it.name.contains(query, true) || it.pkg.contains(query, true) }
+    val visibleApps by remember(query, apps) {
+        derivedStateOf {
+            if (query.isBlank()) apps else apps.filter { it.name.contains(query, true) || it.pkg.contains(query, true) }
+        }
     }
 
     BenchSheet(visible = visible, onDismiss = onDismiss) {
@@ -160,7 +169,11 @@ fun AddGameSheet(
         SearchSlot(query, { query = it })
         Spacer(Modifier.height(12.dp))
         LazyColumn(Modifier.height(360.dp)) {
-            items(visibleApps.size) { i ->
+            items(
+                count = visibleApps.size,
+                key = { i -> visibleApps[i].pkg },
+                contentType = { "addRow" }
+            ) { i ->
                 val app = visibleApps[i]
                 val isPicked = picked.contains(app.pkg) || alreadyAdded.contains(app.pkg)
                 PickerRow(app, isPicked) {
