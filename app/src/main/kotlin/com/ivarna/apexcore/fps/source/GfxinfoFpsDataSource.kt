@@ -23,10 +23,16 @@ class GfxinfoFpsDataSource(
     private var lastPollTimeMs: Long = 0L
     private var lastPackage: String? = null
     private var profileBootstrapped = false
+    private var lastAttemptMs = 0L
+    private var consecutiveEmpty = 0
 
     private companion object {
         const val MAX_PLAUSIBLE_FRAMETIME_MS = 100f
         private const val BOOTSTRAP_MAX_FRAMES = 90
+        // dumpsys gfxinfo makes the TARGET app serialize its graphics profile on
+        // its main thread — polling it aggressively visibly hangs that app.
+        private const val MIN_ATTEMPT_INTERVAL_MS = 2000L
+        private const val MAX_CONSECUTIVE_EMPTY = 3
     }
 
     override suspend fun readFps(): FpsSnapshot? {
@@ -36,15 +42,25 @@ class GfxinfoFpsDataSource(
             lastPollTimeMs = 0L
             lastPackage = foreground.packageName
             profileBootstrapped = false
+            consecutiveEmpty = 0
         }
+        val nowMs = System.currentTimeMillis()
+        if (nowMs - lastAttemptMs < MIN_ATTEMPT_INTERVAL_MS) return null
+        if (consecutiveEmpty >= MAX_CONSECUTIVE_EMPTY) return null
+        lastAttemptMs = nowMs
 
         val result = shellGateway.executeChain(
             "dumpsys gfxinfo ${foreground.packageName} framestats 2>/dev/null",
             shellGateway.currentPolicy().chain(listOf(PrivilegeTier.ROOT, PrivilegeTier.SHIZUKU, PrivilegeTier.STANDARD))
         ).first
-        if (!result.isSuccess || result.output.isBlank()) return null
+        if (!result.isSuccess || result.output.isBlank()) {
+            consecutiveEmpty++
+            return null
+        }
 
-        return parseGfxinfo(result.output, System.currentTimeMillis(), foreground.refreshRateHz)
+        val snapshot = parseGfxinfo(result.output, System.currentTimeMillis(), foreground.refreshRateHz)
+        if (snapshot == null) consecutiveEmpty++ else consecutiveEmpty = 0
+        return snapshot
     }
 
     internal fun parseGfxinfo(output: String, nowMs: Long, refreshRateHz: Float = 60f): FpsSnapshot? {

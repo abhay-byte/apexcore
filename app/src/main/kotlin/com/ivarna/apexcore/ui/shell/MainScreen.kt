@@ -77,6 +77,25 @@ fun MainScreen(
     var shizukuStatus by remember { mutableStateOf(KeyStatus()) }
     var rootStatus by remember { mutableStateOf(KeyStatus()) }
 
+    // ── SINGLE status/nav bar writer for the MAIN stage ──
+    // One surface owns the icons; per-child SideEffects kept fighting each other and
+    // re-darkened the bars on Graphite. Slot/replay canvases follow the skin; the
+    // Bridge/Gear chassis is always dark anvil, so tabs stay LIGHT in both finishes.
+    val view = androidx.compose.ui.platform.LocalView.current
+    val barSkin = ironSkin()
+    val lightBars = when {
+        showReplayManual -> barSkin.isPaper
+        ironSlot != IronSlot.NONE -> barSkin.isPaper
+        else -> false
+    }
+    if (!view.isInEditMode) androidx.compose.runtime.SideEffect {
+        view.context.findActivity()?.window?.let { w ->
+            val c = androidx.core.view.WindowCompat.getInsetsController(w, view)
+            c.isAppearanceLightStatusBars = lightBars
+            c.isAppearanceLightNavigationBars = lightBars
+        }
+    }
+
     fun probeKeys() {
         scope.launch {
             val sReady = try { ShizukuFreezeBackend().isReady() } catch (_: Throwable) { false }
@@ -111,36 +130,60 @@ fun MainScreen(
     var gamesList by remember { mutableStateOf<List<AppCardData>>(emptyList()) }
     var allAppsList by remember { mutableStateOf<List<AppCardData>>(emptyList()) }
     var allAppsLoading by remember { mutableStateOf(false) }
+    var autoScanLoading by remember { mutableStateOf(false) }
+
+    fun mapToCards(infos: List<GameInfo>): List<AppCardData> = infos.map { info ->
+        AppCardData(
+            name = info.name,
+            pkg = info.pkg,
+            demand = Demand.MEDIUM,
+            tint = Iron.Signal500,
+            icon = {
+                val iconDrawable = try {
+                    context.packageManager.getApplicationIcon(info.pkg)
+                } catch (_: Throwable) { null }
+                if (iconDrawable != null) {
+                    val dr = com.google.accompanist.drawablepainter.rememberDrawablePainter(iconDrawable)
+                    Image(
+                        painter = dr,
+                        contentDescription = info.name,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+            }
+        )
+    }
 
     fun refreshGames() {
         scope.launch {
             val loaded = gameManager.load()
-            gamesList = loaded.map { info ->
-                AppCardData(
-                    name = info.name,
-                    pkg = info.pkg,
-                    demand = Demand.MEDIUM,
-                    tint = Iron.Signal500,
-                    icon = {
-                        val iconDrawable = try {
-                            context.packageManager.getApplicationIcon(info.pkg)
-                        } catch (_: Throwable) { null }
-                        if (iconDrawable != null) {
-                            val dr = com.google.accompanist.drawablepainter.rememberDrawablePainter(iconDrawable)
-                            Image(
-                                painter = dr,
-                                contentDescription = info.name,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                    }
-                )
+            gamesList = mapToCards(loaded)
+        }
+    }
+
+    fun refreshAllApps() {
+        scope.launch {
+            allAppsLoading = true
+            try {
+                val apps = gameManager.listInstallableApps(context)
+                allAppsList = mapToCards(apps)
+            } catch (_: Throwable) {
+                allAppsList = emptyList()
+            } finally {
+                allAppsLoading = false
             }
         }
     }
 
     LaunchedEffect(Unit) {
         refreshGames()
+        refreshAllApps()
+    }
+
+    LaunchedEffect(gearTab) {
+        if (gearTab == GearTab.GAMES && allAppsList.isEmpty() && !allAppsLoading) {
+            refreshAllApps()
+        }
     }
 
     // Overlay state
@@ -270,7 +313,7 @@ fun MainScreen(
                 ui = benchUi,
                 onBoost = { benchVm.boost(context) },
                 onTune = { ironSlot = IronSlot.TUNE },
-                onPins = { showPinSheet = true },
+                onPins = { gearTab = GearTab.GAMES; showPinSheet = true },
                 onRamFree = { ironSlot = IronSlot.PRESSURE },
                 onSetup = { showSetupSheet = true },
                 toast = toast,
@@ -286,6 +329,39 @@ fun MainScreen(
                     showAddGameSheet = true
                 },
                 onPin = { showPinSheet = true },
+                onAutoScan = {
+                    if (autoScanLoading) return@LaunchMatrixScreen
+                    scope.launch {
+                        autoScanLoading = true
+                        try {
+                            val before = gameManager.load().size
+                            // First try category-based auto-detect (CATEGORY_GAME / isGame meta)
+                            gameManager.acceptDetected(context)
+                            var loaded = gameManager.load()
+                            var added = loaded.size - before
+                            // Fallback: if no category games, bulk-load all launchable user apps so the button always populates
+                            if (added == 0) {
+                                val all = gameManager.listInstallableApps(context)
+                                val new = all.filter { a -> loaded.none { it.pkg == a.pkg } }
+                                if (new.isNotEmpty()) {
+                                    gameManager.addAll(new)
+                                    loaded = gameManager.load()
+                                    added = loaded.size - before
+                                }
+                            }
+                            gamesList = mapToCards(loaded)
+                            // Keep ALL APPS rail in sync
+                            if (allAppsList.isEmpty()) refreshAllApps()
+                            if (added > 0) toast.show("AUTO SCAN: $added GAMES ADDED")
+                            else toast.show("NO NEW GAMES FOUND")
+                        } catch (_: Throwable) {
+                            toast.show("SCAN FAILED")
+                        } finally {
+                            autoScanLoading = false
+                        }
+                    }
+                },
+                autoScanning = autoScanLoading,
                 onLaunch = { card ->
                     scope.launch {
                         GameLauncher.launch(context, card.pkg)
@@ -387,7 +463,9 @@ fun MainScreen(
                 onTogglePreview = { on ->
                     overlayPreview = on
                     if (on) {
-                        GameOverlayService.start(context, context.packageName)
+                        // Empty pkg = follow the foreground app. Pinning our own package
+                        // made the HUD measure apexcore and pushed gfxinfo onto games.
+                        GameOverlayService.start(context, "")
                     } else {
                         GameOverlayService.stop(context)
                     }

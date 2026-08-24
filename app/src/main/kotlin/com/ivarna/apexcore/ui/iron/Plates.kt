@@ -15,6 +15,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
@@ -64,6 +65,14 @@ fun EngravedPlate(
                 }
                 onDrawWithContent {
                     drawContent()
+                    // machined top edge: brass highlight catching light (Graphite identity; subtle on paper too).
+                    val w = this@drawWithCache.size.width
+                    drawLine(
+                        Iron.Brass400.copy(alpha = 0.42f),
+                        Offset(3.dp.toPx(), 1.dp.toPx()),
+                        Offset(w - 3.dp.toPx(), 1.dp.toPx()),
+                        1.dp.toPx()
+                    )
                     drawPath(inner, Iron.Anvil600, style = Stroke(0.75.dp.toPx()))
                 }
             }

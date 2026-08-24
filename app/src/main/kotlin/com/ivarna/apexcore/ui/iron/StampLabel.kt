@@ -32,15 +32,15 @@ fun StampLabel(
     pulse: Boolean = false,
 ) {
     val clack = rememberClack()
-    val scale = remember { Animatable(if (slam) 1.6f else 1f) }
-    val rot = remember { Animatable(if (slam) -8f else -3f) }
+    val scale = remember { Animatable(if (slam) 1.25f else 1f) }
+    val rot = remember { Animatable(if (slam) -5f else -3f) }
     val alpha = remember { Animatable(1f) }
     val reduced = LocalReducedMotion.current
 
     LaunchedEffect(text) {
         if (slam && !reduced) {
-            scale.snapTo(1.6f)
-            rot.snapTo(-8f)
+            scale.snapTo(1.25f)
+            rot.snapTo(-5f)
             launch { rot.animateTo(-3f, tween(200)) }
             scale.animateTo(1f, IronMotion.stamp())
             clack.thud()
@@ -77,11 +77,14 @@ fun StampLabel(
                 Text(
                     text,
                     style = IronType.Label.copy(
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Black,
-                        letterSpacing = 1.3.sp,
+                        letterSpacing = 1.sp,
                         color = ink.color
                     ),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                 )
             }
         }

@@ -15,8 +15,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.view.WindowCompat
 import com.ivarna.apexcore.ui.iron.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -52,6 +54,17 @@ fun FieldManual(
     val scope = rememberCoroutineScope()
     val pagerState = rememberPagerState(initialPage = 0) { 5 }
     val page = pagerState.currentPage
+
+    // Manual surface = ironSkin().canvas: Graphite (anvil) needs light icons, Vellum (cream) needs dark icons.
+    val view = LocalView.current
+    val lightBars = ironSkin().isPaper
+    if (!view.isInEditMode) SideEffect {
+        view.context.findActivity()?.window?.let { w ->
+            val c = WindowCompat.getInsetsController(w, view)
+            c.isAppearanceLightStatusBars = lightBars
+            c.isAppearanceLightNavigationBars = lightBars
+        }
+    }
 
     LaunchedEffect(page) {
         if (page != 4) return@LaunchedEffect

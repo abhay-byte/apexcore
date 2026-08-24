@@ -25,6 +25,7 @@ object Iron {
     val Anvil900 = Color(0xFF101113)
     val Anvil800 = Color(0xFF17191C)
     val Anvil700 = Color(0xFF1F2226)
+    val Anvil650 = Color(0xFF262B32)  // steel-blue plate top (Graphite machined identity)
     val Anvil600 = Color(0xFF2B2F34)
     val Anvil500 = Color(0xFF3A3F45)
     val Bone50 = Color(0xFFF5F0E4)

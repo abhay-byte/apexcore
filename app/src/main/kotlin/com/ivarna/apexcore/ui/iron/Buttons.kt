@@ -35,8 +35,8 @@ fun ChamferButton(
     val skin = ironSkin()
 
     val stripe = remember { Animatable(0f) }
-    LaunchedEffect(busy) {
-        if (!busy) {
+    LaunchedEffect(busy, pressed) {
+        if (!busy && !pressed) {
             stripe.snapTo(0f)
             return@LaunchedEffect
         }
@@ -109,7 +109,9 @@ fun ChamferButton(
         Text(
             text,
             style = IronType.Label,
-            color = labelColor
+            color = labelColor,
+            maxLines = 1,
+            softWrap = false
         )
     }
 }

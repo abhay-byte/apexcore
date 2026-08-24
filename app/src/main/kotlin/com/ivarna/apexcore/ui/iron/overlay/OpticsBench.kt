@@ -1,6 +1,9 @@
 package com.ivarna.apexcore.ui.iron.overlay
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,6 +25,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -39,7 +43,7 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 enum class RailEdge { LEFT, RIGHT }
-enum class RailSize(val panelW: Dp, val fpsSp: TextUnit) { S(50.dp, 18.sp), M(58.dp, 24.sp), L(66.dp, 30.sp) }
+enum class RailSize(val panelW: Dp, val fpsSp: TextUnit) { S(56.dp, 18.sp), M(78.dp, 26.sp), L(100.dp, 34.sp) }
 
 data class OpticsUiState(
     val permissionGranted: Boolean,
@@ -118,6 +122,26 @@ fun OpticsBench(
                 Text("PREVIEW SERVICE", style = IronType.Label, color = skin.text, modifier = Modifier.weight(1f))
                 MachinedToggle(state.previewRunning, onTogglePreview)
             }
+            Spacer(Modifier.height(12.dp))
+            Row {
+                ChamferButton(
+                    "START OVERLAY",
+                    { onTogglePreview(true) },
+                    Modifier.weight(1f),
+                    tall = false,
+                    enabled = !state.previewRunning,
+                    variant = if (state.previewRunning) ChamferVariant.Outline else ChamferVariant.Primary,
+                )
+                Spacer(Modifier.width(10.dp))
+                ChamferButton(
+                    "STOP OVERLAY",
+                    { onTogglePreview(false) },
+                    Modifier.weight(1f),
+                    tall = false,
+                    enabled = state.previewRunning,
+                    variant = if (state.previewRunning) ChamferVariant.Primary else ChamferVariant.Outline,
+                )
+            }
         }
         Spacer(Modifier.height(14.dp))
 
@@ -161,10 +185,15 @@ fun PhantomRailPreview(
     val clack = rememberClack()
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(true) }
     var interaction by remember { mutableIntStateOf(0) }
     val y = remember { Animatable(40f) }
     val flashDefrost = remember { mutableStateOf(false) }
+    val expandT by animateFloatAsState(
+        if (expanded) 1f else 0f,
+        animationSpec = tween(240, easing = FastOutSlowInEasing),
+        label = "railExpand",
+    )
 
     LaunchedEffect(interaction) {
         delay(5000)
@@ -203,11 +232,23 @@ fun PhantomRailPreview(
                     }
                 }
         ) {
-            if (expanded) {
-                RailPanel(fps, ram, cpu, state.size, state.opacity, flashDefrost.value) {
-                    interaction++
-                    flashDefrost.value = true
-                    clack.confirm()
+            if (expandT > 0.02f) {
+                Box(
+                    Modifier.graphicsLayer {
+                        alpha = expandT
+                        val s = 0.92f + 0.08f * expandT
+                        scaleX = s
+                        scaleY = s
+                        transformOrigin = TransformOrigin(
+                            if (state.edge == RailEdge.LEFT) 0f else 1f, 0.5f
+                        )
+                    }
+                ) {
+                    RailPanel(fps, ram, cpu, state.size, state.opacity, flashDefrost.value) {
+                        interaction++
+                        flashDefrost.value = true
+                        clack.confirm()
+                    }
                 }
             } else {
                 Box(

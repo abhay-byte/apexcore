@@ -135,8 +135,12 @@ fun InstrumentDial(
     // §3.5 a11y — description changes (⇒ TalkBack re-announce) only on ≥5% steps
     val announcedPct = remember(value) { (((value * 100).toInt() / 5).coerceAtLeast(0)) * 5 }
 
+    // Readouts on small dials render BELOW the gauge — inside a 96dp box the dial's
+    // width constraints clip long readouts ("340 / 2047 MB" lost its last glyphs).
+    val smallDial = diameter < 140.dp
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
     Box(
-        modifier
+        Modifier
             .size(diameter)
             .semantics { contentDescription = "$label $announcedPct percent" }
             .pointerInput(onLongPress) {
@@ -262,7 +266,7 @@ fun InstrumentDial(
                 }
         ) {}
 
-        if (valueText.isNotEmpty() || label.isNotEmpty()) {
+        if (!smallDial && (valueText.isNotEmpty() || label.isNotEmpty())) {
             Column(
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -273,12 +277,30 @@ fun InstrumentDial(
                     Text(
                         valueText,
                         style = IronType.Mono,
-                        color = if (energized) pal.needle else pal.idleNeedle
+                        color = if (energized) pal.needle else pal.idleNeedle,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
                 if (label.isNotEmpty()) {
                     Text(label, style = IronType.MonoSm, color = pal.idleNeedle)
                 }
+            }
+        }
+        }
+        if (smallDial && (valueText.isNotEmpty() || label.isNotEmpty())) {
+            Spacer(Modifier.height(6.dp))
+            if (valueText.isNotEmpty()) {
+                Text(
+                    valueText,
+                    style = IronType.Mono.copy(fontSize = 10.sp),
+                    color = if (energized) pal.needle else pal.idleNeedle,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+            if (label.isNotEmpty()) {
+                Text(label, style = IronType.MonoSm, color = pal.idleNeedle)
             }
         }
     }

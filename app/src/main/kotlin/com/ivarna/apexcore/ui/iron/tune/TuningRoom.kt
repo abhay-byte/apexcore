@@ -98,6 +98,7 @@ fun TuningRoom(
         Column(
             Modifier
                 .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .nestedScroll(probeConnection)
                 .padding(horizontal = 20.dp)
         ) {
@@ -111,10 +112,12 @@ fun TuningRoom(
                 Spacer(Modifier.width(8.dp))
                 Text(
                     "TUNING ROOM",
-                    style = IronType.Display.copy(fontSize = 22.sp),
+                    style = IronType.Display.copy(fontSize = 14.sp, letterSpacing = 0.15.sp),
                     color = skin.text,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
+                Spacer(Modifier.width(6.dp))
                 if (isProbing) {
                     LoadingNeedle()
                 } else {

@@ -47,6 +47,8 @@ fun LaunchMatrixScreen(
     allLoading: Boolean,
     onAdd: () -> Unit,
     onPin: () -> Unit,
+    onAutoScan: () -> Unit = {},
+    autoScanning: Boolean = false,
     onLaunch: (AppCardData) -> Unit,
     onRemove: (AppCardData) -> Unit,
     addSheet: @Composable () -> Unit = {},
@@ -73,6 +75,15 @@ fun LaunchMatrixScreen(
             Spacer(Modifier.height(12.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (games.isNotEmpty()) ChamferButton("+ ADD", onAdd, tall = false, variant = ChamferVariant.Outline, modifier = Modifier.weight(1f))
+                ChamferButton(
+                    if (autoScanning) "SCANNING…" else "AUTO SCAN",
+                    onAutoScan,
+                    tall = false,
+                    variant = if (games.isEmpty()) ChamferVariant.Primary else ChamferVariant.Outline,
+                    busy = autoScanning,
+                    enabled = !autoScanning,
+                    modifier = Modifier.weight(1f)
+                )
                 ChamferButton("PIN", onPin, tall = false, variant = ChamferVariant.Outline, modifier = Modifier.weight(1f))
             }
             Spacer(Modifier.height(12.dp))
@@ -94,6 +105,8 @@ fun LaunchMatrixScreen(
                     noGames = segment == 0 && games.isEmpty() && query.isEmpty(),
                     noMatch = query.isNotEmpty(),
                     onAdd = onAdd,
+                    onAutoScan = onAutoScan,
+                    autoScanning = autoScanning,
                     modifier = Modifier.weight(1f)
                 )
                 else -> Rack(
@@ -333,7 +346,14 @@ private fun DemandMeter(demand: Demand) {
 }
 
 @Composable
-private fun EmptyPlate(noGames: Boolean, noMatch: Boolean, onAdd: () -> Unit, modifier: Modifier = Modifier) {
+private fun EmptyPlate(
+    noGames: Boolean,
+    noMatch: Boolean,
+    onAdd: () -> Unit,
+    onAutoScan: (() -> Unit)? = null,
+    autoScanning: Boolean = false,
+    modifier: Modifier = Modifier
+) {
     val dimC = ironSkin().textDim
     Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         IronSurface(Modifier.fillMaxWidth(0.85f)) {
@@ -349,6 +369,19 @@ private fun EmptyPlate(noGames: Boolean, noMatch: Boolean, onAdd: () -> Unit, mo
                     DoodleArrow(Iron.Signal700, Modifier.graphicsLayer { rotationZ = 90f })
                     Spacer(Modifier.height(14.dp))
                     ChamferButton(if (noGames) "ADD GAMES" else "SCAN FOR GAMES", onAdd)
+                    if (noGames && onAutoScan != null) {
+                        Spacer(Modifier.height(10.dp))
+                        ChamferButton(
+                            if (autoScanning) "SCANNING…" else "AUTO SCAN ALL GAMES",
+                            onAutoScan,
+                            busy = autoScanning,
+                            enabled = !autoScanning,
+                            variant = ChamferVariant.Primary,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text("Auto-detects games via CATEGORY_GAME", style = IronType.MonoSm, color = dimC)
+                    }
                 }
             }
         }

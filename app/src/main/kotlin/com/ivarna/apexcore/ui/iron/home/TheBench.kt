@@ -273,10 +273,11 @@ fun TheBench(
             }
 
             item {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(30.dp))
                 ThermometerStrip(batteryC = ui.batteryC, cpuC = ui.cpuC)
             }
             item {
+                Spacer(Modifier.height(14.dp))
                 SerialFooter(1, "HOME", serial)
             }
         }

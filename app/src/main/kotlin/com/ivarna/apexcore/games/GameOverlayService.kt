@@ -21,7 +21,12 @@ import com.ivarna.apexcore.getSystemMemStats
 import com.ivarna.apexcore.thermal.ThermalMonitor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
 class GameOverlayService : Service() {
@@ -124,7 +129,7 @@ class GameOverlayService : Service() {
 
         wm.addView(rail, params)
         isRunning = true
-        handler.post(telemetry)
+        startTelemetry()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -172,36 +177,43 @@ class GameOverlayService : Service() {
             wm.currentWindowMetrics.bounds.height()
         else resources.displayMetrics.heightPixels
 
-    private val telemetry = object : Runnable {
-        override fun run() {
-            try {
-                val fpsStack = FpsStack.get(applicationContext)
-                val fpsSnapshot = kotlinx.coroutines.runBlocking(Dispatchers.IO) {
-                    fpsStack.repository.getFps()
+    // Telemetry sampling runs entirely off the main thread — the old handler loop
+    // runBlocking'd dumpsys/proc reads on main every 500ms and janked the overlay
+    // (and the host process) while games were running.
+    private val telemetryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var telemetryJob: kotlinx.coroutines.Job? = null
+
+    private fun startTelemetry() {
+        telemetryJob?.cancel()
+        telemetryJob = telemetryScope.launch {
+            while (isActive) {
+                try {
+                    val fpsStack = FpsStack.get(applicationContext)
+                    val fpsSnapshot = fpsStack.repository.getFps()
+                    val fps = if (fpsSnapshot.currentFps > 0f && fpsSnapshot.method != FpsMethod.NONE) {
+                        fpsSnapshot.currentFps.toInt()
+                    } else 0
+
+                    val stats = getSystemMemStats(applicationContext)
+                    val ramFraction = stats.ramUsedKb.toFloat() / stats.ramTotalKb.coerceAtLeast(1)
+
+                    val cpuSnapshot = runCatching { fpsStack.cpuDataSource.readCpuStats() }.getOrNull()
+                    val cpuFractions = if (cpuSnapshot != null && cpuSnapshot.cores.isNotEmpty()) {
+                        FloatArray(cpuSnapshot.cores.size) { i -> (cpuSnapshot.cores[i].loadPercent / 100f).coerceIn(0f, 1f) }
+                    } else {
+                        FloatArray(8) { 0.2f }
+                    }
+
+                    val thermal = ThermalMonitor.getSnapshot(applicationContext).cpuTempCelsius > 45
+
+                    withContext(Dispatchers.Main) {
+                        rail.push(fps, ramFraction, cpuFractions)
+                        rail.thermal = thermal
+                    }
+                } catch (_: Throwable) {
                 }
-                val fps = if (fpsSnapshot.currentFps > 0f && fpsSnapshot.method != FpsMethod.NONE) {
-                    fpsSnapshot.currentFps.toInt()
-                } else 0
-
-                val stats = getSystemMemStats(applicationContext)
-                val ramFraction = stats.ramUsedKb.toFloat() / stats.ramTotalKb.coerceAtLeast(1)
-
-                val cpuSnapshot = kotlinx.coroutines.runBlocking(Dispatchers.IO) {
-                    runCatching { fpsStack.cpuDataSource.readCpuStats() }.getOrNull()
-                }
-                val cpuFractions = if (cpuSnapshot != null && cpuSnapshot.cores.isNotEmpty()) {
-                    FloatArray(cpuSnapshot.cores.size) { i -> (cpuSnapshot.cores[i].loadPercent / 100f).coerceIn(0f, 1f) }
-                } else {
-                    FloatArray(8) { 0.2f }
-                }
-
-                val thermal = ThermalMonitor.getSnapshot(applicationContext).cpuTempCelsius > 45
-
-                rail.push(fps, ramFraction, cpuFractions)
-                rail.thermal = thermal
-            } catch (_: Throwable) {
+                delay(500)
             }
-            handler.postDelayed(this, 500)
         }
     }
 
@@ -213,6 +225,8 @@ class GameOverlayService : Service() {
     }
 
     private fun shutdown() {
+        telemetryJob?.cancel()
+        telemetryScope.cancel()
         handler.removeCallbacksAndMessages(null)
         try {
             if (rail.parent != null) wm.removeView(rail)

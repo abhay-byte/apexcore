@@ -17,10 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.view.WindowCompat
 import com.ivarna.apexcore.ui.iron.*
 
 enum class GearTab(val label: String) { HOME("HOME"), GAMES("GAMES"), HUD("HUD"), TOOLS("TOOLS") }
@@ -93,7 +91,6 @@ fun BridgePlate(
         Spacer(Modifier.width(10.dp))
         Column {
             EngravedText("APEXCORE", IronType.Label.copy(fontSize = 14.sp))
-            Text("MK·II", style = IronType.MonoSm, color = Iron.Bone500)
         }
         Spacer(Modifier.weight(1f))
         Row(
@@ -148,22 +145,8 @@ fun IronShell(
     val gate = rememberCeremonyGate()
     val canvas by animateColorAsState(ironSkin().canvas, tween(220), label = "finishCanvas")
 
-    // Status/nav bars sit on the Bridge/Gear chassis (always Anvil900) while tabs are visible,
-    // so bars must stay LIGHT even in Vellum. Full-screen slot/replay surfaces decide otherwise.
-    val view = LocalView.current
-    val shellSkin = ironSkin()
-    if (!view.isInEditMode) SideEffect {
-        view.context.findActivity()?.window?.let { w ->
-            val c = WindowCompat.getInsetsController(w, view)
-            val lightBars = when {
-                replayOverlay != null -> !shellSkin.isPaper    // overlay surface rules
-                slot != IronSlot.NONE -> shellSkin.isPaper     // slot canvas fills the screen
-                else -> true                                   // chassis bridge/gear always dark
-            }
-            c.isAppearanceLightStatusBars = lightBars
-            c.isAppearanceLightNavigationBars = lightBars
-        }
-    }
+    // NOTE: status/nav bars are owned by MainScreen (single writer) — a second writer
+    // here kept re-darkening icons on Graphite after slot/sheet state churn.
 
     CompositionLocalProvider(LocalCeremonyGate provides gate) {
         Box(Modifier.fillMaxSize().background(canvas).ironGrain(0.04f)) {
@@ -253,7 +236,7 @@ private fun BackendRow(
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(name, style = IronType.Label, color = Iron.Bone100)
+                Text(name, style = IronType.Label, color = Iron.Bone100, maxLines = 1, softWrap = false)
                 if (isPreferred) {
                     Spacer(Modifier.width(8.dp))
                     StampLabel("PREFERRED", StampInk.Brass, slam = false)

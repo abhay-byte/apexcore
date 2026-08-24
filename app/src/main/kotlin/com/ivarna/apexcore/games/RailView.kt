@@ -41,9 +41,9 @@ class RailView(context: Context) : View(context) {
 
     val panelWidthDp: Int
         get() = when (sizePref) {
-            "S" -> 50
-            "L" -> 66
-            else -> 58
+            "S" -> 56
+            "L" -> 100
+            else -> 78
         }
 
     private val ram = FloatArray(60) { 0.5f }
@@ -155,7 +155,7 @@ class RailView(context: Context) : View(context) {
             c.drawRoundRect(left, top, right, bottom, dp(3f), dp(3f), strokeP)
 
             val cx = (left + right) / 2f
-            fpsP.textSize = dp(when (sizePref) { "S" -> 18f; "L" -> 26f; else -> 22f })
+            fpsP.textSize = dp(when (sizePref) { "S" -> 18f; "L" -> 34f; else -> 26f })
             val fpsY = top + dp(30f)
             c.drawText("$fps", cx - fpsP.measureText("$fps") / 2f, fpsY, fpsP)
             labelP.textSize = dp(8f)

@@ -10,10 +10,8 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
-import androidx.core.view.WindowCompat
 import kotlin.random.Random
 
 val LocalPaperSurfaces = staticCompositionLocalOf { false }
@@ -51,15 +49,8 @@ fun IronTheme(
     }
     val reduced = systemReduced || (reducedMotionOverride == true)
 
-    val view = LocalView.current
-    if (!view.isInEditMode) SideEffect {
-        ctx.findActivity()?.window?.let { w ->
-            val c = WindowCompat.getInsetsController(w, view)
-            val lightBars = finish == IronFinish.VELLUM
-            c.isAppearanceLightStatusBars = lightBars
-            c.isAppearanceLightNavigationBars = lightBars
-        }
-    }
+    // NOTE: status/nav bar tint is owned by the visible surface (IronShell / Ignition /
+    // FieldManual), not here — a second writer here kept re-darkening icons in Graphite.
 
     CompositionLocalProvider(
         LocalIronFinish provides finish,

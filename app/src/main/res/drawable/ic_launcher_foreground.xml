@@ -2,20 +2,39 @@
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
 
-    <!-- chamfered plate -->
+    <!-- chamfered plate (machined anvil) -->
     <path android:fillColor="#17191C"
         android:pathData="M28,24 L74,24 L84,34 L84,80 Q84,84 80,84 L28,84 Q24,84 24,80 L24,28 Q24,24 28,24 Z"/>
-    <!-- engraved hairline -->
-    <path android:strokeColor="#2B2F34" android:strokeWidth="1"
+    <!-- engraved hairline (inset) -->
+    <path android:strokeColor="#2B2F34" android:strokeWidth="0.9"
         android:fillColor="#00000000"
         android:pathData="M29,25 L73.5,25 L83,34.5 L83,79 Q83,83 79,83 L29,83 Q25,83 25,79 L25,29 Q25,25 29,25 Z"/>
-    <!-- 16 tick ring -->
-    <path android:strokeColor="#CFC6AE" android:strokeWidth="1.5" android:fillColor="#00000000"
-        android:pathData="M73,54 L77,54 M71.55,61.27 L75.25,62.8 M67.44,67.44 L70.27,70.27 M61.27,71.55 L62.8,75.25 M54,73 L54,77 M46.73,71.55 L45.2,75.25 M40.56,67.44 L37.73,70.27 M36.45,61.27 L32.75,62.8 M35,54 L31,54 M36.45,46.73 L32.75,45.2 M40.56,40.56 L37.73,37.73 M46.73,36.45 L45.2,32.75 M54,35 L54,31 M61.27,36.45 L62.8,32.75 M67.44,40.56 L70.27,37.73 M71.55,46.73 L75.25,45.2"/>
-    <!-- signal needle + counterweight tail -->
-    <path android:strokeColor="#FF5A1F" android:strokeWidth="3"
-        android:pathData="M49.4,58.6 L66.7,41.3"/>
-    <!-- brass pivot + ink center -->
+    <!-- brass top highlight (machined edge) -->
+    <path android:strokeColor="#D9A75A" android:strokeWidth="0.9"
+        android:fillColor="#00000000"
+        android:strokeAlpha="0.45"
+        android:pathData="M29,25.8 L73.5,25.8 L83,35.3"/>
+    <!-- outer tick ring - 24 ticks (major 6, minor 18) high DPI -->
+    <!-- major ticks at 0,25,50,75,100 -->
+    <path android:strokeColor="#CFC6AE" android:strokeWidth="1.6" android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M73,54 L77.2,54 M54,73 L54,77.2 M35,54 L30.8,54 M54,35 L54,30.8 M67.44,67.44 L70.5,70.5 M40.56,67.44 L37.5,70.5 M40.56,40.56 L37.5,37.5 M67.44,40.56 L70.5,37.5"/>
+    <path android:strokeColor="#CFC6AE" android:strokeWidth="1.0" android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:strokeAlpha="0.95"
+        android:pathData="M71.55,61.27 L75.2,62.7 M61.27,71.55 L62.7,75.2 M46.73,71.55 L45.3,75.2 M36.45,61.27 L32.8,62.7 M36.45,46.73 L32.8,45.3 M46.73,36.45 L45.3,32.8 M61.27,36.45 L62.7,32.8 M71.55,46.73 L75.2,45.3 M68.9,64.5 L72.1,66 M64.5,68.9 L66,72.1 M43.5,68.9 L42,72.1 M39.1,64.5 L35.9,66 M39.1,43.5 L35.9,42 M43.5,39.1 L42,35.9 M64.5,39.1 L66,35.9 M68.9,43.5 L72.1,42"/>
+    <!-- subtle arc track (signal underlayer) -->
+    <path android:strokeColor="#2B2F34" android:strokeWidth="2.2" android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M40.5,68.5 A22,22 0 0,1 68.8,40.2"/>
+    <!-- signal needle + counterweight tail (high precision) -->
+    <path android:strokeColor="#FF5A1F" android:strokeWidth="2.8" android:strokeLineCap="round"
+        android:pathData="M54,54 L66.9,41.1"/>
+    <path android:strokeColor="#FF5A1F" android:strokeWidth="1.6" android:strokeLineCap="round"
+        android:strokeAlpha="0.95"
+        android:pathData="M54,54 L49.2,58.8"/>
+    <!-- brass pivot (outer) + ink center (inner) with highlight -->
     <path android:fillColor="#D9A75A" android:pathData="M54,49 a5,5 0 1,0 0,10 a5,5 0 1,0 0,-10 z"/>
+    <path android:fillColor="#E8C08A" android:pathData="M52.8,50.2 a1.2,1.2 0 1,0 2.2,1.0 a1.2,1.2 0 1,0 -2.2,-1.0 z" android:fillAlpha="0.55"/>
     <path android:fillColor="#201C16" android:pathData="M54,52.5 a1.5,1.5 0 1,0 0,3 a1.5,1.5 0 1,0 0,-3 z"/>
 </vector>

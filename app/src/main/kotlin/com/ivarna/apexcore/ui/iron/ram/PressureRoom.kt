@@ -107,14 +107,16 @@ fun PressureRoom(
 
     var modeMenu by remember { mutableStateOf(false) }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 20.dp)) {
         Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             BackArrow(skin.textDim, onBack)
             Spacer(Modifier.width(8.dp))
             Text(
-                "PRESSURE ROOM", style = IronType.Display.copy(fontSize = 22.sp), color = skin.text,
-                modifier = Modifier.weight(1f)
+                "PRESSURE ROOM", style = IronType.Display.copy(fontSize = 14.sp, letterSpacing = 0.15.sp), color = skin.text,
+                modifier = Modifier.weight(1f),
+                maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
+            Spacer(Modifier.width(6.dp))
             Box {
                 Row(
                     Modifier
@@ -226,7 +228,7 @@ fun TubeManometer(
     val ramLvl by animateFloatAsState(ramFraction.coerceIn(0f, 1f), IronMotion.needle(), label = "ramL")
     val swapLvl by animateFloatAsState(swapFraction.coerceIn(0f, 1f), IronMotion.needle(), label = "swapL")
     Row(
-        Modifier.fillMaxWidth().height(240.dp),
+        Modifier.fillMaxWidth().heightIn(min = 268.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.Bottom
     ) {
@@ -280,7 +282,13 @@ private fun Tube(tubeH: Dp, level: Float, label: String, valueText: String, ener
             }
         }) {}
         Spacer(Modifier.height(6.dp))
-        Text(valueText, style = IronType.Mono, color = Iron.Bone100)
+        Text(
+            valueText,
+            style = IronType.Mono.copy(fontSize = 13.sp),
+            color = Iron.Bone100,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }
 

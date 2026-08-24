@@ -57,12 +57,24 @@ class ForegroundAppResolver(
      * Note: do NOT match bare "BLAST" — most Android 12+ UI apps use BLASTBufferQueue.
      */
     fun isGameLikeSurface(packageName: String): Boolean {
-        if (KNOWN_GAME_PACKAGES.any { packageName.startsWith(it) || packageName.contains(it) }) {
-            return true
+        // The probes below (dumpsys SF --list / dumpsys window) are expensive —
+        // cache the verdict per package so the 500ms HUD tick doesn't spam system_server.
+        val now = System.currentTimeMillis()
+        gameLikeCache[packageName]?.let { (verdict, expiresAt) ->
+            if (now < expiresAt) return verdict
         }
-        if (hasGameLayer(packageName)) return true
-        return hasGameFocusedActivity(packageName)
+        val verdict = run {
+            if (KNOWN_GAME_PACKAGES.any { packageName.startsWith(it) || packageName.contains(it) }) {
+                return@run true
+            }
+            if (hasGameLayer(packageName)) return@run true
+            hasGameFocusedActivity(packageName)
+        }
+        gameLikeCache[packageName] = verdict to (now + GAME_LIKE_CACHE_MS)
+        return verdict
     }
+
+    private val gameLikeCache = java.util.concurrent.ConcurrentHashMap<String, Pair<Boolean, Long>>()
 
     /** @deprecated Use [isGameLikeSurface]. */
     fun hasSurfaceViewLayer(packageName: String): Boolean = isGameLikeSurface(packageName)
@@ -98,6 +110,8 @@ class ForegroundAppResolver(
     }
 
     companion object {
+        private const val GAME_LIKE_CACHE_MS = 30_000L
+
         private val GAME_MARKERS = listOf(
             "SurfaceView",
             "NativeActivity",

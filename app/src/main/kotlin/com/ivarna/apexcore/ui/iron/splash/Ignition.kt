@@ -48,17 +48,17 @@ fun Ignition(onSplashFinished: (showOnboarding: Boolean) -> Unit) {
     }
 
     IronScreen("IGNITION") {
-    // splash canvas is always Anvil900 → bars stay light in every finish
+    val skin = ironSkin()
     val view = LocalView.current
     if (!view.isInEditMode) SideEffect {
         val a = view.context.findActivity()
         a?.window?.let { w ->
             val c = WindowCompat.getInsetsController(w, view)
-            c.isAppearanceLightStatusBars = false
-            c.isAppearanceLightNavigationBars = false
+            c.isAppearanceLightStatusBars = skin.isPaper
+            c.isAppearanceLightNavigationBars = skin.isPaper
         }
     }
-    Box(Modifier.fillMaxSize().background(Iron.Anvil900).ironGrain(0.04f)) {
+    Box(Modifier.fillMaxSize().background(skin.canvas).ironGrain(0.05f)) {
         Column(
             Modifier.align(Alignment.Center)
                 .graphicsLayer {
@@ -73,17 +73,20 @@ fun Ignition(onSplashFinished: (showOnboarding: Boolean) -> Unit) {
                 val r = size.minDimension / 2f
                 val c6 = 6.dp.toPx()
                 val c12 = 12.dp.toPx()
-                drawPath(chamferPath(size, c6, c12), Iron.Anvil800)
+                val plate = if (skin.isPaper) Iron.Bone100 else Iron.Anvil800
+                val hair = skin.hairline
+                val tick = if (skin.isPaper) Iron.Ink600.copy(alpha = 0.55f) else Iron.Anvil500
+                drawPath(chamferPath(size, c6, c12), plate)
                 drawPath(
                     chamferPath(size, c6, c12),
-                    Iron.Anvil600,
+                    hair,
                     style = Stroke(1.dp.toPx())
                 )
                 val ring = r * 0.62f
                 repeat(24) { i ->
                     val a = (i / 24f) * 240f - 210f
                     drawLine(
-                        Iron.Anvil500,
+                        tick,
                         Offset(
                             r + cos(Math.toRadians(a.toDouble())).toFloat() * ring,
                             r + sin(Math.toRadians(a.toDouble())).toFloat() * ring
@@ -109,7 +112,7 @@ fun Ignition(onSplashFinished: (showOnboarding: Boolean) -> Unit) {
             Text(
                 "FIELD-GRADE PERFORMANCE INSTRUMENTS",
                 style = IronType.MonoSm,
-                color = Iron.Bone500,
+                color = skin.textDim,
                 letterSpacing = 2.5.sp
             )
             Spacer(Modifier.height(4.dp))

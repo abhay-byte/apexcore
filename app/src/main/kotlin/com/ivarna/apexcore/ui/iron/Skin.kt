@@ -23,7 +23,7 @@ data class IronSkin(
 ) {
     companion object {
         val Graphite = IronSkin(
-            Iron.Anvil900, Iron.Anvil700, Iron.Anvil800,
+            Iron.Anvil950, Iron.Anvil700, Iron.Anvil800,
             Iron.Bone100, Iron.Bone500, Iron.Anvil600, Iron.Anvil500, isPaper = false
         )
         val Vellum = IronSkin(
