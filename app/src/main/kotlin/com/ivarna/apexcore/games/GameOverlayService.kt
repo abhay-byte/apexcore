@@ -42,6 +42,10 @@ class GameOverlayService : Service() {
         const val ACTION_START = "com.ivarna.apexcore.overlay.START"
         const val ACTION_STOP = "com.ivarna.apexcore.overlay.STOP"
 
+        const val FPS_MEASUREMENT_PERIOD_MS = 850L
+        const val HUD_REDRAW_PERIOD_MS = 350L
+        const val MIN_DELAY_MS = 80L
+
         @Volatile
         var isRunning: Boolean = false
 
@@ -94,10 +98,11 @@ class GameOverlayService : Service() {
 
         val onRight = prefs.getString("hud_edge", "LEFT") == "RIGHT"
 
+        // Reuse telemetryScope for all background work — avoid ad-hoc Scope creation per click
         rail = RailView(this).apply {
             applyFit(prefs)
             onDefrost = {
-                CoroutineScope(Dispatchers.IO).launch {
+                telemetryScope.launch {
                     FreezeFramework.unfreezeAll(applicationContext)
                 }
             }
@@ -137,7 +142,21 @@ class GameOverlayService : Service() {
             shutdown()
             return START_NOT_STICKY
         }
-        gamePkg = intent?.getStringExtra(EXTRA_PKG)
+        val newPkg = intent?.getStringExtra(EXTRA_PKG)?.takeIf { it.isNotBlank() && it.contains('.') }
+        val pkgChanged = newPkg != null && newPkg != gamePkg
+        if (newPkg != null) gamePkg = newPkg
+        // Mission: track launched game package, not transient focus — set before first sample
+        try {
+            FpsStack.get(applicationContext).repository.setTargetPackage(gamePkg)
+            android.util.Log.i(TAG, "FPS target set to $gamePkg")
+        } catch (t: Throwable) {
+            android.util.Log.w(TAG, "Failed to set FPS target: ${t.message}")
+        }
+        if (pkgChanged) {
+            // Restart telemetry so new package resolves fresh surface immediately
+            latestFpsSnapshot = null
+            startTelemetry()
+        }
         startForeground(NOTIF_ID, buildNotification())
         prefs.edit()
             .putBoolean(PREF_OVERLAY_RUNNING, true)
@@ -201,42 +220,73 @@ class GameOverlayService : Service() {
     // Telemetry sampling runs entirely off the main thread — the old handler loop
     // runBlocking'd dumpsys/proc reads on main every 500ms and janked the overlay
     // (and the host process) while games were running.
+    // Separate measurement cadence (750-1000ms) from UI redraw cadence (250-500ms) using latest snapshot.
     private val telemetryScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var telemetryJob: kotlinx.coroutines.Job? = null
+    private var measurementJob: kotlinx.coroutines.Job? = null
+    private var uiJob: kotlinx.coroutines.Job? = null
+    @Volatile
+    private var latestFpsSnapshot: com.ivarna.apexcore.fps.model.FpsSnapshot? = null
 
     private fun startTelemetry() {
-        telemetryJob?.cancel()
-        telemetryJob = telemetryScope.launch {
+        measurementJob?.cancel()
+        uiJob?.cancel()
+        // Ensure target is set before first sample (already done in onStartCommand, but re-assert)
+        gamePkg?.let { pkg ->
+            try { FpsStack.get(applicationContext).repository.setTargetPackage(pkg) } catch (_: Throwable) {}
+        }
+        measurementJob = telemetryScope.launch {
             while (isActive) {
+                val loopStart = android.os.SystemClock.elapsedRealtime()
                 try {
                     val fpsStack = FpsStack.get(applicationContext)
                     val fpsSnapshot = fpsStack.repository.getFps()
-                    val refreshHz = displayRefreshHz()
-                    val rawFps = if (fpsSnapshot.currentFps > 0f && fpsSnapshot.method != FpsMethod.NONE) {
-                        fpsSnapshot.currentFps
-                    } else 0f
-                    val fps = rawFps.coerceAtMost(refreshHz).toInt()
-                    val method = fpsSnapshot.method
-
+                    latestFpsSnapshot = fpsSnapshot
+                    // Rich diagnostics: target, surface, method, tier, intervals, raw/smoothed, age
+                    fpsSnapshot.diagnostics?.let { diag ->
+                        val age = try { android.os.SystemClock.elapsedRealtime() - fpsSnapshot.measuredAtElapsedMs } catch (_: Throwable) { 0L }
+                        android.util.Log.d(TAG, "FPS target=$gamePkg method=${fpsSnapshot.method} tier=${fpsSnapshot.accessTier?.name} surface=${fpsSnapshot.sourceDetail} fps=${"%.1f".format(fpsSnapshot.currentFps)} age=${age}ms diag=$diag")
+                    }
+                } catch (t: Throwable) {
+                    android.util.Log.w(TAG, "FPS measurement failed: ${t.message}")
+                }
+                val elapsed = android.os.SystemClock.elapsedRealtime() - loopStart
+                val delayMs = (FPS_MEASUREMENT_PERIOD_MS - elapsed).coerceAtLeast(MIN_DELAY_MS)
+                delay(delayMs)
+            }
+        }
+        uiJob = telemetryScope.launch {
+            while (isActive) {
+                val loopStart = android.os.SystemClock.elapsedRealtime()
+                try {
+                    val fpsSnapshot = latestFpsSnapshot
+                    // Trust repository's display FPS (already smoothed & capped); do not double-clamp with stale refresh
+                    val fps = when {
+                        fpsSnapshot == null -> 0
+                        fpsSnapshot.method == FpsMethod.NONE || fpsSnapshot.currentFps <= 0f -> 0
+                        else -> fpsSnapshot.currentFps.toInt()
+                    }
+                    val method = fpsSnapshot?.method ?: FpsMethod.NONE
+                    val fpsStack = FpsStack.get(applicationContext)
                     val stats = getSystemMemStats(applicationContext)
                     val ramFraction = stats.ramUsedKb.toFloat() / stats.ramTotalKb.coerceAtLeast(1)
-
                     val cpuSnapshot = runCatching { fpsStack.cpuDataSource.readCpuStats() }.getOrNull()
                     val cpuFractions = if (cpuSnapshot != null && cpuSnapshot.cores.isNotEmpty()) {
                         FloatArray(cpuSnapshot.cores.size) { i -> (cpuSnapshot.cores[i].loadPercent / 100f).coerceIn(0f, 1f) }
                     } else {
                         FloatArray(8) { 0.2f }
                     }
-
                     val thermal = ThermalMonitor.getSnapshot(applicationContext).cpuTempCelsius > 45
-
                     withContext(Dispatchers.Main) {
                         rail.push(fps, ramFraction, cpuFractions, method)
+                        rail.fpsMethod = method
                         rail.thermal = thermal
                     }
-                } catch (_: Throwable) {
+                } catch (t: Throwable) {
+                    android.util.Log.w(TAG, "telemetry UI tick failed: ${t.message}")
                 }
-                delay(500)
+                val elapsed = android.os.SystemClock.elapsedRealtime() - loopStart
+                val delayMs = (HUD_REDRAW_PERIOD_MS - elapsed).coerceAtLeast(MIN_DELAY_MS)
+                delay(delayMs)
             }
         }
     }
@@ -249,7 +299,15 @@ class GameOverlayService : Service() {
     }
 
     private fun shutdown() {
-        telemetryJob?.cancel()
+        measurementJob?.cancel()
+        uiJob?.cancel()
+        latestFpsSnapshot = null
+        // Fail-closed: clear FPS target so resolver no longer locks to dead package and
+        // daemon file is not polled for stale game
+        try {
+            FpsStack.get(applicationContext).repository.setTargetPackage(null)
+            android.util.Log.i(TAG, "FPS target cleared")
+        } catch (_: Throwable) {}
         // Do not cancel the whole scope if we may be recreated quickly — but we must
         // ensure no further telemetry after shutdown. Cancel current job and keep scope.
         handler.removeCallbacksAndMessages(null)
@@ -260,6 +318,7 @@ class GameOverlayService : Service() {
             }
         } catch (_: Throwable) {}
         isRunning = false
+        gamePkg = null
         prefs.edit().remove(PREF_OVERLAY_RUNNING).remove(PREF_OVERLAY_PKG).apply()
         try { stopForeground(STOP_FOREGROUND_REMOVE) } catch (_: Throwable) {}
         try { stopSelf() } catch (_: Throwable) {}

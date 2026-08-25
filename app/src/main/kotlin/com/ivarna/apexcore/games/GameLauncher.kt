@@ -35,6 +35,15 @@ object GameLauncher {
             context.startActivity(intent)
             Log.i(TAG, "Launched $gamePkg after freezing ${result.killed} apps")
 
+            // FPS: track launched game package immediately so SF/gfxinfo lock onto the game
+            // rather than whichever window temporarily has focus (overlay, launcher, or system dialog).
+            try {
+                com.ivarna.apexcore.fps.FpsStack.get(context).repository.setTargetPackage(gamePkg)
+                Log.i(TAG, "FPS target set to $gamePkg")
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to set FPS target: ${t.message}")
+            }
+
             // Determine overlay vs watchdog restore ownership
             val overlayStarted = try {
                 GameOverlayService.start(context, gamePkg)

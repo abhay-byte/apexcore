@@ -50,21 +50,36 @@ class GfxinfoFpsDataSource(
         if (consecutiveEmpty >= MAX_CONSECUTIVE_EMPTY) return null
         lastAttemptMs = nowMs
 
-        val result = shellGateway.executeChain(
+        val (result, tier) = shellGateway.executeChain(
             "dumpsys gfxinfo ${foreground.packageName} framestats 2>/dev/null",
             shellGateway.currentPolicy().chain(PrivilegePolicy.DEFAULT_CHAIN)
-        ).first
+        )
         if (!result.isSuccess || result.output.isBlank()) {
             consecutiveEmpty++
             return null
         }
 
-        val snapshot = parseGfxinfo(result.output, System.currentTimeMillis(), foreground.refreshRateHz)
+        val snapshot = parseGfxinfo(result.output, System.currentTimeMillis(), foreground.refreshRateHz, tier, foreground.packageName)
         if (snapshot == null) consecutiveEmpty++ else consecutiveEmpty = 0
         return snapshot
     }
 
-    internal fun parseGfxinfo(output: String, nowMs: Long, refreshRateHz: Float = 60f): FpsSnapshot? {
+    fun clearCache() {
+        lastFrameCompletedNs = null
+        lastPollTimeMs = 0L
+        lastPackage = null
+        profileBootstrapped = false
+        consecutiveEmpty = 0
+        lastAttemptMs = 0L
+    }
+
+    internal fun parseGfxinfo(
+        output: String,
+        nowMs: Long,
+        refreshRateHz: Float = 60f,
+        accessTier: PrivilegeTier? = null,
+        packageName: String? = null
+    ): FpsSnapshot? {
         var frametimesMs = parseFrameCompletedTimestamps(output)
         var usedBootstrap = false
         if (frametimesMs.isEmpty() && !profileBootstrapped) {
@@ -78,6 +93,8 @@ class GfxinfoFpsDataSource(
             val pollDeltaSec = if (lastPollTimeMs > 0) (nowMs - lastPollTimeMs) / 1000f else 0f
             lastPollTimeMs = nowMs
             val fps = fpsFromFrametimes(frametimesMs, avgMs, pollDeltaSec, refreshRateHz)
+            // Fail-closed: do not report fps if frametimes are stale or too few
+            if (fps <= 0f || fps.isNaN() || fps.isInfinite()) return null
             val percentiles = computeFrametimePercentiles(frametimesMs)
             val (p1Ms, p01Ms) = resolvePercentiles(output, percentiles)
             return FpsSnapshot(
@@ -87,7 +104,16 @@ class GfxinfoFpsDataSource(
                 frametimeP01Ms = p01Ms,
                 frametimeHistogram = frametimesMs,
                 jankCount = 0,
-                method = FpsMethod.GFXINFO
+                method = FpsMethod.GFXINFO,
+                accessTier = accessTier,
+                packageName = packageName,
+                surfaceName = null,
+                timestampMs = System.currentTimeMillis(),
+                measuredAtElapsedMs = android.os.SystemClock.elapsedRealtime(),
+                diagnostics = "GFX framestats pkg=$packageName frames=${frametimesMs.size} avgMs=${"%.2f".format(avgMs)} tier=${accessTier?.name ?: "null"}",
+                sourceDetail = "GFX:framestats",
+                isStale = false,
+                frameCount = frametimesMs.size
             )
         }
 
@@ -104,7 +130,15 @@ class GfxinfoFpsDataSource(
                 frametimeP01Ms = percentiles.p01FrametimeMs,
                 frametimeHistogram = emptyList(),
                 jankCount = 0,
-                method = FpsMethod.GFXINFO
+                method = FpsMethod.GFXINFO,
+                accessTier = accessTier,
+                packageName = packageName,
+                timestampMs = System.currentTimeMillis(),
+                measuredAtElapsedMs = android.os.SystemClock.elapsedRealtime(),
+                diagnostics = "GFX histogram pkg=$packageName totalFrames=${uiHistogram.values.sum()} tier=${accessTier?.name ?: "null"}",
+                sourceDetail = "GFX:histogram",
+                isStale = false,
+                frameCount = uiHistogram.values.sum()
             )
         }
 
@@ -118,7 +152,15 @@ class GfxinfoFpsDataSource(
             frametimeP01Ms = parseReportedPercentile(output, 99),
             frametimeHistogram = emptyList(),
             jankCount = 0,
-            method = FpsMethod.GFXINFO
+            method = FpsMethod.GFXINFO,
+            accessTier = accessTier,
+            packageName = packageName,
+            timestampMs = System.currentTimeMillis(),
+            measuredAtElapsedMs = android.os.SystemClock.elapsedRealtime(),
+            diagnostics = "GFX gpuHistogram pkg=$packageName tier=${accessTier?.name ?: "null"}",
+            sourceDetail = "GFX:gpuHistogram",
+            isStale = false,
+            frameCount = 0
         )
     }
 

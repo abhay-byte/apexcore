@@ -8,7 +8,8 @@ data class ForegroundApp(
 )
 
 class ForegroundAppResolver(
-    private val shellExecutor: ShellExecutor
+    private val shellGateway: com.ivarna.apexcore.fps.privilege.ShellGateway,
+    private val appContext: android.content.Context? = null
 ) {
     /**
      * When the game overlay is active it can steal `mCurrentFocus`.
@@ -17,35 +18,105 @@ class ForegroundAppResolver(
     @Volatile
     var preferredPackage: String? = null
 
+    private var cachedForeground: ForegroundApp? = null
+    private var cachedForegroundAtMs: Long = 0L
+    private val cachedForegroundTtlMs = 1200L
+
+    private var cachedPidPackage: String? = null
+    private var cachedPidValue: Int = 0
+    private var cachedPidAtMs: Long = 0L
+    private val pidTtlMs = 2000L
+
+    private var cachedRefreshHz: Float = 60f
+    private var cachedRefreshAtMs: Long = 0L
+    private val refreshTtlMs = 5000L
+
+    fun setTargetPackage(pkg: String?) {
+        preferredPackage = pkg?.takeIf { it.isNotBlank() && it.contains('.') }
+        // Invalidate pid and foreground caches for new package — monotonic
+        cachedPidPackage = null
+        cachedPidAtMs = 0L
+        cachedForeground = null
+        cachedForegroundAtMs = 0L
+        // Clear gameLike verdict for old package so new target is probed fresh
+    }
+
+    fun clearTargetPackage() {
+        preferredPackage = null
+        cachedPidPackage = null
+        cachedPidAtMs = 0L
+        cachedForeground = null
+        cachedForegroundAtMs = 0L
+    }
+
     fun resolve(): ForegroundApp? {
         val preferred = preferredPackage?.takeIf { it.isNotBlank() && it.contains('.') }
-        val system = resolveSystemForeground()
         if (preferred != null) {
-            val refresh = system?.refreshRateHz?.takeIf { it > 0f } ?: 60f
-            val pid = when {
-                system?.packageName == preferred -> system.pid
-                else -> pidOf(preferred, useRoot = shellExecutor.isSuAvailable())
+            // Fast path: do not touch dumpsys window at all while game is tracked.
+            // This is the mission requirement: track launched game package, not focus.
+            val now = android.os.SystemClock.elapsedRealtime()
+            // Use cached pid if recent
+            val pid = pidOfCached(preferred)
+            val refresh = cachedRefreshRate()
+            // Return immediately — no expensive dumpsys window/display spam.
+            // If pid == 0 the game may have died; caller (SF datasource) will handle null surface
+            // and repository will fall back to system foreground after a grace period.
+            // To avoid returning dead pid forever, if pid==0 for >3s, fall through to system resolve.
+            if (pid != 0 || now - cachedPidAtMs < 3000L) {
+                return ForegroundApp(preferred, pid, refresh)
             }
-            return ForegroundApp(preferred, pid, refresh)
+            // pid 0 for >3s -> game likely gone, fall through to system foreground detection
         }
+
+        // System foreground path with short TTL to avoid spamming system_server 500ms loop
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (cachedForeground != null && now - cachedForegroundAtMs < cachedForegroundTtlMs) {
+            return cachedForeground
+        }
+        val system = resolveSystemForeground()
+        cachedForeground = system
+        cachedForegroundAtMs = now
         return system
     }
 
     private fun resolveSystemForeground(): ForegroundApp? {
+        // Prefer fg_app daemon file when root ops allowed — cheapest, written 0.5s by daemon
         readFromDaemonFile()?.let { return it }
-        // Try dumpsys window — skip null focus lines, take first real one
-        val fromWindow = readFromDumpsys(useRoot = false) ?: readFromDumpsys(useRoot = true)
+        // Try dumpsys window — skip null focus lines, take first real one (policy-aware)
+        val fromWindow = readFromDumpsys()
         if (fromWindow != null) return fromWindow
         // Fallback: dumpsys activity activities ResumedActivity
         return readFromActivityDumpsys()
     }
 
-    private fun pidOf(packageName: String, useRoot: Boolean): Int {
-        val pidResult = shellExecutor.execute(
-            "pidof $packageName 2>/dev/null | awk '{print \$1}'",
-            useRoot = useRoot
-        )
-        return pidResult.output.trim().toIntOrNull() ?: 0
+    private fun pidOfCached(packageName: String): Int {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (cachedPidPackage == packageName && now - cachedPidAtMs < pidTtlMs) {
+            return cachedPidValue
+        }
+        val pid = pidOf(packageName)
+        cachedPidPackage = packageName
+        cachedPidValue = pid
+        cachedPidAtMs = now
+        return pid
+    }
+
+    private fun pidOf(packageName: String): Int {
+        // Try STANDARD first (no elevation), then policy chain if fails
+        var result = shellGateway.execute("pidof $packageName 2>/dev/null | awk '{print \$1}'", com.ivarna.apexcore.fps.privilege.PrivilegeTier.STANDARD)
+        if (result.isSuccess && result.output.trim().isNotEmpty()) {
+            return result.output.trim().toIntOrNull() ?: 0
+        }
+        // Elevated fallback respecting current policy
+        val chain = shellGateway.currentPolicy().chain(com.ivarna.apexcore.fps.privilege.PrivilegePolicy.DEFAULT_CHAIN)
+        for (tier in chain) {
+            if (tier == com.ivarna.apexcore.fps.privilege.PrivilegeTier.STANDARD) continue
+            result = shellGateway.execute("pidof $packageName 2>/dev/null | awk '{print \$1}'", tier)
+            if (result.isSuccess && result.output.trim().isNotEmpty()) {
+                return result.output.trim().toIntOrNull() ?: 0
+            }
+        }
+        return 0
     }
 
     /**
@@ -58,8 +129,8 @@ class ForegroundAppResolver(
      */
     fun isGameLikeSurface(packageName: String): Boolean {
         // The probes below (dumpsys SF --list / dumpsys window) are expensive —
-        // cache the verdict per package so the 500ms HUD tick doesn't spam system_server.
-        val now = System.currentTimeMillis()
+        // cache the verdict per package so the HUD tick doesn't spam system_server.
+        val now = android.os.SystemClock.elapsedRealtime()
         gameLikeCache[packageName]?.let { (verdict, expiresAt) ->
             if (now < expiresAt) return verdict
         }
@@ -80,14 +151,14 @@ class ForegroundAppResolver(
     fun hasSurfaceViewLayer(packageName: String): Boolean = isGameLikeSurface(packageName)
 
     private fun hasGameLayer(packageName: String): Boolean {
-        val listResult = shellExecutor.execute(
+        val (result, _) = shellGateway.executeChain(
             "dumpsys SurfaceFlinger --list 2>/dev/null",
-            useRoot = shellExecutor.isSuAvailable()
+            shellGateway.currentPolicy().chain(com.ivarna.apexcore.fps.privilege.PrivilegePolicy.DEFAULT_CHAIN)
         )
-        if (!listResult.isSuccess || listResult.output.isBlank()) return false
+        if (!result.isSuccess || result.output.isBlank()) return false
 
         val shortPkg = packageName.substringAfterLast('.')
-        return listResult.output.lineSequence().any { line ->
+        return result.output.lineSequence().any { line ->
             val trimmed = line.trim()
             val ownsLayer = trimmed.contains(packageName) ||
                 (shortPkg.length >= 4 && trimmed.contains(shortPkg))
@@ -96,10 +167,9 @@ class ForegroundAppResolver(
     }
 
     private fun hasGameFocusedActivity(packageName: String): Boolean {
-        val useRoot = shellExecutor.isSuAvailable()
-        val windowResult = shellExecutor.execute(
+        val (windowResult, _) = shellGateway.executeChain(
             "dumpsys window 2>/dev/null | grep mCurrentFocus",
-            useRoot = useRoot
+            shellGateway.currentPolicy().chain(com.ivarna.apexcore.fps.privilege.PrivilegePolicy.DEFAULT_CHAIN)
         )
         if (!windowResult.isSuccess || windowResult.output.isBlank()) return false
         val line = windowResult.output
@@ -140,8 +210,10 @@ class ForegroundAppResolver(
     }
 
     private fun readFromDaemonFile(): ForegroundApp? {
-        if (!shellExecutor.isSuAvailable()) return null
-        val result = shellExecutor.execute("cat /data/local/tmp/fg_app 2>/dev/null", useRoot = true)
+        // Policy-aware: only attempt when root ops are allowed (daemon is root-only)
+        val chain = shellGateway.currentPolicy().chain(com.ivarna.apexcore.fps.privilege.PrivilegePolicy.DEFAULT_CHAIN)
+        if (com.ivarna.apexcore.fps.privilege.PrivilegeTier.SU_ROOT !in chain) return null
+        val result = shellGateway.execute("cat /data/local/tmp/fg_app 2>/dev/null", com.ivarna.apexcore.fps.privilege.PrivilegeTier.SU_ROOT)
         if (!result.isSuccess || result.output.isBlank()) return null
 
         val parts = result.output.trim().split(Regex("\\s+"))
@@ -154,10 +226,10 @@ class ForegroundAppResolver(
         return ForegroundApp(packageName, pid, refreshRate)
     }
 
-    private fun readFromDumpsys(useRoot: Boolean): ForegroundApp? {
-        val windowResult = shellExecutor.execute(
+    private fun readFromDumpsys(): ForegroundApp? {
+        val (windowResult, _) = shellGateway.executeChain(
             "dumpsys window 2>/dev/null | grep -E 'mCurrentFocus|mFocusedApp'",
-            useRoot = useRoot
+            shellGateway.currentPolicy().chain(com.ivarna.apexcore.fps.privilege.PrivilegePolicy.DEFAULT_CHAIN)
         )
         if (!windowResult.isSuccess || windowResult.output.isBlank()) return null
 
@@ -169,21 +241,16 @@ class ForegroundAppResolver(
             .firstOrNull()
             ?: return null
 
-        val pidResult = shellExecutor.execute(
-            "pidof $packageName 2>/dev/null | awk '{print \$1}'",
-            useRoot = useRoot
-        )
-        val pid = pidResult.output.trim().toIntOrNull() ?: 0
-        val refreshRate = readActiveRenderFrameRate(useRoot)
+        val pid = pidOfCached(packageName)
+        val refreshRate = cachedRefreshRate()
         return ForegroundApp(packageName, pid, refreshRate)
     }
 
     /** Fallback when window focus is null/stolen by overlay. */
     private fun readFromActivityDumpsys(): ForegroundApp? {
-        val useRoot = shellExecutor.isSuAvailable()
-        val result = shellExecutor.execute(
+        val (result, _) = shellGateway.executeChain(
             "dumpsys activity activities 2>/dev/null | grep -E 'ResumedActivity|mResumedActivity' | head -5",
-            useRoot = useRoot
+            shellGateway.currentPolicy().chain(com.ivarna.apexcore.fps.privilege.PrivilegePolicy.DEFAULT_CHAIN)
         )
         if (!result.isSuccess || result.output.isBlank()) return null
 
@@ -192,19 +259,41 @@ class ForegroundAppResolver(
             .firstOrNull()
             ?: return null
 
-        val pidResult = shellExecutor.execute(
-            "pidof $packageName 2>/dev/null | awk '{print \$1}'",
-            useRoot = useRoot
-        )
-        val pid = pidResult.output.trim().toIntOrNull() ?: 0
-        val refreshRate = readActiveRenderFrameRate(useRoot)
+        val pid = pidOfCached(packageName)
+        val refreshRate = cachedRefreshRate()
         return ForegroundApp(packageName, pid, refreshRate)
     }
 
-    private fun readActiveRenderFrameRate(useRoot: Boolean): Float {
-        val displayResult = shellExecutor.execute(
+    private fun cachedRefreshRate(): Float {
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - cachedRefreshAtMs < refreshTtlMs && cachedRefreshHz > 0f) return cachedRefreshHz
+        val rate = readActiveRenderFrameRate()
+        cachedRefreshHz = rate
+        cachedRefreshAtMs = now
+        return rate
+    }
+
+    private fun readActiveRenderFrameRate(): Float {
+        // Prefer WindowManager display refresh when context is available — no dumpsys cost
+        appContext?.let { ctx ->
+            try {
+                val wm = ctx.getSystemService(android.content.Context.WINDOW_SERVICE) as? android.view.WindowManager
+                val display = if (android.os.Build.VERSION.SDK_INT >= 30) {
+                    ctx.display
+                } else {
+                    @Suppress("DEPRECATION") wm?.defaultDisplay
+                }
+                val rate = display?.refreshRate
+                if (rate != null && rate > 0f) return rate
+                // Also try WindowManager directly
+                val wmRate = wm?.defaultDisplay?.refreshRate
+                if (wmRate != null && wmRate > 0f) return wmRate
+            } catch (_: Throwable) { }
+        }
+        // Fallback to dumpsys display (expensive) — cached via TTL
+        val (displayResult, _) = shellGateway.executeChain(
             "dumpsys display 2>/dev/null",
-            useRoot = useRoot
+            shellGateway.currentPolicy().chain(com.ivarna.apexcore.fps.privilege.PrivilegePolicy.DEFAULT_CHAIN)
         )
         if (displayResult.isSuccess && displayResult.output.isNotBlank()) {
             val activeRate = Regex("""mActiveRenderFrameRate=([0-9.]+)""")

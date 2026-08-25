@@ -56,14 +56,18 @@ class FpsStack private constructor(
             val shellExecutor = ShellExecutor()
             val privilegeModeStore = PrivilegeModeStore(context)
             val shellGateway = ShellGateway(shellExecutor, privilegeModeStore, context)
-            val foregroundAppResolver = ForegroundAppResolver(shellExecutor)
+            val foregroundAppResolver = ForegroundAppResolver(shellGateway, context)
             val dma = DmaFenceFpsDataSource(context)
             val sf = SurfaceFlingerFpsDataSource(shellGateway, foregroundAppResolver)
             val gfx = GfxinfoFpsDataSource(shellGateway, foregroundAppResolver)
             val cpu = CpuDataSource(shellGateway)
             val daemon = FpsDaemonManager(context, shellGateway)
+            val repo = FpsRepositoryImpl(dma, sf, gfx, foregroundAppResolver, daemon, privilegeModeStore, shellGateway)
             privilegeModeStore.addOnModeChangedListener {
-                // Invalidate root daemon when leaving ROOT/AUTO with root
+                // Fail-closed: drop held root/elevated samples when mode changes (matches factualstats)
+                repo.onPrivilegeModeChanged()
+                dma.clearCache()
+                // Daemon is root-only — stop it when mode forbids root
                 if (privilegeModeStore.mode.value.let {
                         it == PrivilegeMode.SHIZUKU || it == PrivilegeMode.STANDARD
                     }
@@ -71,7 +75,6 @@ class FpsStack private constructor(
                     daemon.stop()
                 }
             }
-            val repo = FpsRepositoryImpl(dma, sf, gfx, foregroundAppResolver, daemon)
             return FpsStack(repo, cpu, shellExecutor, privilegeModeStore, shellGateway)
         }
     }

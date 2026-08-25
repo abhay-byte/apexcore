@@ -195,7 +195,8 @@ class RailView(context: Context) : View(context) {
             val cx = (left + right) / 2f
             fpsP.textSize = dp(when (sizePref) { "S" -> 18f; "L" -> 34f; else -> 26f })
             val fpsY = top + dp(30f)
-            c.drawText("$fps", cx - fpsP.measureText("$fps") / 2f, fpsY, fpsP)
+            val fpsLabel = if (fps <= 0) "--" else "$fps"
+            c.drawText(fpsLabel, cx - fpsP.measureText(fpsLabel) / 2f, fpsY, fpsP)
             labelP.textSize = dp(8f)
             c.drawText("FPS", cx - labelP.measureText("FPS") / 2f, fpsY + dp(11f), labelP)
             // Compact method abbreviation (e.g., SF / DMA / GFX) — tiny mono, never wraps
