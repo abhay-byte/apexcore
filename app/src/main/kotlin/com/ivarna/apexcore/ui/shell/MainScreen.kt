@@ -218,6 +218,7 @@ fun MainScreen(
     var tuneCategories by remember { mutableStateOf<List<TuneCategoryUi>>(emptyList()) }
     var isTuneProbing by remember { mutableStateOf(false) }
     val tuneSessionActive by tuneManager.sessionActive.collectAsState()
+    val sessionVerifiedCount by tuneManager.verifiedAppliedCount.collectAsState()
     val tunePrefs = remember { com.ivarna.apexcore.tune.TunePrefs(context) }
     val tunePresetManager = remember { com.ivarna.apexcore.tune.TunePresetManager(tuneManager) }
     var selectedTuneGamePkg by remember { mutableStateOf<String?>(null) }
@@ -231,11 +232,11 @@ fun MainScreen(
         if (selectedTuneGamePkg == null) selectedTuneGamePkg = gamesList.firstOrNull()?.pkg
     }
 
-    fun refreshTune(pkgOverride: String? = selectedTuneGamePkg) {
+    fun refreshTune(pkgOverride: String? = selectedTuneGamePkg, force: Boolean = false) {
         scope.launch {
             isTuneProbing = true
             try {
-                val caps = tuneManager.refreshCapabilitiesSync()
+                val caps = tuneManager.refreshCapabilitiesSync(force)
                 val specs = com.ivarna.apexcore.tune.TuneSpecs.all
                 val selectedPkg = pkgOverride
                 val grouped = com.ivarna.apexcore.tune.TuneCategory.entries.map { cat ->
@@ -307,7 +308,9 @@ fun MainScreen(
                             sliderValue = intent.raw?.toIntOrNull() ?: spec.defaultVal?.toIntOrNull() ?: spec.slider?.first,
                             onSliderChange = { v ->
                                 tuneManager.setIntent(id, com.ivarna.apexcore.tune.TuneValue(true, v.toString()))
-                                refreshTune(pkgOverride)
+                                // Commit-only: TuningRoom's Slider handles transient state and calls
+                                // this only onValueChangeFinished, so we avoid per-tick probe storm.
+                                // No refreshTune() here on purpose.
                             }
                         )
                     }
@@ -679,13 +682,13 @@ fun MainScreen(
                     categories = tuneCategories,
                     sessionActive = tuneSessionActive,
                     sessionElapsedS = 0,
-                    sessionApplied = tuneCategories.sumOf { it.options.count { opt -> opt.checked } },
+                    sessionApplied = sessionVerifiedCount,
                     isProbing = isTuneProbing,
-                    onProbe = { refreshTune() },
+                    onProbe = { refreshTune(force = true) },
                     onBack = { ironSlot = IronSlot.NONE },
                     selectedGamePkg = selectedTuneGamePkg,
                     gameOptions = gamesList.map { it.pkg to it.name },
-                    onGamePkgSelect = { pkg -> selectedTuneGamePkg = pkg; refreshTune(pkg) },
+                    onGamePkgSelect = { pkg -> selectedTuneGamePkg = pkg; refreshTune(pkg, force = true) },
                     onMaximumPerformance = {
                         val pkg = selectedTuneGamePkg?.takeIf { it.isNotBlank() } ?: run {
                             toast.show("SELECT A GAME FIRST")

@@ -58,6 +58,8 @@ class TuneThermalGuard(
         severe = false
     }
 
+    fun isStarted(): Boolean = pollJob != null
+
     private fun handle(status: Int) {
         if (status >= PowerManager.THERMAL_STATUS_SEVERE) {
             if (!severe) {

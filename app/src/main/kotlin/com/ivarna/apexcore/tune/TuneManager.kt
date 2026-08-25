@@ -33,6 +33,12 @@ class TuneManager internal constructor(
     private val _sessionActive = MutableStateFlow(false)
     val sessionActive: StateFlow<Boolean> = _sessionActive.asStateFlow()
 
+    private val _verifiedComponents = MutableStateFlow<Map<TuneId, Boolean>>(emptyMap())
+    val verifiedComponents: StateFlow<Map<TuneId, Boolean>> = _verifiedComponents.asStateFlow()
+
+    private val _verifiedAppliedCount = MutableStateFlow(0)
+    val verifiedAppliedCount: StateFlow<Int> = _verifiedAppliedCount.asStateFlow()
+
     @Volatile
     private var _owner: TuneSessionOwner = TuneSessionOwner.NONE
     val owner: TuneSessionOwner get() = _owner
@@ -45,6 +51,11 @@ class TuneManager internal constructor(
                 val tier = writeTier() ?: PrivilegeTier.STANDARD
                 val released = applier.releaseMaxLocks(tier)
                 Log.w(TAG, "Severe thermal status: released $released CPU/GPU max-lock values")
+                if (released > 0) {
+                    // Thermal release un-verifies max locks
+                    updateVerifiedComponent(TuneId.CPU_LOCK_MAX, false)
+                    updateVerifiedComponent(TuneId.GPU_LOCK_MAX, false)
+                }
             }
         }
     }
@@ -85,8 +96,8 @@ class TuneManager internal constructor(
         probe.refreshCapabilities()
     }
 
-    suspend fun refreshCapabilitiesSync(): Map<TuneId, TuneCapability> {
-        return probe.probeSync()
+    suspend fun refreshCapabilitiesSync(force: Boolean = false): Map<TuneId, TuneCapability> {
+        return probe.probeSync(force)
     }
 
     /** Per-game capability because Android Game Mode is package-specific. */
@@ -122,16 +133,20 @@ class TuneManager internal constructor(
                         if (value.on) {
                             if (id.isMaxLock() && thermalGuard.severe) {
                                 Log.w(TAG, "Ignoring $id while thermal guard is severe")
+                                updateVerifiedComponent(id, false)
                             } else if (id == TuneId.GAME_MODE_PERFORMANCE && prefs.getSessionPkg().isNotBlank()) {
-                                applier.applyGameModeForSession(prefs.getSessionPkg(), tier, backendFor(tier))
+                                val result = applier.applyGameModeForSession(prefs.getSessionPkg(), tier, backendFor(tier))
+                                updateVerifiedComponent(id, result.verified)
                             } else {
                                 val count = applier.applyBundle(id, value, tier)
                                 if (id.isMaxLock() && count > 0) {
                                     thermalGuard.start()
                                 }
+                                updateVerifiedComponent(id, count > 0)
                             }
                         } else {
                             val restored = applier.restoreBundle(id, tier)
+                            updateVerifiedComponent(id, false)
                             if (id.isMaxLock()) {
                                 val anyMaxOn = prefs.getIntent(TuneId.CPU_LOCK_MAX).on || prefs.getIntent(TuneId.GPU_LOCK_MAX).on
                                 val hasOwner = snapshotStore.getAllEntries().values.any {
@@ -150,6 +165,9 @@ class TuneManager internal constructor(
                                 restoreSessionLocked(tier)
                             }
                         }
+                    } else {
+                        // No tier available while session active -> mark as not verified
+                        if (value.on) updateVerifiedComponent(id, false) else updateVerifiedComponent(id, false)
                     }
                 }
             }
@@ -273,6 +291,15 @@ class TuneManager internal constructor(
                 }
             }
 
+            // Maintain verified session state for product-truth UI.
+            if (components.isNotEmpty()) {
+                if (filterIds == null) {
+                    setVerifiedComponents(components)
+                } else {
+                    mergeVerifiedComponents(components)
+                }
+            }
+
             Log.i(TAG, "applyForSession for $gamePkg: applied=$applied failed=$failed skipped=$skipped (budget=${budgetMs}ms) components=$components")
             TuneApplyReport(applied, failed, skipped, _sessionActive.value, components = components)
         }
@@ -285,9 +312,11 @@ class TuneManager internal constructor(
             val intent = prefs.getIntent(id)
             val cap = capabilities.value[id]
             if (!intent.on || (id != TuneId.GAME_MODE_PERFORMANCE && cap?.available != true)) {
+                updateVerifiedComponent(id, false)
                 return@withLock TuneApplyReport(0, 0, 1, _sessionActive.value)
             }
             if (id.isMaxLock() && thermalGuard.severe) {
+                updateVerifiedComponent(id, false)
                 return@withLock TuneApplyReport(0, 0, 1, _sessionActive.value,
                     details = mapOf("reason" to CapabilityReason.THERMAL_SAFETY_BLOCKED.name))
             }
@@ -299,7 +328,8 @@ class TuneManager internal constructor(
                 _sessionActive.value = true
                 prefs.setApplied(true)
             }
-            TuneApplyReport(count, if (count == 0) 1 else 0, 0, _sessionActive.value)
+            updateVerifiedComponent(id, count > 0)
+            TuneApplyReport(count, if (count == 0) 1 else 0, 0, _sessionActive.value, components = mapOf(id to (count > 0)))
         }
     }
 
@@ -308,6 +338,7 @@ class TuneManager internal constructor(
         return mutex.withLock {
             val tier = writeTier() ?: PrivilegeTier.STANDARD
             val count = applier.restoreBundle(id, tier)
+            updateVerifiedComponent(id, false)
             TuneApplyReport(count, 0, 0, _sessionActive.value)
         }
     }
@@ -321,12 +352,17 @@ class TuneManager internal constructor(
             prefs.setApplied(false)
             setOwner(TuneSessionOwner.NONE)
             thermalGuard.stop()
+            clearVerifiedComponents()
             Log.i(TAG, "restoreSession completed: $count paths restored, all clean")
             TuneApplyReport(count, 0, 0, false)
         } else {
             Log.w(TAG, "restoreSession: ${remaining.size} paths failed to restore; keeping snapshot and tune_applied=true")
             _sessionActive.value = false
             prefs.setApplied(true)
+            // Keep verified map for remaining failures but mark cleared paths as false
+            // Rebuild from remaining snapshot entries where verification had succeeded before
+            clearVerifiedComponents()
+            Log.i(TAG, "restoreSession partial: cleared verified count due to remaining snapshot")
             TuneApplyReport(count, remaining.size, 0, false)
         }
     }
@@ -359,10 +395,13 @@ class TuneManager internal constructor(
             prefs.setApplied(false)
             setOwner(TuneSessionOwner.NONE)
             thermalGuard.stop()
+            clearVerifiedComponents()
             return@withContext
         }
 
         if (_sessionActive.value) {
+            // Rebuild verified state if needed for UI truth
+            if (_verifiedComponents.value.isEmpty()) rebuildVerifiedFromSnapshot()
             return@withContext
         }
 
@@ -371,6 +410,7 @@ class TuneManager internal constructor(
             Log.i(TAG, "Overlay is running on recovery: rehydrating sessionActive=true, owner=OVERLAY")
             _sessionActive.value = true
             setOwner(TuneSessionOwner.OVERLAY)
+            rebuildVerifiedFromSnapshot()
             return@withContext
         }
 
@@ -385,16 +425,73 @@ class TuneManager internal constructor(
             prefs.setApplied(false)
             setOwner(TuneSessionOwner.NONE)
             thermalGuard.stop()
+            clearVerifiedComponents()
             Log.i(TAG, "Orphan restore completed: $count paths restored, all clean")
         } else {
             Log.w(TAG, "Orphan restore: ${remaining.size} paths failed to restore, keeping snapshot and tune_applied=true")
             _sessionActive.value = false
             prefs.setApplied(true)
+            clearVerifiedComponents()
         }
     }
 
     fun deleteDummyKeysIfNeeded() {
         prefs.deleteDummyKeysIfNeeded()
+    }
+
+    private fun updateVerifiedComponent(id: TuneId, verified: Boolean) {
+        val current = _verifiedComponents.value.toMutableMap()
+        current[id] = verified
+        _verifiedComponents.value = current
+        _verifiedAppliedCount.value = current.count { it.value }
+    }
+
+    private fun setVerifiedComponents(map: Map<TuneId, Boolean>) {
+        _verifiedComponents.value = map
+        _verifiedAppliedCount.value = map.count { it.value }
+    }
+
+    private fun mergeVerifiedComponents(updates: Map<TuneId, Boolean>) {
+        val merged = _verifiedComponents.value.toMutableMap()
+        merged.putAll(updates)
+        _verifiedComponents.value = merged
+        _verifiedAppliedCount.value = merged.count { it.value }
+    }
+
+    private fun clearVerifiedComponents() {
+        _verifiedComponents.value = emptyMap()
+        _verifiedAppliedCount.value = 0
+    }
+
+    fun isThermalGuardStarted(): Boolean = thermalGuard.isStarted()
+
+    private fun rebuildVerifiedFromSnapshot() {
+        // Best-effort reconstruction from snapshot entries when session is rehydrated.
+        val rebuilt = mutableMapOf<TuneId, Boolean>()
+        for (spec in TuneSpecs.all) {
+            val id = spec.id
+            if (!prefs.getIntent(id).on) {
+                rebuilt[id] = false
+                continue
+            }
+            // Settings keys use settings:// prefix, sysfs uses path matching
+            val hasVerifiedEntry = when (id) {
+                TuneId.FOCUS_HEADSUP -> snapshotStore.getEntry("settings://heads_up")?.lastVerifiedValue == "0"
+                TuneId.FOCUS_IMMERSIVE -> snapshotStore.getEntry("settings://policy_control")?.lastVerifiedValue == "immersive.full=*"
+                TuneId.DISPLAY_PEAK -> snapshotStore.getEntry("settings://peak_refresh_rate")?.lastVerifiedValue != null
+                TuneId.DISPLAY_MIUI -> snapshotStore.getEntry("settings://refresh_rate_mode")?.lastVerifiedValue == "1" ||
+                    snapshotStore.getEntry("settings://miui_refresh_rate")?.lastVerifiedValue == "120"
+                TuneId.FOCUS_DND -> snapshotStore.getEntry("settings://focus_dnd") != null
+                TuneId.GAME_MODE_PERFORMANCE -> snapshotStore.getEntry("game-mode://${prefs.getSessionPkg()}") != null ||
+                    snapshotStore.getAllEntries().keys.any { it.startsWith("game-mode://") }
+                else -> {
+                    val nodes = TuneCatalog.nodesByTuneId[id].orEmpty()
+                    nodes.any { node -> snapshotStore.getEntry(node.path)?.lastVerifiedValue != null }
+                }
+            }
+            rebuilt[id] = hasVerifiedEntry
+        }
+        setVerifiedComponents(rebuilt)
     }
 
     private fun backendFor(tier: PrivilegeTier): TuneBackendIdentity = when (tier) {

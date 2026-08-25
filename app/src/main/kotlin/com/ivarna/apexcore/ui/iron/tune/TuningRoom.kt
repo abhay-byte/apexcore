@@ -335,16 +335,22 @@ private fun TuneRow(opt: TuneOptionUi) {
                     MachinedToggle(opt.checked, opt.onToggle, enabled = opt.available)
                 }
                 val range = opt.sliderRange ?: 0..100
-                val value = opt.sliderValue ?: range.first
+                val initial = opt.sliderValue ?: range.first
+                var sliderPos by remember(opt.key, initial) { mutableFloatStateOf(initial.toFloat()) }
+                // Keep slider synced if external intent changes (e.g., after probe).
+                LaunchedEffect(opt.sliderValue) {
+                    opt.sliderValue?.let { if (it.toFloat() != sliderPos) sliderPos = it.toFloat() }
+                }
                 Spacer(Modifier.height(8.dp))
                 androidx.compose.material3.Slider(
-                    value = value.toFloat(),
-                    onValueChange = { v -> opt.onSliderChange(v.toInt()) },
+                    value = sliderPos,
+                    onValueChange = { v -> sliderPos = v },
+                    onValueChangeFinished = { opt.onSliderChange(sliderPos.toInt()) },
                     valueRange = range.first.toFloat()..range.last.toFloat(),
                     enabled = opt.checked && opt.available
                 )
                 Text(
-                    "$value",
+                    "${sliderPos.toInt()}",
                     style = IronType.MonoSm, color = skin.textDim,
                     modifier = Modifier.align(Alignment.End)
                 )

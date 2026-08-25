@@ -27,11 +27,13 @@ class TuneCpuFloorMutexTest {
 
         val resolver = FreezeBackendResolver(listOf(TestFreezeBackend("Root", 0, ready = true)))
         FreezeFramework.setResolverForTest(resolver)
+        runBlocking { FreezeFramework.detect() }
     }
 
     @After
     fun tearDown() {
         FreezeFramework.setResolverForTest(null)
+        FreezeFramework.setActiveBackendForTest(null)
     }
 
     @Test

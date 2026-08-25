@@ -55,6 +55,8 @@ class FakeTuneShell : TuneShell {
     val executedCommands = mutableListOf<Triple<String, PrivilegeTier, Long>>()
     val failCommands = mutableSetOf<String>()
     private val settingsStore = mutableMapOf<String, String>()
+    // For precise verification-failure tests: queue overrides for next settings get calls
+    val settingsGetSequence = mutableListOf<String>()
 
     @Synchronized
     override fun exists(path: String, timeoutMs: Long): Boolean {
@@ -90,9 +92,12 @@ class FakeTuneShell : TuneShell {
                         if (tokens.size >= 4) {
                             val ns = tokens[2]
                             val key = tokens[3]
-                            lastOutput = settingsStore["$ns:$key"] ?: "null"
-                            // also check commandOutputs override
-                            commandOutputs.entries.firstOrNull { part.contains(it.key) }?.value?.let { lastOutput = it }
+                            lastOutput = if (settingsGetSequence.isNotEmpty()) {
+                                settingsGetSequence.removeAt(0)
+                            } else {
+                                val stored = settingsStore["$ns:$key"] ?: "null"
+                                commandOutputs.entries.firstOrNull { part.contains(it.key) }?.value ?: stored
+                            }
                         }
                     }
                     part.startsWith("settings delete") -> {

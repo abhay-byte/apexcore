@@ -72,8 +72,15 @@ class TuneProbe(
         }
     }
 
-    suspend fun probeSync(): Map<TuneId, TuneCapability> = withContext(Dispatchers.IO) {
+    suspend fun probeSync(force: Boolean = false): Map<TuneId, TuneCapability> = withContext(Dispatchers.IO) {
         try { probeJob?.join() } catch (_: Throwable) {}
+        val now = SystemClock.elapsedRealtime()
+        val currentBackend = backendResolver?.fingerprint() ?: FreezeFramework.activeBackend.value?.name
+        val cached = _capabilities.value
+        val hasProbed = cached.isNotEmpty() && cached.values.any { it.subtitle != "Checking this kernel…" }
+        if (!force && now - lastProbeTime < CACHE_TTL_MS && currentBackend == lastBackendFingerprint && hasProbed) {
+            return@withContext cached
+        }
         probeInternal()
         _capabilities.value
     }
@@ -103,7 +110,7 @@ class TuneProbe(
             val resultMap = buildStandardCapabilities()
             _capabilities.value = resultMap
             lastProbeTime = SystemClock.elapsedRealtime()
-            lastBackendFingerprint = backendResolver?.fingerprint() ?: backend.name
+            lastBackendFingerprint = backendResolver?.fingerprint() ?: FreezeFramework.activeBackend.value?.name
             _isProbing.value = false
             return@withContext
         }
@@ -259,7 +266,7 @@ class TuneProbe(
 
         _capabilities.value = resultMap
         lastProbeTime = SystemClock.elapsedRealtime()
-        lastBackendFingerprint = backendResolver?.fingerprint() ?: backend.name
+        lastBackendFingerprint = backendResolver?.fingerprint() ?: FreezeFramework.activeBackend.value?.name
         _isProbing.value = false
         Log.i(TAG, "Capability probe finished in ${SystemClock.elapsedRealtime() - startTime}ms. Writable count: ${resultMap.count { it.value.available }}")
     }

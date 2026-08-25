@@ -152,20 +152,25 @@ class ShellGateway(
             "printf 'RC=%s READBACK=%s\\n' \"\$rc\" \"\$readback\""
 
     private fun parseWriteOutput(result: ShellResult, expected: String, tier: PrivilegeTier, mode: VerificationMode): WriteResult {
-        if (!result.isSuccess) return failure(tier, mode, result.output.ifBlank { "command exit ${result.exitCode}" }, MutationFailure.COMMAND_FAILED)
+        if (!result.isSuccess) {
+            val base = result.output.ifBlank { "command exit ${result.exitCode}" }
+            val withStderr = if (!result.stderr.isNullOrBlank()) "$base stderr=${result.stderr}" else base
+            return failure(tier, mode, withStderr, MutationFailure.COMMAND_FAILED)
+        }
         val output = result.output.trim()
         val rc = Regex("""(?:^|\\s)RC=(\\d+)""").find(output)?.groupValues?.get(1)?.toIntOrNull() ?: -1
         val readback = Regex("""(?:^|\\s)READBACK=(.*)""").find(output)?.groupValues?.get(1)?.trim()
         val commandOk = rc == 0
         val verified = commandOk && valuesMatch(expected, readback, mode)
+        val stderrSuffix = if (!result.stderr.isNullOrBlank()) " stderr=${result.stderr}" else ""
         return WriteResult(
             ok = commandOk,
             verified = verified,
             readback = readback,
             tier = tier,
             error = when {
-                !commandOk -> "Exit code $rc"
-                !verified -> "Readback did not match requested value"
+                !commandOk -> "Exit code $rc$stderrSuffix"
+                !verified -> "Readback did not match requested value$stderrSuffix"
                 else -> null
             },
             verificationMode = mode

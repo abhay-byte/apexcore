@@ -513,15 +513,20 @@ open class TuneApplier(
         if (tier == PrivilegeTier.STANDARD) return false
         val prev = readSettingsWithFallback("global", "heads_up_notifications_enabled", tier) ?: "1"
         snapshotStore.recordOriginal("settings://heads_up", prev, VerificationMode.SETTINGS_VALUE)
-        shell.execute("settings put global heads_up_notifications_enabled 0", tier, timeoutMs = APPLY_TIMEOUT_MS)
+        val putRes = shell.execute("settings put global heads_up_notifications_enabled 0", tier, timeoutMs = APPLY_TIMEOUT_MS)
         val cur = readSettingsWithFallback("global", "heads_up_notifications_enabled", tier)
         val verified = cur?.trim() == "0"
         if (verified) {
             snapshotStore.recordVerified("settings://heads_up", "0", VerificationMode.SETTINGS_VALUE)
             return true
         } else {
-            snapshotStore.removeOriginal("settings://heads_up")
-            Log.w(TAG, "applyFocusHeadsUp verify failed: expected 0 readback=$cur")
+            val rollbackRes = shell.execute("settings put global heads_up_notifications_enabled $prev", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+            val curRollback = readSettingsWithFallback("global", "heads_up_notifications_enabled", tier)
+            val rollbackVerified = curRollback?.trim() == prev.trim()
+            if (rollbackVerified) {
+                snapshotStore.removeOriginal("settings://heads_up")
+            }
+            Log.w(TAG, "applyFocusHeadsUp verify failed: expected 0 readback=$cur stderr=${putRes.stderr}; rollbackVerified=$rollbackVerified rollbackStderr=${rollbackRes.stderr} readbackAfterRollback=$curRollback")
             return false
         }
     }
@@ -544,15 +549,25 @@ open class TuneApplier(
         if (tier == PrivilegeTier.STANDARD) return false
         val prev = readSettingsWithFallback("global", "policy_control", tier).orEmpty()
         snapshotStore.recordOriginal("settings://policy_control", prev, VerificationMode.SETTINGS_VALUE)
-        shell.execute("settings put global policy_control 'immersive.full=*'", tier, timeoutMs = APPLY_TIMEOUT_MS)
+        val putRes = shell.execute("settings put global policy_control 'immersive.full=*'", tier, timeoutMs = APPLY_TIMEOUT_MS)
         val cur = readSettingsWithFallback("global", "policy_control", tier).orEmpty()
         val verified = cur.trim() == "immersive.full=*"
         if (verified) {
             snapshotStore.recordVerified("settings://policy_control", "immersive.full=*", VerificationMode.SETTINGS_VALUE)
             return true
         } else {
-            snapshotStore.removeOriginal("settings://policy_control")
-            Log.w(TAG, "applyFocusImmersive verify failed: readback=$cur")
+            val rollbackRes = if (prev.isBlank()) {
+                shell.execute("settings delete global policy_control", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+            } else {
+                shell.execute("settings put global policy_control '$prev'", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+            }
+            val curRollback = readSettingsWithFallback("global", "policy_control", tier).orEmpty()
+            val expectedRollback = prev.trim()
+            val rollbackVerified = if (expectedRollback.isBlank()) curRollback.isBlank() else curRollback.trim() == expectedRollback
+            if (rollbackVerified) {
+                snapshotStore.removeOriginal("settings://policy_control")
+            }
+            Log.w(TAG, "applyFocusImmersive verify failed: readback=$cur stderr=${putRes.stderr}; rollbackVerified=$rollbackVerified rollbackStderr=${rollbackRes.stderr} readbackAfterRollback=$curRollback")
             return false
         }
     }
@@ -585,7 +600,7 @@ open class TuneApplier(
         if (curMin.isNotBlank()) {
             snapshotStore.recordOriginal("settings://min_refresh_rate", curMin, VerificationMode.SETTINGS_VALUE)
         }
-        shell.execute("settings put system peak_refresh_rate $curPeak && settings put system min_refresh_rate $curPeak", tier, timeoutMs = APPLY_TIMEOUT_MS)
+        val putRes = shell.execute("settings put system peak_refresh_rate $curPeak && settings put system min_refresh_rate $curPeak", tier, timeoutMs = APPLY_TIMEOUT_MS)
         val peakAfter = readSettingsWithFallback("system", "peak_refresh_rate", tier)?.trim()
         val minAfter = readSettingsWithFallback("system", "min_refresh_rate", tier)?.trim()
         val verified = peakAfter == curPeak.trim() && minAfter == curPeak.trim()
@@ -594,10 +609,30 @@ open class TuneApplier(
             if (curMin.isNotBlank()) snapshotStore.recordVerified("settings://min_refresh_rate", curPeak, VerificationMode.SETTINGS_VALUE)
             return true
         } else {
-            // remove only if not verified to avoid stale snapshot leak? Keep for retry? Plan says remove on fail
-            snapshotStore.removeOriginal("settings://peak_refresh_rate")
-            if (curMin.isNotBlank()) snapshotStore.removeOriginal("settings://min_refresh_rate")
-            Log.w(TAG, "applyDisplayPeak verify failed: peak=$peakAfter min=$minAfter expected=$curPeak")
+            // Rollback each key independently and keep snapshot if rollback fails.
+            val rollbackPeakRes = shell.execute("settings put system peak_refresh_rate $curPeak", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+            val peakRollback = readSettingsWithFallback("system", "peak_refresh_rate", tier)?.trim()
+            val peakRollbackVerified = peakRollback == curPeak.trim()
+            if (peakRollbackVerified) {
+                snapshotStore.removeOriginal("settings://peak_refresh_rate")
+            }
+            var minRollbackVerified = true
+            var minRollback: String? = null
+            var rollbackMinRes: com.ivarna.apexcore.fps.util.ShellResult? = null
+            if (curMin.isNotBlank()) {
+                rollbackMinRes = shell.execute("settings put system min_refresh_rate $curMin", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+                minRollback = readSettingsWithFallback("system", "min_refresh_rate", tier)?.trim()
+                minRollbackVerified = minRollback == curMin.trim()
+                if (minRollbackVerified) {
+                    snapshotStore.removeOriginal("settings://min_refresh_rate")
+                }
+            } else {
+                rollbackMinRes = shell.execute("settings delete system min_refresh_rate", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+                minRollback = readSettingsWithFallback("system", "min_refresh_rate", tier)?.trim()
+                minRollbackVerified = minRollback.isNullOrEmpty()
+                // No snapshot to remove when original was blank; just ensure cleanup
+            }
+            Log.w(TAG, "applyDisplayPeak verify failed: peak=$peakAfter min=$minAfter expected=$curPeak stderr=${putRes.stderr}; rollbackPeakVerified=$peakRollbackVerified peakAfterRollback=$peakRollback stderr=${rollbackPeakRes.stderr}; rollbackMinVerified=$minRollbackVerified minAfterRollback=$minRollback stderr=${rollbackMinRes?.stderr}")
             return false
         }
     }
@@ -634,29 +669,39 @@ open class TuneApplier(
         var anyAttempted = false
         if (!mode.isNullOrBlank()) {
             snapshotStore.recordOriginal("settings://refresh_rate_mode", mode, VerificationMode.SETTINGS_VALUE)
-            shell.execute("settings put system refresh_rate_mode 1", tier, timeoutMs = APPLY_TIMEOUT_MS)
+            val putRes = shell.execute("settings put system refresh_rate_mode 1", tier, timeoutMs = APPLY_TIMEOUT_MS)
             val after = readSettingsWithFallback("system", "refresh_rate_mode", tier)?.trim()
             val verified = after == "1"
             if (verified) {
                 snapshotStore.recordVerified("settings://refresh_rate_mode", "1", VerificationMode.SETTINGS_VALUE)
                 verifiedOverall = true
             } else {
-                snapshotStore.removeOriginal("settings://refresh_rate_mode")
-                Log.w(TAG, "applyDisplayMiui refresh_rate_mode verify failed: $after")
+                val rollbackRes = shell.execute("settings put system refresh_rate_mode $mode", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+                val rollbackAfter = readSettingsWithFallback("system", "refresh_rate_mode", tier)?.trim()
+                val rollbackVerified = rollbackAfter == mode.trim()
+                if (rollbackVerified) {
+                    snapshotStore.removeOriginal("settings://refresh_rate_mode")
+                }
+                Log.w(TAG, "applyDisplayMiui refresh_rate_mode verify failed: $after stderr=${putRes.stderr}; rollbackVerified=$rollbackVerified rollbackAfter=$rollbackAfter stderr=${rollbackRes.stderr}")
             }
             anyAttempted = true
         }
         if (!miuiRate.isNullOrBlank()) {
             snapshotStore.recordOriginal("settings://miui_refresh_rate", miuiRate, VerificationMode.SETTINGS_VALUE)
-            shell.execute("settings put system miui_refresh_rate 120", tier, timeoutMs = APPLY_TIMEOUT_MS)
+            val putRes = shell.execute("settings put system miui_refresh_rate 120", tier, timeoutMs = APPLY_TIMEOUT_MS)
             val after = readSettingsWithFallback("system", "miui_refresh_rate", tier)?.trim()
             val verified = after == "120"
             if (verified) {
                 snapshotStore.recordVerified("settings://miui_refresh_rate", "120", VerificationMode.SETTINGS_VALUE)
                 verifiedOverall = true
             } else {
-                snapshotStore.removeOriginal("settings://miui_refresh_rate")
-                Log.w(TAG, "applyDisplayMiui miui_refresh_rate verify failed: $after")
+                val rollbackRes = shell.execute("settings put system miui_refresh_rate $miuiRate", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+                val rollbackAfter = readSettingsWithFallback("system", "miui_refresh_rate", tier)?.trim()
+                val rollbackVerified = rollbackAfter == miuiRate.trim()
+                if (rollbackVerified) {
+                    snapshotStore.removeOriginal("settings://miui_refresh_rate")
+                }
+                Log.w(TAG, "applyDisplayMiui miui_refresh_rate verify failed: $after stderr=${putRes.stderr}; rollbackVerified=$rollbackVerified rollbackAfter=$rollbackAfter stderr=${rollbackRes.stderr}")
             }
             anyAttempted = true
         }
