@@ -1,7 +1,7 @@
 package com.ivarna.apexcore.tune
 
 /**
- * Normative inventory of 36 game-tuning options across 10 categories.
+ * Normative inventory of the T12 options plus T13's three verified primitives.
  * Defined in docs/plans/T12-tune-options.md.
  */
 enum class TuneId {
@@ -10,6 +10,7 @@ enum class TuneId {
     GPU_HOLD,
     GPU_ADRENO,
     GPU_GOVERNOR,
+    GPU_LOCK_MAX,
     GPU_PWRLEVEL,
     GPU_GED_GAME,
     GPU_SAMSUNG_MIN,
@@ -21,6 +22,7 @@ enum class TuneId {
     CPU_FLOOR_BIG,
     CPU_FLOOR_PRIME,
     CPU_GOVERNOR,
+    CPU_LOCK_MAX,
     CPU_UCLAMP,
     CPU_STUNE,
     CPU_STUNE_IDLE,
@@ -51,6 +53,7 @@ enum class TuneId {
     DISPLAY_MIUI,
 
     // 8. Focus (3 options)
+    GAME_MODE_PERFORMANCE,
     FOCUS_DND,
     FOCUS_HEADSUP,
     FOCUS_IMMERSIVE,

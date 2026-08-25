@@ -13,7 +13,7 @@ data class TuneSpec(
 object TuneSpecs {
 
     val all: List<TuneSpec> = listOf(
-        // 1. GPU (8 options)
+        // 1. GPU (T12 options plus GPU max lock)
         TuneSpec(
             id = TuneId.GPU_FLOOR,
             category = TuneCategory.GPU,
@@ -41,8 +41,15 @@ object TuneSpecs {
             id = TuneId.GPU_GOVERNOR,
             category = TuneCategory.GPU,
             title = "GPU governor",
-            description = "Switch GPU governor out of powersave",
+            description = "Select a governor advertised by the GPU driver",
             kind = TuneControlKind.ENUM
+        ),
+        TuneSpec(
+            id = TuneId.GPU_LOCK_MAX,
+            category = TuneCategory.GPU,
+            title = "GPU lock to max",
+            description = "Lock a discovered GPU min/max pair to its highest real OPP",
+            kind = TuneControlKind.SWITCH
         ),
         TuneSpec(
             id = TuneId.GPU_PWRLEVEL,
@@ -107,8 +114,15 @@ object TuneSpecs {
         TuneSpec(
             id = TuneId.CPU_GOVERNOR,
             category = TuneCategory.CPU,
-            title = "Leave powersave",
-            description = "Switch powersave/conservative CPU governor to schedutil",
+            title = "CPU governor",
+            description = "Select a governor advertised by every CPU policy",
+            kind = TuneControlKind.ENUM
+        ),
+        TuneSpec(
+            id = TuneId.CPU_LOCK_MAX,
+            category = TuneCategory.CPU,
+            title = "CPU lock to max",
+            description = "Transactionally lock discovered CPU policies to their highest real frequency",
             kind = TuneControlKind.SWITCH
         ),
         TuneSpec(
@@ -267,6 +281,13 @@ object TuneSpecs {
         ),
 
         // 8. Focus (3 options)
+        TuneSpec(
+            id = TuneId.GAME_MODE_PERFORMANCE,
+            category = TuneCategory.FOCUS,
+            title = "OEM Game Mode — Performance",
+            description = "Use Android/OEM Performance game mode when this game exposes it",
+            kind = TuneControlKind.SWITCH
+        ),
         TuneSpec(
             id = TuneId.FOCUS_DND,
             category = TuneCategory.FOCUS,

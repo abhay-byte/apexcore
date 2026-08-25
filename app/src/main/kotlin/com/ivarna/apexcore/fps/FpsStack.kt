@@ -55,7 +55,7 @@ class FpsStack private constructor(
         private fun create(context: Context): FpsStack {
             val shellExecutor = ShellExecutor()
             val privilegeModeStore = PrivilegeModeStore(context)
-            val shellGateway = ShellGateway(shellExecutor, privilegeModeStore)
+            val shellGateway = ShellGateway(shellExecutor, privilegeModeStore, context)
             val foregroundAppResolver = ForegroundAppResolver(shellExecutor)
             val dma = DmaFenceFpsDataSource(context)
             val sf = SurfaceFlingerFpsDataSource(shellGateway, foregroundAppResolver)

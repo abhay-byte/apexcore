@@ -7,6 +7,7 @@ import com.ivarna.apexcore.fps.model.PercentileResult
 import com.ivarna.apexcore.fps.util.ForegroundAppResolver
 import com.ivarna.apexcore.fps.privilege.ShellGateway
 import com.ivarna.apexcore.fps.privilege.PrivilegeTier
+import com.ivarna.apexcore.fps.privilege.PrivilegePolicy
 
 /**
  * UI-only FPS via gfxinfo framestats. Inaccurate for Vulkan/SurfaceView games.
@@ -51,7 +52,7 @@ class GfxinfoFpsDataSource(
 
         val result = shellGateway.executeChain(
             "dumpsys gfxinfo ${foreground.packageName} framestats 2>/dev/null",
-            shellGateway.currentPolicy().chain(listOf(PrivilegeTier.ROOT, PrivilegeTier.SHIZUKU, PrivilegeTier.STANDARD))
+            shellGateway.currentPolicy().chain(PrivilegePolicy.DEFAULT_CHAIN)
         ).first
         if (!result.isSuccess || result.output.isBlank()) {
             consecutiveEmpty++

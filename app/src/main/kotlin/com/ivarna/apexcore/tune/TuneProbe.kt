@@ -9,6 +9,8 @@ import com.ivarna.apexcore.fps.privilege.PrivilegeTier
 import com.ivarna.apexcore.fps.util.GpuVendor
 import com.ivarna.apexcore.fps.util.GpuVendorDetector
 import com.ivarna.apexcore.freeze.FreezeFramework
+import com.ivarna.apexcore.tune.cpu.CpuPolicyDiscovery
+import com.ivarna.apexcore.tune.gpu.GpuDevfreqDiscovery
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,7 +25,8 @@ import java.io.File
 class TuneProbe(
     private val context: Context,
     private val shell: TuneShell,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
+    private val backendResolver: TuneBackendResolver? = null
 ) {
     private val _capabilities = MutableStateFlow<Map<TuneId, TuneCapability>>(emptyMap())
     val capabilities: StateFlow<Map<TuneId, TuneCapability>> = _capabilities.asStateFlow()
@@ -56,7 +59,7 @@ class TuneProbe(
      * Refresh capabilities asynchronously. Returns immediately.
      */
     fun refreshCapabilities() {
-        val currentBackend = FreezeFramework.activeBackend.value?.name
+        val currentBackend = backendResolver?.fingerprint() ?: FreezeFramework.activeBackend.value?.name
         val now = SystemClock.elapsedRealtime()
         if (now - lastProbeTime < CACHE_TTL_MS && currentBackend == lastBackendFingerprint && _capabilities.value.isNotEmpty()) {
             // Valid cache
@@ -75,11 +78,12 @@ class TuneProbe(
     }
 
     private suspend fun probeInternal() = withContext(Dispatchers.IO) {
-        val tier = when (FreezeFramework.activeBackend.value?.name) {
-            "Root" -> PrivilegeTier.ROOT
-            "Shizuku" -> PrivilegeTier.SHIZUKU
-            else -> PrivilegeTier.STANDARD
+        val backend = backendResolver?.refresh() ?: when (FreezeFramework.activeBackend.value?.name) {
+            "Root" -> TuneBackendIdentity.SU_ROOT
+            "Shizuku" -> TuneBackendIdentity.SHIZUKU_SHELL
+            else -> TuneBackendIdentity.STANDARD
         }
+        val tier = backend.asPrivilegeTier()
 
         _isProbing.value = true
         val startTime = SystemClock.elapsedRealtime()
@@ -90,13 +94,15 @@ class TuneProbe(
         val discoveredWritable = mutableMapOf<String, Boolean>() // path -> isWritable
         val discoveredAvailableOptions = mutableMapOf<TuneId, List<String>>()
         val gpuVendor = GpuVendorDetector.detect()
+        val dynamicCpu = if (tier != PrivilegeTier.STANDARD) CpuPolicyDiscovery.discover(shell, tier) else emptyList()
+        val dynamicGpu = if (tier != PrivilegeTier.STANDARD) GpuDevfreqDiscovery.discover(shell, tier).firstOrNull() else null
 
         if (tier == PrivilegeTier.STANDARD) {
             // Standard tier cannot write sysfs. Check Settings/Focus APIs only.
             val resultMap = buildStandardCapabilities()
             _capabilities.value = resultMap
             lastProbeTime = SystemClock.elapsedRealtime()
-            lastBackendFingerprint = FreezeFramework.activeBackend.value?.name
+            lastBackendFingerprint = backendResolver?.fingerprint() ?: backend.name
             _isProbing.value = false
             return@withContext
         }
@@ -127,6 +133,19 @@ class TuneProbe(
             val nodes = TuneCatalog.nodesByTuneId[id].orEmpty()
             val writableNodes = nodes.filter { discoveredWritable[it.path] == true }
             when (id) {
+                TuneId.CPU_GOVERNOR -> resultMap[id] = probeCpuGovernor(dynamicCpu, tier, backend)
+                TuneId.CPU_LOCK_MAX -> resultMap[id] = probeCpuLock(dynamicCpu, tier, backend)
+                TuneId.GPU_GOVERNOR -> resultMap[id] = probeGpuGovernor(dynamicGpu, tier, backend)
+                TuneId.GPU_LOCK_MAX -> resultMap[id] = probeGpuLock(dynamicGpu, tier, backend)
+                TuneId.GAME_MODE_PERFORMANCE -> resultMap[id] = TuneCapability(
+                    id = id,
+                    available = false,
+                    needsRoot = false,
+                    writablePaths = emptyList(),
+                    subtitle = "Available per game when Android exposes Performance mode",
+                    reason = CapabilityReason.OPTION_NOT_SUPPORTED,
+                    backend = backend
+                )
                 // Focus & Display special handling
                 TuneId.FOCUS_DND -> {
                     val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
@@ -140,7 +159,7 @@ class TuneProbe(
                     )
                 }
                 TuneId.FOCUS_HEADSUP -> {
-                    val isElevated = tier == PrivilegeTier.ROOT || tier == PrivilegeTier.SHIZUKU
+                    val isElevated = tier != PrivilegeTier.STANDARD
                     resultMap[id] = TuneCapability(
                         id = id,
                         available = isElevated,
@@ -150,7 +169,7 @@ class TuneProbe(
                     )
                 }
                 TuneId.FOCUS_IMMERSIVE -> {
-                    val isElevated = tier == PrivilegeTier.ROOT || tier == PrivilegeTier.SHIZUKU
+                    val isElevated = tier != PrivilegeTier.STANDARD
                     resultMap[id] = TuneCapability(
                         id = id,
                         available = isElevated,
@@ -160,7 +179,7 @@ class TuneProbe(
                     )
                 }
                 TuneId.DISPLAY_PEAK -> {
-                    val isElevated = tier == PrivilegeTier.ROOT || tier == PrivilegeTier.SHIZUKU
+                    val isElevated = tier != PrivilegeTier.STANDARD
                     val peakStr = try {
                         Settings.System.getString(context.contentResolver, "peak_refresh_rate")
                             ?: Settings.Global.getString(context.contentResolver, "peak_refresh_rate")
@@ -181,7 +200,7 @@ class TuneProbe(
                     )
                 }
                 TuneId.DISPLAY_MIUI -> {
-                    val isElevated = tier == PrivilegeTier.ROOT || tier == PrivilegeTier.SHIZUKU
+                    val isElevated = tier != PrivilegeTier.STANDARD
                     val miuiMode = try {
                         Settings.System.getString(context.contentResolver, "refresh_rate_mode")
                             ?: Settings.System.getString(context.contentResolver, "miui_refresh_rate")
@@ -204,7 +223,7 @@ class TuneProbe(
                     // Critical KD-6: min_pwrlevel alone does NOT enable GPU_FLOOR.
                     // Must have a real frequency-floor node with groupId == "gpu_min".
                     val hasFreqFloor = writableNodes.any { it.groupId == "gpu_min" }
-                    val needsRoot = nodes.any { it.privilege == TunePrivilege.ROOT_ONLY } && tier == PrivilegeTier.SHIZUKU && !hasFreqFloor
+                    val needsRoot = nodes.any { it.privilege == TunePrivilege.ROOT_ONLY } && tier == PrivilegeTier.SHIZUKU_SHELL && !hasFreqFloor
                     resultMap[id] = TuneCapability(
                         id = id,
                         available = hasFreqFloor,
@@ -219,7 +238,7 @@ class TuneProbe(
                 }
                 else -> {
                     val isAvailable = writableNodes.isNotEmpty()
-                    val needsRoot = nodes.any { it.privilege == TunePrivilege.ROOT_ONLY } && tier == PrivilegeTier.SHIZUKU && !isAvailable
+                    val needsRoot = nodes.any { it.privilege == TunePrivilege.ROOT_ONLY } && tier == PrivilegeTier.SHIZUKU_SHELL && !isAvailable
                     val options = discoveredAvailableOptions[id].orEmpty()
                     resultMap[id] = TuneCapability(
                         id = id,
@@ -239,7 +258,7 @@ class TuneProbe(
 
         _capabilities.value = resultMap
         lastProbeTime = SystemClock.elapsedRealtime()
-        lastBackendFingerprint = FreezeFramework.activeBackend.value?.name
+        lastBackendFingerprint = backendResolver?.fingerprint() ?: backend.name
         _isProbing.value = false
         Log.i(TAG, "Capability probe finished in ${SystemClock.elapsedRealtime() - startTime}ms. Writable count: ${resultMap.count { it.value.available }}")
     }
@@ -269,8 +288,12 @@ class TuneProbe(
         discoveredWritable: MutableMap<String, Boolean>,
         discoveredAvailableOptions: MutableMap<TuneId, List<String>>
     ) {
-        // Shizuku cannot write root-only nodes
-        if (node.privilege == TunePrivilege.ROOT_ONLY && tier == PrivilegeTier.SHIZUKU) {
+        // Resolve the required identity, not just the historical privilege
+        // label. A shell-backed Shizuku service must fail closed for root-only
+        // nodes, while a verified root-backed Shizuku service is allowed.
+        if (node.requiredIdentity == RequiredIdentity.ROOT &&
+            tier != PrivilegeTier.SU_ROOT && tier != PrivilegeTier.SHIZUKU_ROOT
+        ) {
             discoveredWritable[node.path] = false
             return
         }
@@ -284,6 +307,11 @@ class TuneProbe(
         // Read current value
         val currentVal = shell.read(node.path, timeoutMs = PER_NODE_TIMEOUT_MS)?.trim()
         if (currentVal.isNullOrBlank()) {
+            discoveredWritable[node.path] = false
+            return
+        }
+
+        if (node.probeStrategy == ProbeStrategy.READ_METADATA_ONLY || node.probeStrategy == ProbeStrategy.COMMAND_QUERY) {
             discoveredWritable[node.path] = false
             return
         }
@@ -319,8 +347,14 @@ class TuneProbe(
         } else {
             currentVal
         }
-        val writeRes = shell.write(node.path, valueToWrite, tier, timeoutMs = PER_NODE_TIMEOUT_MS)
-        discoveredWritable[node.path] = writeRes.ok
+        val writeRes = shell.write(
+            node.path,
+            valueToWrite,
+            tier,
+            timeoutMs = PER_NODE_TIMEOUT_MS,
+            verificationMode = node.verificationMode
+        )
+        discoveredWritable[node.path] = writeRes.verified
     }
 
     private fun isVendorCompatible(nodeVendor: TuneVendor, detectedGpu: GpuVendor): Boolean {
@@ -330,6 +364,93 @@ class TuneProbe(
             TuneVendor.MALI -> detectedGpu == GpuVendor.MALI || detectedGpu == GpuVendor.UNKNOWN
             TuneVendor.SAMSUNG -> true
         }
+    }
+
+    private fun probeCpuGovernor(
+        policies: List<com.ivarna.apexcore.tune.cpu.CpuPolicyDescriptor>,
+        tier: PrivilegeTier,
+        backend: TuneBackendIdentity
+    ): TuneCapability {
+        val options = CpuPolicyDiscovery.governorIntersection(policies).toList().sorted()
+        val writable = policies.filter { it.availableGovernors.isNotEmpty() &&
+            shell.write(it.governorPath, it.currentGovernor, tier, PER_NODE_TIMEOUT_MS, VerificationMode.GOVERNOR_TOKEN).verified }
+        val available = policies.isNotEmpty() && writable.size == policies.size && options.isNotEmpty()
+        return TuneCapability(
+            id = TuneId.CPU_GOVERNOR,
+            available = available,
+            needsRoot = tier == PrivilegeTier.SHIZUKU_SHELL && !available,
+            writablePaths = writable.map { it.governorPath },
+            subtitle = if (available) "Advertised by every discovered CPU policy" else if (tier == PrivilegeTier.SHIZUKU_SHELL) "Needs Root for this kernel" else "CPU governor capability unavailable",
+            availableOptions = options,
+            reason = when {
+                available -> CapabilityReason.AVAILABLE
+                tier == PrivilegeTier.SHIZUKU_SHELL -> CapabilityReason.SHIZUKU_SHELL_LIMITED
+                policies.isEmpty() -> CapabilityReason.NODE_NOT_FOUND
+                else -> CapabilityReason.WRITE_NOT_EFFECTIVE
+            },
+            backend = backend
+        )
+    }
+
+    private fun probeCpuLock(
+        policies: List<com.ivarna.apexcore.tune.cpu.CpuPolicyDescriptor>,
+        tier: PrivilegeTier,
+        backend: TuneBackendIdentity
+    ): TuneCapability {
+        val writable = policies.filter { policy ->
+            val max = shell.write(policy.maxPath, policy.currentMaxKhz.toString(), tier, PER_NODE_TIMEOUT_MS, VerificationMode.EXACT_INT)
+            val min = shell.write(policy.minPath, policy.currentMinKhz.toString(), tier, PER_NODE_TIMEOUT_MS, VerificationMode.EXACT_INT)
+            max.verified && min.verified && policy.targetMaxKhz > 0
+        }
+        val available = policies.isNotEmpty() && writable.size == policies.size
+        return TuneCapability(
+            id = TuneId.CPU_LOCK_MAX,
+            available = available,
+            needsRoot = tier == PrivilegeTier.SHIZUKU_SHELL && !available,
+            writablePaths = writable.flatMap { listOf(it.minPath, it.maxPath) },
+            subtitle = if (available) "All discovered CPU policies expose verified min/max bounds" else if (tier == PrivilegeTier.SHIZUKU_SHELL) "Needs Root for this kernel" else "CPU max lock unavailable",
+            reason = if (available) CapabilityReason.AVAILABLE else if (tier == PrivilegeTier.SHIZUKU_SHELL) CapabilityReason.SHIZUKU_SHELL_LIMITED else CapabilityReason.WRITE_NOT_EFFECTIVE,
+            backend = backend
+        )
+    }
+
+    private fun probeGpuGovernor(
+        gpu: com.ivarna.apexcore.tune.gpu.GpuDevfreqDescriptor?,
+        tier: PrivilegeTier,
+        backend: TuneBackendIdentity
+    ): TuneCapability {
+        val path = gpu?.governorPath
+        val verified = gpu != null && path != null && gpu.currentGovernor != null &&
+            shell.write(path, gpu.currentGovernor, tier, PER_NODE_TIMEOUT_MS, VerificationMode.GOVERNOR_TOKEN).verified
+        return TuneCapability(
+            id = TuneId.GPU_GOVERNOR,
+            available = verified && gpu!!.availableGovernors.isNotEmpty(),
+            needsRoot = tier == PrivilegeTier.SHIZUKU_SHELL && !verified,
+            writablePaths = path?.let { listOf(it) }.orEmpty(),
+            subtitle = if (verified) "Advertised by the discovered GPU driver" else if (tier == PrivilegeTier.SHIZUKU_SHELL) "Needs Root for this kernel" else "GPU governor unavailable",
+            availableOptions = gpu?.availableGovernors?.toList()?.sorted().orEmpty(),
+            reason = if (verified) CapabilityReason.AVAILABLE else if (tier == PrivilegeTier.SHIZUKU_SHELL) CapabilityReason.SHIZUKU_SHELL_LIMITED else CapabilityReason.NODE_NOT_FOUND,
+            backend = backend
+        )
+    }
+
+    private fun probeGpuLock(
+        gpu: com.ivarna.apexcore.tune.gpu.GpuDevfreqDescriptor?,
+        tier: PrivilegeTier,
+        backend: TuneBackendIdentity
+    ): TuneCapability {
+        val verified = gpu != null && gpu.hasReliableMax &&
+            shell.write(gpu.maxPath, gpu.currentMax.toString(), tier, PER_NODE_TIMEOUT_MS, VerificationMode.EXACT_INT).verified &&
+            shell.write(gpu.minPath, gpu.currentMin.toString(), tier, PER_NODE_TIMEOUT_MS, VerificationMode.EXACT_INT).verified
+        return TuneCapability(
+            id = TuneId.GPU_LOCK_MAX,
+            available = verified,
+            needsRoot = tier == PrivilegeTier.SHIZUKU_SHELL && !verified,
+            writablePaths = if (gpu != null) listOf(gpu.minPath, gpu.maxPath) else emptyList(),
+            subtitle = if (verified) "Verified GPU min/max pair and real maximum OPP" else if (tier == PrivilegeTier.SHIZUKU_SHELL) "Needs Root for this kernel" else "GPU max lock requires a real min/max pair",
+            reason = if (verified) CapabilityReason.AVAILABLE else if (tier == PrivilegeTier.SHIZUKU_SHELL) CapabilityReason.SHIZUKU_SHELL_LIMITED else CapabilityReason.OPTION_NOT_SUPPORTED,
+            backend = backend
+        )
     }
 
     private fun buildStandardCapabilities(): Map<TuneId, TuneCapability> {
@@ -344,7 +465,9 @@ class TuneProbe(
                         available = hasDndAccess,
                         needsRoot = false,
                         writablePaths = emptyList(),
-                        subtitle = if (hasDndAccess) "Silence notifications during game" else "Needs Do Not Disturb access"
+                        subtitle = if (hasDndAccess) "Silence notifications during game" else "Needs Do Not Disturb access",
+                        reason = if (hasDndAccess) CapabilityReason.AVAILABLE else CapabilityReason.OPTION_NOT_SUPPORTED,
+                        backend = TuneBackendIdentity.STANDARD
                     )
                 }
                 else -> {
@@ -353,7 +476,9 @@ class TuneProbe(
                         available = false,
                         needsRoot = false,
                         writablePaths = emptyList(),
-                        subtitle = "Needs Shizuku or Root"
+                        subtitle = "Needs Shizuku or Root",
+                        reason = CapabilityReason.NEEDS_ROOT,
+                        backend = TuneBackendIdentity.STANDARD
                     )
                 }
             }

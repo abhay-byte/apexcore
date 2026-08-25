@@ -20,8 +20,8 @@ class PrivilegePolicy(private val mode: PrivilegeMode) {
      */
     fun chain(default: List<PrivilegeTier>): List<PrivilegeTier> = when (mode) {
         PrivilegeMode.AUTO -> default
-        PrivilegeMode.ROOT -> listOf(PrivilegeTier.ROOT)
-        PrivilegeMode.SHIZUKU -> listOf(PrivilegeTier.SHIZUKU)
+        PrivilegeMode.ROOT -> listOf(PrivilegeTier.SU_ROOT)
+        PrivilegeMode.SHIZUKU -> listOf(PrivilegeTier.SHIZUKU_SHELL)
         PrivilegeMode.STANDARD -> listOf(PrivilegeTier.STANDARD)
     }
 
@@ -33,6 +33,6 @@ class PrivilegePolicy(private val mode: PrivilegeMode) {
 
     companion object {
         /** Default chain used by most metric families (root first, then shizuku, then standard). */
-        val DEFAULT_CHAIN = listOf(PrivilegeTier.ROOT, PrivilegeTier.SHIZUKU, PrivilegeTier.STANDARD)
+        val DEFAULT_CHAIN = listOf(PrivilegeTier.SU_ROOT, PrivilegeTier.SHIZUKU_ROOT, PrivilegeTier.SHIZUKU_SHELL, PrivilegeTier.STANDARD)
     }
 }

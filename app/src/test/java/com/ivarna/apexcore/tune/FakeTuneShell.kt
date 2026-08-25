@@ -9,6 +9,7 @@ class FakeTuneShell : TuneShell {
     val writtenValues = mutableMapOf<String, String>()
     val writeAttempts = mutableListOf<Triple<String, String, PrivilegeTier>>()
     val failWritePaths = mutableSetOf<String>()
+    val commandOutputs = mutableMapOf<String, String>()
     var sleepOnReadMs: Long = 0L
     var sleepOnWriteMs: Long = 0L
 
@@ -65,6 +66,7 @@ class FakeTuneShell : TuneShell {
         if (failCommands.any { command.contains(it) }) {
             return com.ivarna.apexcore.fps.util.ShellResult("Command failed", exitCode = 1)
         }
-        return com.ivarna.apexcore.fps.util.ShellResult("Success", exitCode = 0)
+        val output = commandOutputs.entries.firstOrNull { command.contains(it.key) }?.value ?: "Success"
+        return com.ivarna.apexcore.fps.util.ShellResult(output, exitCode = 0)
     }
 }

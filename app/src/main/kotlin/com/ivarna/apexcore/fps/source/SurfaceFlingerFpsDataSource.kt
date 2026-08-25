@@ -5,6 +5,7 @@ import com.ivarna.apexcore.fps.model.FpsSnapshot
 import com.ivarna.apexcore.fps.util.ForegroundAppResolver
 import com.ivarna.apexcore.fps.privilege.ShellGateway
 import com.ivarna.apexcore.fps.privilege.PrivilegeTier
+import com.ivarna.apexcore.fps.privilege.PrivilegePolicy
 
 class SurfaceFlingerFpsDataSource(
     private val shellGateway: ShellGateway,
@@ -18,7 +19,7 @@ class SurfaceFlingerFpsDataSource(
         val surface = findSurfaceForPackage(foreground.packageName) ?: return null
         val latencyOutput = shellGateway.executeChain(
             "dumpsys SurfaceFlinger --latency \"$surface\" 2>/dev/null",
-            shellGateway.currentPolicy().chain(listOf(PrivilegeTier.ROOT, PrivilegeTier.SHIZUKU, PrivilegeTier.STANDARD))
+            shellGateway.currentPolicy().chain(PrivilegePolicy.DEFAULT_CHAIN)
         ).first
         if (!latencyOutput.isSuccess) return null
 
@@ -28,7 +29,7 @@ class SurfaceFlingerFpsDataSource(
     private fun findSurfaceForPackage(packageName: String): String? {
         val listResult = shellGateway.executeChain(
             "dumpsys SurfaceFlinger --list 2>/dev/null",
-            shellGateway.currentPolicy().chain(listOf(PrivilegeTier.ROOT, PrivilegeTier.SHIZUKU, PrivilegeTier.STANDARD))
+            shellGateway.currentPolicy().chain(PrivilegePolicy.DEFAULT_CHAIN)
         ).first
         if (!listResult.isSuccess) return null
 

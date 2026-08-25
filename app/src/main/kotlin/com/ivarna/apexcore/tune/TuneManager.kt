@@ -25,7 +25,8 @@ class TuneManager internal constructor(
     val snapshotStore: TuneSnapshotStore,
     val probe: TuneProbe,
     val applier: TuneApplier,
-    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
+    private val backendResolver: TuneBackendResolver? = null
 ) {
     val capabilities: StateFlow<Map<TuneId, TuneCapability>> = probe.capabilities
 
@@ -38,6 +39,15 @@ class TuneManager internal constructor(
 
     private val mutex = Mutex()
     private var recoverJob: Job? = null
+    private val thermalGuard = TuneThermalGuard(appContext, scope) {
+        scope.launch {
+            mutex.withLock {
+                val tier = writeTier() ?: PrivilegeTier.STANDARD
+                val released = applier.releaseMaxLocks(tier)
+                Log.w(TAG, "Severe thermal status: released $released CPU/GPU max-lock values")
+            }
+        }
+    }
 
     init {
         _owner = prefs.getOwner()
@@ -75,6 +85,12 @@ class TuneManager internal constructor(
         probe.refreshCapabilities()
     }
 
+    /** Per-game capability because Android Game Mode is package-specific. */
+    fun gameModeCapability(gamePackage: String): GameModeCapability? {
+        val tier = writeTier() ?: return null
+        return applier.gameModeCapability(gamePackage, tier)
+    }
+
     fun intent(id: TuneId): TuneValue = prefs.getIntent(id)
 
     /**
@@ -85,7 +101,7 @@ class TuneManager internal constructor(
     fun setIntent(id: TuneId, value: TuneValue): Boolean {
         if (value.on) {
             val cap = capabilities.value[id]
-            if (cap == null || !cap.available) {
+            if (id != TuneId.GAME_MODE_PERFORMANCE && (cap == null || !cap.available)) {
                 Log.w(TAG, "Cannot turn on $id: capability not available")
                 return false
             }
@@ -100,12 +116,19 @@ class TuneManager internal constructor(
                     val tier = writeTier()
                     if (tier != null) {
                         if (value.on) {
-                            applier.applyBundle(id, value, tier)
+                            if (id.isMaxLock() && thermalGuard.severe) {
+                                Log.w(TAG, "Ignoring $id while thermal guard is severe")
+                            } else if (id == TuneId.GAME_MODE_PERFORMANCE && prefs.getSessionPkg().isNotBlank()) {
+                                applier.applyGameModeForSession(prefs.getSessionPkg(), tier, backendFor(tier))
+                            } else {
+                                applier.applyBundle(id, value, tier)
+                            }
                         } else {
                             applier.restoreBundle(id, tier)
                             // If all bundles are turned off, end session
                             val anyOn = TuneSpecs.all.any { spec ->
-                                prefs.getIntent(spec.id).on && capabilities.value[spec.id]?.available == true
+                                prefs.getIntent(spec.id).on &&
+                                    (spec.id == TuneId.GAME_MODE_PERFORMANCE || capabilities.value[spec.id]?.available == true)
                             }
                             if (!anyOn) {
                                 restoreSessionLocked(tier)
@@ -128,10 +151,16 @@ class TuneManager internal constructor(
         return p != appContext.packageName
     }
 
-    fun writeTier(): PrivilegeTier? = when (FreezeFramework.activeBackend.value?.name) {
-        "Root" -> PrivilegeTier.ROOT
-        "Shizuku" -> PrivilegeTier.SHIZUKU
-        else -> null
+    fun writeTier(): PrivilegeTier? {
+        backendResolver?.let {
+            val identity = it.refresh()
+            return identity.asPrivilegeTier().takeIf { tier -> tier != PrivilegeTier.STANDARD }
+        }
+        return when (FreezeFramework.activeBackend.value?.name) {
+            "Root" -> PrivilegeTier.SU_ROOT
+            "Shizuku" -> PrivilegeTier.SHIZUKU_SHELL
+            else -> null
+        }
     }
 
     suspend fun applyForSession(gamePkg: String): TuneApplyReport {
@@ -174,7 +203,7 @@ class TuneManager internal constructor(
                     val intent = prefs.getIntent(id)
                     val cap = capabilities.value[id]
 
-                    if (!intent.on || cap?.available != true) {
+                    if (!intent.on || (id != TuneId.GAME_MODE_PERFORMANCE && cap?.available != true)) {
                         skipped++
                         continue
                     }
@@ -185,11 +214,14 @@ class TuneManager internal constructor(
                         continue
                     }
 
-                    val count = applier.applyBundle(id, intent, tier)
-                    if (count > 0) {
-                        applied += count
+                    if (id == TuneId.GAME_MODE_PERFORMANCE) {
+                        val result = applier.applyGameModeForSession(gamePkg, tier, backendResolver?.current() ?: backendFor(tier))
+                        if (result.verified) applied++ else failed++
+                    } else if (id.isMaxLock() && thermalGuard.severe) {
+                        skipped++
                     } else {
-                        failed++
+                        val count = applier.applyBundle(id, intent, tier)
+                        if (count > 0) applied += count else failed++
                     }
                 }
             } ?: run {
@@ -200,6 +232,9 @@ class TuneManager internal constructor(
                 _sessionActive.value = true
                 prefs.setApplied(true)
                 prefs.setSessionPkg(gamePkg)
+                if (prefs.getIntent(TuneId.CPU_LOCK_MAX).on || prefs.getIntent(TuneId.GPU_LOCK_MAX).on) {
+                    thermalGuard.start()
+                }
             }
 
             Log.i(TAG, "applyForSession for $gamePkg: applied=$applied failed=$failed skipped=$skipped (budget=${budgetMs}ms)")
@@ -213,10 +248,17 @@ class TuneManager internal constructor(
             val tier = writeTier() ?: return@withLock TuneApplyReport(0, 0, 0, _sessionActive.value)
             val intent = prefs.getIntent(id)
             val cap = capabilities.value[id]
-            if (!intent.on || cap?.available != true) {
+            if (!intent.on || (id != TuneId.GAME_MODE_PERFORMANCE && cap?.available != true)) {
                 return@withLock TuneApplyReport(0, 0, 1, _sessionActive.value)
             }
-            val count = applier.applyBundle(id, intent, tier)
+            if (id.isMaxLock() && thermalGuard.severe) {
+                return@withLock TuneApplyReport(0, 0, 1, _sessionActive.value,
+                    details = mapOf("reason" to CapabilityReason.THERMAL_SAFETY_BLOCKED.name))
+            }
+            val count = if (id == TuneId.GAME_MODE_PERFORMANCE) {
+                if (prefs.getSessionPkg().isBlank()) 0 else
+                    if (applier.applyGameModeForSession(prefs.getSessionPkg(), tier, backendResolver?.current() ?: backendFor(tier)).verified) 1 else 0
+            } else applier.applyBundle(id, intent, tier)
             if (count > 0) {
                 _sessionActive.value = true
                 prefs.setApplied(true)
@@ -242,6 +284,7 @@ class TuneManager internal constructor(
             _sessionActive.value = false
             prefs.setApplied(false)
             setOwner(TuneSessionOwner.NONE)
+            thermalGuard.stop()
             Log.i(TAG, "restoreSession completed: $count paths restored, all clean")
             TuneApplyReport(count, 0, 0, false)
         } else {
@@ -279,6 +322,7 @@ class TuneManager internal constructor(
             snapshotStore.clear()
             prefs.setApplied(false)
             setOwner(TuneSessionOwner.NONE)
+            thermalGuard.stop()
             return@withContext
         }
 
@@ -304,6 +348,7 @@ class TuneManager internal constructor(
             _sessionActive.value = false
             prefs.setApplied(false)
             setOwner(TuneSessionOwner.NONE)
+            thermalGuard.stop()
             Log.i(TAG, "Orphan restore completed: $count paths restored, all clean")
         } else {
             Log.w(TAG, "Orphan restore: ${remaining.size} paths failed to restore, keeping snapshot and tune_applied=true")
@@ -315,6 +360,15 @@ class TuneManager internal constructor(
     fun deleteDummyKeysIfNeeded() {
         prefs.deleteDummyKeysIfNeeded()
     }
+
+    private fun backendFor(tier: PrivilegeTier): TuneBackendIdentity = when (tier) {
+        PrivilegeTier.SU_ROOT -> TuneBackendIdentity.SU_ROOT
+        PrivilegeTier.SHIZUKU_ROOT -> TuneBackendIdentity.SHIZUKU_ROOT
+        PrivilegeTier.SHIZUKU_SHELL -> TuneBackendIdentity.SHIZUKU_SHELL
+        PrivilegeTier.STANDARD -> TuneBackendIdentity.STANDARD
+    }
+
+    private fun TuneId.isMaxLock(): Boolean = this == TuneId.CPU_LOCK_MAX || this == TuneId.GPU_LOCK_MAX
 
     companion object {
         private const val TAG = "ApexCore.Tune"
@@ -337,19 +391,16 @@ class TuneManager internal constructor(
             val fpsStack = FpsStack.get(appCtx)
             val shellGateway = fpsStack.shellGateway
             val prefs = TunePrefs(appCtx)
+            val backendResolver = TuneBackendResolver(shellGateway, fpsStack.privilegeModeStore)
             val tuneShell = ShellGatewayTuneShell(shellGateway) {
-                when (FreezeFramework.activeBackend.value?.name) {
-                    "Root" -> PrivilegeTier.ROOT
-                    "Shizuku" -> PrivilegeTier.SHIZUKU
-                    else -> PrivilegeTier.STANDARD
-                }
+                backendResolver.refresh().asPrivilegeTier()
             }
             val snapshotStore = TuneSnapshotStore(
                 context = appCtx,
                 prefs = SharedPrefsKeyValue(appCtx.getSharedPreferences(TunePrefs.PREFS_NAME, Context.MODE_PRIVATE)),
                 shell = tuneShell
             )
-            val probe = TuneProbe(appCtx, tuneShell)
+            val probe = TuneProbe(appCtx, tuneShell, backendResolver = backendResolver)
             val applier = TuneApplier(appCtx, tuneShell, snapshotStore)
 
             return TuneManager(
@@ -358,7 +409,8 @@ class TuneManager internal constructor(
                 prefs = prefs,
                 snapshotStore = snapshotStore,
                 probe = probe,
-                applier = applier
+                applier = applier,
+                backendResolver = backendResolver
             )
         }
     }

@@ -3,6 +3,7 @@ package com.ivarna.apexcore.fps.source
 import android.content.Context
 import com.ivarna.apexcore.fps.privilege.ShellGateway
 import com.ivarna.apexcore.fps.privilege.PrivilegeTier
+import com.ivarna.apexcore.fps.privilege.PrivilegePolicy
 import java.io.File
 
 class FpsDaemonManager(
@@ -20,13 +21,13 @@ class FpsDaemonManager(
 
     fun ensureStarted(): Boolean {
         val policy = shellGateway.currentPolicy()
-        if (PrivilegeTier.ROOT !in policy.chain(listOf(PrivilegeTier.ROOT, PrivilegeTier.SHIZUKU, PrivilegeTier.STANDARD))) return false
+        if (PrivilegeTier.SU_ROOT !in policy.chain(PrivilegePolicy.DEFAULT_CHAIN)) return false
         if (!shellGateway.canRoot()) return false
 
         // Always refresh scripts so APK updates (hybrid FPS path) take effect.
         deployScripts()
         val wantHash = scriptHash()
-        val haveHash = shellGateway.execute("cat $hashPath 2>/dev/null", PrivilegeTier.ROOT)
+        val haveHash = shellGateway.execute("cat $hashPath 2>/dev/null", PrivilegeTier.SU_ROOT)
             .output.trim()
 
         // Running process keeps old script in memory — restart if asset hash changed.
@@ -42,7 +43,7 @@ class FpsDaemonManager(
                 "cmd=\$(tr '\\0' ' ' < /proc/\$p/cmdline 2>/dev/null) || continue; " +
                 "case \"\$cmd\" in *trace_pipe*|*apexcore_fps*|*adb_app_fps*) " +
                 "kill -9 \$p 2>/dev/null;; esac; done",
-            PrivilegeTier.ROOT
+            PrivilegeTier.SU_ROOT
         )
         val startCmd =
             "setsid sh $daemonPath > $logPath 2>&1 < /dev/null & " +
@@ -50,13 +51,13 @@ class FpsDaemonManager(
                 "echo $wantHash > $hashPath; " +
                 "sleep 0.4; " +
                 "kill -0 \$(cat $pidPath) 2>/dev/null && echo started"
-        val result = shellGateway.execute(startCmd, PrivilegeTier.ROOT)
+        val result = shellGateway.execute(startCmd, PrivilegeTier.SU_ROOT)
         running = result.isSuccess && result.output.contains("started")
         return running && isDaemonAlive()
     }
 
     private fun scriptHash(): String =
-        shellGateway.execute("md5sum $daemonPath 2>/dev/null | cut -d' ' -f1", PrivilegeTier.ROOT)
+        shellGateway.execute("md5sum $daemonPath 2>/dev/null | cut -d' ' -f1", PrivilegeTier.SU_ROOT)
             .output.trim()
 
     fun stop() {
@@ -65,26 +66,26 @@ class FpsDaemonManager(
     }
 
     private fun stopExistingDaemon() {
-        val pidResult = shellGateway.execute("cat $pidPath 2>/dev/null", PrivilegeTier.ROOT)
+        val pidResult = shellGateway.execute("cat $pidPath 2>/dev/null", PrivilegeTier.SU_ROOT)
         val pid = pidResult.output.trim()
         if (pid.isNotBlank()) {
             // Kill process group: daemon + timeout/cat child holding trace_pipe
             shellGateway.execute(
                 "kill -TERM -$pid 2>/dev/null; kill -TERM $pid 2>/dev/null; " +
                     "sleep 0.15; kill -KILL -$pid 2>/dev/null; kill -KILL $pid 2>/dev/null",
-                PrivilegeTier.ROOT
+                PrivilegeTier.SU_ROOT
             )
         }
-        shellGateway.execute("rm -f $pidPath", PrivilegeTier.ROOT)
+        shellGateway.execute("rm -f $pidPath", PrivilegeTier.SU_ROOT)
     }
 
     fun isRunning(): Boolean = running && isDaemonAlive()
 
     private fun isDaemonAlive(): Boolean {
-        val pidResult = shellGateway.execute("cat $pidPath 2>/dev/null", PrivilegeTier.ROOT)
+        val pidResult = shellGateway.execute("cat $pidPath 2>/dev/null", PrivilegeTier.SU_ROOT)
         val pid = pidResult.output.trim()
         if (pid.isBlank()) return false
-        val check = shellGateway.execute("kill -0 $pid 2>/dev/null && echo alive", PrivilegeTier.ROOT)
+        val check = shellGateway.execute("kill -0 $pid 2>/dev/null && echo alive", PrivilegeTier.SU_ROOT)
         return check.output.contains("alive")
     }
 
@@ -98,11 +99,11 @@ class FpsDaemonManager(
             val name = File(assetPath).name
             val tmp = File(context.cacheDir, name)
             tmp.writeBytes(input.readBytes())
-            shellGateway.execute("cp ${tmp.absolutePath} $remotePath", PrivilegeTier.ROOT)
+            shellGateway.execute("cp ${tmp.absolutePath} $remotePath", PrivilegeTier.SU_ROOT)
             if (executable) {
-                shellGateway.execute("chmod 755 $remotePath", PrivilegeTier.ROOT)
+                shellGateway.execute("chmod 755 $remotePath", PrivilegeTier.SU_ROOT)
             } else {
-                shellGateway.execute("chmod 644 $remotePath", PrivilegeTier.ROOT)
+                shellGateway.execute("chmod 644 $remotePath", PrivilegeTier.SU_ROOT)
             }
         }
     }

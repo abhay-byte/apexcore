@@ -6,13 +6,13 @@ import org.junit.Test
 class TuneSpecsCountTest {
 
     @Test
-    fun testExactly36IdsAnd10Categories() {
-        assertEquals("Must have exactly 36 TuneId enum entries", 36, TuneId.values().size)
+    fun testExactly39IdsAnd10Categories() {
+        assertEquals("T13 inventory must have 39 TuneId enum entries", 39, TuneId.values().size)
         assertEquals("Must have exactly 10 TuneCategory entries", 10, TuneCategory.values().size)
-        assertEquals("TuneSpecs.all must have exactly 36 specs", 36, TuneSpecs.all.size)
+        assertEquals("TuneSpecs.all must have exactly 39 specs", 39, TuneSpecs.all.size)
 
         val uniqueIds = TuneSpecs.all.map { it.id }.toSet()
-        assertEquals("All 36 specs must have unique TuneIds", 36, uniqueIds.size)
+        assertEquals("All 39 specs must have unique TuneIds", 39, uniqueIds.size)
 
         val categoriesRepresented = TuneSpecs.all.map { it.category }.toSet()
         assertEquals("All 10 categories must be represented in TuneSpecs", 10, categoriesRepresented.size)

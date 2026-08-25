@@ -137,12 +137,6 @@ object FreezeFramework {
 
         delay(KILL_DELAY_MS)
 
-        try {
-            if (backend is ShizukuFreezeBackend || backend is RootFreezeBackend) {
-                backend.execute(FreezeOperation.ShellCommand("echo 3 > /proc/sys/vm/drop_caches 2>/dev/null"))
-            }
-        } catch (_: Throwable) {}
-
         delay(1200)
         val afterAvailKb = readMemLine("MemAvailable:")
         val afterSwapFreeKb = readMemLine("SwapFree:")

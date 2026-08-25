@@ -12,6 +12,7 @@ val keystoreProperties = Properties().apply {
         load(keystorePropertiesFile.inputStream())
     }
 }
+val applicationIdOverride = providers.gradleProperty("applicationIdOverride").orNull
 
 android {
     namespace = "com.ivarna.apexcore"
@@ -29,11 +30,12 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.ivarna.apexcore"
+        applicationId = applicationIdOverride ?: "com.ivarna.apexcore"
         minSdk = 24
         targetSdk = 36
         versionCode = 4
         versionName = "1.3"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
         release {
@@ -54,6 +56,7 @@ android {
     }
     buildFeatures {
         compose = true
+        aidl = true
     }
 }
 
@@ -94,4 +97,6 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testImplementation("org.mockito:mockito-core:5.14.2")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.4.0")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.1")
 }

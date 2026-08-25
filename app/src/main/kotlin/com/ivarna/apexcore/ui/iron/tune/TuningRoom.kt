@@ -131,6 +131,10 @@ fun TuningRoom(
                 "Capability-gated parameters safely applied during game sessions and restored on exit.",
                 style = IronType.Caption, color = skin.textDim
             )
+            Text(
+                "High power: CPU/GPU max locks can increase heat and battery use; unsupported controls stay off.",
+                style = IronType.Caption, color = skin.textDim
+            )
             Spacer(Modifier.height(10.dp))
 
             if (sessionActive) {

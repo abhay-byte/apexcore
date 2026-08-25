@@ -1,7 +1,7 @@
 package com.ivarna.apexcore.tune
 
 /**
- * Clean-room sysfs and settings catalog for all 36 TuneId options.
+ * Clean-room sysfs and settings catalog for all 39 TuneId options.
  * Defined in docs/plans/T12-real-game-optimisation.md and docs/plans/T12-tune-options.md.
  *
  * SAFETY INVARIANT: Never contains /dev/mali0, /proc/ged, sched_util_clamp_min,
@@ -154,6 +154,16 @@ object TuneCatalog {
             valueKind = TuneValueKind.ENUM,
             availablePath = "/sys/kernel/gpu/gpu_available_governors",
             groupId = "gpu_gov"
+        ),
+        TuneNode(
+            path = "/sys/class/kgsl/kgsl-3d0/devfreq/max_freq",
+            id = TuneId.GPU_LOCK_MAX,
+            vendor = TuneVendor.ADRENO,
+            privilege = TunePrivilege.ROOT_ONLY,
+            valueKind = TuneValueKind.FREQ_HZ,
+            availablePath = "/sys/class/kgsl/kgsl-3d0/gpu_available_frequencies",
+            groupId = "gpu_lock_max",
+            probeStrategy = ProbeStrategy.READ_METADATA_ONLY
         ),
 
         // 5. GPU_PWRLEVEL (Extra power floor, not a freq floor)
@@ -320,33 +330,27 @@ object TuneCatalog {
             groupId = "cpu_min_prime"
         ),
 
-        // 13. CPU_GOVERNOR
+        // 13. CPU_GOVERNOR is discovered from every live policy at runtime.
+        // Keep one metadata marker so the catalog remains total without
+        // encoding a policy0/policy4/policy7 topology assumption.
         TuneNode(
-            path = "/sys/devices/system/cpu/cpufreq/policy0/scaling_governor",
+            path = "/sys/devices/system/cpu/cpufreq",
             id = TuneId.CPU_GOVERNOR,
             vendor = TuneVendor.GENERIC,
             privilege = TunePrivilege.SHELL_OK,
-            valueKind = TuneValueKind.ENUM,
-            availablePath = "/sys/devices/system/cpu/cpufreq/policy0/scaling_available_governors",
-            groupId = "cpu_gov_policy0"
+            valueKind = TuneValueKind.RAW,
+            groupId = "cpu_gov_discovery",
+            probeStrategy = ProbeStrategy.READ_METADATA_ONLY
         ),
         TuneNode(
-            path = "/sys/devices/system/cpu/cpufreq/policy4/scaling_governor",
-            id = TuneId.CPU_GOVERNOR,
+            path = "/sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq",
+            id = TuneId.CPU_LOCK_MAX,
             vendor = TuneVendor.GENERIC,
-            privilege = TunePrivilege.SHELL_OK,
-            valueKind = TuneValueKind.ENUM,
-            availablePath = "/sys/devices/system/cpu/cpufreq/policy4/scaling_available_governors",
-            groupId = "cpu_gov_policy4"
-        ),
-        TuneNode(
-            path = "/sys/devices/system/cpu/cpufreq/policy7/scaling_governor",
-            id = TuneId.CPU_GOVERNOR,
-            vendor = TuneVendor.GENERIC,
-            privilege = TunePrivilege.SHELL_OK,
-            valueKind = TuneValueKind.ENUM,
-            availablePath = "/sys/devices/system/cpu/cpufreq/policy7/scaling_available_governors",
-            groupId = "cpu_gov_policy7"
+            privilege = TunePrivilege.ROOT_ONLY,
+            valueKind = TuneValueKind.FREQ_KHZ,
+            availablePath = "/sys/devices/system/cpu/cpufreq/policy0/cpuinfo_max_freq",
+            groupId = "cpu_lock_max",
+            probeStrategy = ProbeStrategy.READ_METADATA_ONLY
         ),
 
         // 14. CPU_UCLAMP (cgroup top-app only, NOT root cgroup, NOT sysctl)
@@ -617,7 +621,18 @@ object TuneCatalog {
             groupId = "display_miui"
         ),
 
-        // 32. FOCUS_DND (Settings/NotificationManager API)
+        // 32. GAME_MODE_PERFORMANCE (command action; capability is game-specific)
+        TuneNode(
+            path = "/sys/devices/virtual/game_mode/performance",
+            id = TuneId.GAME_MODE_PERFORMANCE,
+            vendor = TuneVendor.GENERIC,
+            privilege = TunePrivilege.SHELL_OK,
+            valueKind = TuneValueKind.ENUM,
+            groupId = "game_mode_performance",
+            probeStrategy = ProbeStrategy.COMMAND_QUERY
+        ),
+
+        // 33. FOCUS_DND (Settings/NotificationManager API)
         TuneNode(
             path = "/sys/devices/virtual/focus/dnd",
             id = TuneId.FOCUS_DND,
@@ -694,16 +709,15 @@ object TuneCatalog {
         }
     }
 
-    /** Discover available cpufreq policy cluster directories (capped at 4). */
+    /** Discover available cpufreq policy directories without cluster assumptions. */
     fun discoverPolicies(shell: TuneShell): List<String> {
-        val found = mutableListOf<String>()
-        for (i in 0..7) {
-            val path = "/sys/devices/system/cpu/cpufreq/policy$i/scaling_min_freq"
-            if (shell.exists(path, timeoutMs = 60L)) {
-                found.add("policy$i")
-                if (found.size >= 4) break
-            }
-        }
-        return if (found.isNotEmpty()) found else listOf("policy0", "policy4", "policy6", "policy7")
+        return shell.execute(
+            "find /sys/devices/system/cpu/cpufreq -mindepth 1 -maxdepth 1 -type d -name 'policy*' -print 2>/dev/null | sort -V",
+            com.ivarna.apexcore.fps.privilege.PrivilegeTier.STANDARD,
+            250L
+        ).output.lineSequence().mapNotNull {
+            it.trim().takeIf { path -> path.matches(Regex("/sys/devices/system/cpu/cpufreq/policy[0-9]+")) }
+                ?.substringAfterLast('/')
+        }.distinct().toList()
     }
 }

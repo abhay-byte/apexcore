@@ -1,317 +1,215 @@
 package com.ivarna.apexcore.fps.privilege
 
+import android.content.Context
 import android.content.pm.PackageManager
-import android.util.Log
 import com.ivarna.apexcore.fps.util.ShellExecutor
 import com.ivarna.apexcore.fps.util.ShellResult
+import com.ivarna.apexcore.tune.MutationFailure
+import com.ivarna.apexcore.tune.VerificationMode
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import rikka.shizuku.Shizuku
-import java.io.BufferedReader
 import java.io.File
-import java.io.InputStreamReader
+import rikka.shizuku.Shizuku
 
 data class WriteResult(
     val ok: Boolean,
     val verified: Boolean,
     val readback: String?,
     val tier: PrivilegeTier?,
-    val error: String? = null
+    val error: String? = null,
+    val verificationMode: VerificationMode = VerificationMode.EXACT_STRING
 )
 
-/**
- * Tier-aware shell gateway (ported from factualstats).
- *
- * Follows [PrivilegeModeStore] (synced with top-bar Root / Shizuku preference).
- *
- * | Tier | Implementation |
- * |------|----------------|
- * | ROOT | `su -c` via [ShellExecutor] |
- * | SHIZUKU | Shizuku `newProcess` (shell-uid elevated dumpsys) |
- * | STANDARD | plain `sh -c` |
- */
+/** Tier-aware command/mutation gateway. UserService is the primary Shizuku path. */
 class ShellGateway(
     private val shellExecutor: ShellExecutor,
-    private val store: PrivilegeModeStore
+    private val store: PrivilegeModeStore,
+    context: Context? = null
 ) {
     val mutex = Mutex()
+    private val shizukuExecutor = context?.let { ShizukuExecutorClient(it) }
 
-    fun canRoot(): Boolean = shellExecutor.isSuAvailable()
+    fun canRoot(): Boolean = rootEffectiveUid() == 0
 
-    fun canShizuku(): Boolean {
+    fun rootEffectiveUid(): Int? {
+        if (!shellExecutor.isSuAvailable()) return null
         return try {
-            if (!rikka.shizuku.Shizuku.pingBinder()) return false
-            rikka.shizuku.Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
-        } catch (_: Throwable) {
-            false
-        }
+            val result = shellExecutor.execute("id -u", useRoot = true, timeoutMs = ROOT_PROBE_TIMEOUT_MS)
+            if (result.isSuccess) result.output.trim().lineSequence().firstOrNull()?.toIntOrNull() else null
+        } catch (_: Throwable) { null }
     }
 
-    fun canStandard(): Boolean = true
+    fun canShizuku(): Boolean = try {
+        Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
+    } catch (_: Throwable) { false }
+
+    fun shizukuUid(): Int? {
+        if (!canShizuku()) return null
+        val uid = try { Shizuku.getUid() } catch (_: Throwable) { -1 }
+        return if (uid >= 0) uid else shizukuExecutor?.uid()
+    }
+
+    fun shizukuTier(): PrivilegeTier? = when (shizukuUid()) {
+        0 -> PrivilegeTier.SHIZUKU_ROOT
+        2000 -> PrivilegeTier.SHIZUKU_SHELL
+        null -> null
+        else -> PrivilegeTier.SHIZUKU_SHELL
+    }
 
     fun currentPolicy(): PrivilegePolicy = PrivilegePolicy(store.mode.value)
 
-    fun execute(command: String, tier: PrivilegeTier, timeoutMs: Long = 8_000L): ShellResult = kotlinx.coroutines.runBlocking {
+    fun execute(command: String, tier: PrivilegeTier, timeoutMs: Long = 8_000L): ShellResult = runBlocking {
         mutex.withLock {
             when (tier) {
-                PrivilegeTier.ROOT -> {
-                    if (!canRoot()) {
-                        return@withLock ShellResult("", exitCode = -1).also { markBlocked(it, "no_su") }
-                    }
+                PrivilegeTier.SU_ROOT -> {
+                    if (!canRoot()) return@withLock ShellResult("error: no effective uid 0", -1)
                     shellExecutor.execute(command, useRoot = true, timeoutMs = timeoutMs)
                 }
-                PrivilegeTier.SHIZUKU -> {
-                    if (!canShizuku()) {
-                        return@withLock ShellResult("", exitCode = -1).also { markBlocked(it, "no_shizuku") }
-                    }
-                    executeViaShizuku(command, timeoutMs = timeoutMs)
+                PrivilegeTier.SHIZUKU_ROOT, PrivilegeTier.SHIZUKU_SHELL -> {
+                    if (!canShizuku()) return@withLock ShellResult("error: no Shizuku permission", -1)
+                    executeViaShizuku(command, timeoutMs)
                 }
-                PrivilegeTier.STANDARD -> {
-                    shellExecutor.execute(command, useRoot = false, timeoutMs = timeoutMs)
-                }
+                PrivilegeTier.STANDARD -> shellExecutor.execute(command, useRoot = false, timeoutMs = timeoutMs)
             }
         }
     }
 
-    fun executeChain(
-        command: String,
-        chain: List<PrivilegeTier>
-    ): Pair<ShellResult, PrivilegeTier?> {
-        var lastResult = ShellResult("", exitCode = -1)
+    fun executeChain(command: String, chain: List<PrivilegeTier>): Pair<ShellResult, PrivilegeTier?> {
+        var lastResult = ShellResult("", -1)
         var lastTier: PrivilegeTier? = null
         for (tier in chain) {
             lastTier = tier
             lastResult = execute(command, tier)
-            if (lastResult.isSuccess) {
-                return lastResult to tier
-            }
+            if (lastResult.isSuccess) return lastResult to tier
         }
         return lastResult to lastTier
     }
 
-    fun readPath(
-        path: String,
-        defaultChain: List<PrivilegeTier> = PrivilegePolicy.DEFAULT_CHAIN
-    ): Pair<String?, PrivilegeTier?> {
+    fun readPath(path: String, defaultChain: List<PrivilegeTier> = PrivilegePolicy.DEFAULT_CHAIN): Pair<String?, PrivilegeTier?> {
         val chain = currentPolicy().chain(defaultChain)
         if (chain.contains(PrivilegeTier.STANDARD)) {
             try {
-                val f = File(path)
-                if (f.canRead()) {
-                    val text = f.readText().trim().takeIf { it.isNotEmpty() }
-                    if (text != null) return text to PrivilegeTier.STANDARD
-                }
-            } catch (_: Exception) {
-            }
+                val value = File(path).takeIf { it.canRead() }?.readText()?.trim()?.takeIf { it.isNotEmpty() }
+                if (value != null) return value to PrivilegeTier.STANDARD
+            } catch (_: Throwable) { }
         }
         for (tier in chain) {
             val result = execute("cat \"$path\" 2>/dev/null", tier)
-            if (result.isSuccess && result.output.isNotBlank()) {
-                return result.output.trim() to tier
-            }
+            if (result.isSuccess && result.output.isNotBlank()) return result.output.trim() to tier
         }
         return null to null
     }
 
-    fun readPathText(
-        path: String,
-        defaultChain: List<PrivilegeTier> = PrivilegePolicy.DEFAULT_CHAIN
-    ): String? = readPath(path, defaultChain).first
+    fun readPathText(path: String, defaultChain: List<PrivilegeTier> = PrivilegePolicy.DEFAULT_CHAIN): String? = readPath(path, defaultChain).first
 
     fun readPathDirect(path: String, tier: PrivilegeTier, timeoutMs: Long = 120L): String? {
         if (tier == PrivilegeTier.STANDARD) {
-            return try {
-                val f = File(path)
-                if (f.canRead()) f.readText().trim().takeIf { it.isNotEmpty() } else null
-            } catch (_: Throwable) {
-                null
-            }
+            return try { File(path).takeIf { it.canRead() }?.readText()?.trim()?.takeIf { it.isNotEmpty() } } catch (_: Throwable) { null }
         }
         val result = execute("cat \"$path\" 2>/dev/null", tier, timeoutMs)
-        return if (result.isSuccess && result.output.isNotBlank()) {
-            result.output.trim()
-        } else {
-            null
-        }
+        return result.output.trim().takeIf { result.isSuccess && it.isNotEmpty() }
     }
 
     fun exists(path: String, tier: PrivilegeTier, timeoutMs: Long = 120L): Boolean {
-        if (tier == PrivilegeTier.STANDARD) {
-            return try {
-                File(path).exists()
-            } catch (_: Throwable) {
-                false
-            }
-        }
-        val res = execute("[ -e \"$path\" ] && echo 1 || echo 0", tier, timeoutMs)
-        return res.isSuccess && res.output.trim() == "1"
+        if (tier == PrivilegeTier.STANDARD) return try { File(path).exists() } catch (_: Throwable) { false }
+        val result = execute("[ -e \"$path\" ] && echo 1 || echo 0", tier, timeoutMs)
+        return result.isSuccess && result.output.trim() == "1"
     }
 
-    fun writePath(path: String, value: String, tier: PrivilegeTier, timeoutMs: Long = 400L): WriteResult {
-        if (!PATH_REGEX.matches(path)) {
-            return WriteResult(
-                ok = false,
-                verified = false,
-                readback = null,
-                tier = tier,
-                error = "Path rejected by security policy"
-            )
+    fun writePath(
+        path: String,
+        value: String,
+        tier: PrivilegeTier,
+        timeoutMs: Long = 400L,
+        verificationMode: VerificationMode = inferVerificationMode(value)
+    ): WriteResult {
+        if (!PATH_REGEX.matches(path)) return failure(tier, verificationMode, "Path rejected", MutationFailure.INVALID_PATH)
+        if (!VALUE_REGEX.matches(value)) return failure(tier, verificationMode, "Value rejected", MutationFailure.INVALID_VALUE)
+        if (tier == PrivilegeTier.STANDARD) return failure(tier, verificationMode, "Standard tier cannot write", MutationFailure.NO_PERMISSION)
+        val command = if (tier == PrivilegeTier.SU_ROOT || tier == PrivilegeTier.SHIZUKU_ROOT) {
+            rootWriteCommand(path, value)
+        } else {
+            shellWriteCommand(path, value)
         }
-        if (!VALUE_REGEX.matches(value)) {
-            return WriteResult(
-                ok = false,
-                verified = false,
-                readback = null,
-                tier = tier,
-                error = "Value rejected by security policy"
-            )
-        }
-
-        return when (tier) {
-            PrivilegeTier.STANDARD -> {
-                WriteResult(
-                    ok = false,
-                    verified = false,
-                    readback = null,
-                    tier = tier,
-                    error = "Standard tier cannot write kernel paths"
-                )
-            }
-            PrivilegeTier.ROOT -> {
-                val cmd = "mode=$(stat -c '%a' '$path' 2>/dev/null || echo \"\"); " +
-                        "chmod 644 '$path' 2>/dev/null; " +
-                        "printf '%s\\n' '$value' > '$path'; " +
-                        "rc=\$?; " +
-                        "readback=\$(cat '$path' 2>/dev/null | tr -d '\\n'); " +
-                        "[ -n \"\$mode\" ] && chmod \"\$mode\" '$path' 2>/dev/null; " +
-                        "printf 'RC=%s READBACK=%s\\n' \"\$rc\" \"\$readback\""
-                val res = execute(cmd, tier, timeoutMs)
-                parseWriteOutput(res, value, tier)
-            }
-            PrivilegeTier.SHIZUKU -> {
-                val cmd = "printf '%s\\n' '$value' > '$path'; " +
-                        "rc=\$?; " +
-                        "readback=\$(cat '$path' 2>/dev/null | tr -d '\\n'); " +
-                        "printf 'RC=%s READBACK=%s\\n' \"\$rc\" \"\$readback\""
-                val res = execute(cmd, tier, timeoutMs)
-                parseWriteOutput(res, value, tier)
-            }
-        }
+        return parseWriteOutput(execute(command, tier, timeoutMs), value, tier, verificationMode)
     }
 
-    private fun parseWriteOutput(res: ShellResult, expectedValue: String, tier: PrivilegeTier): WriteResult {
-        if (!res.isSuccess) {
-            return WriteResult(
-                ok = false,
-                verified = false,
-                readback = null,
-                tier = tier,
-                error = res.output.ifBlank { "Command failed with code ${res.exitCode}" }
-            )
-        }
-        val out = res.output.trim()
-        val rcMatch = Regex("""RC=(\d+)""").find(out)
-        val rc = rcMatch?.groupValues?.get(1)?.toIntOrNull() ?: -1
-        val readbackMatch = Regex("""READBACK=(.*)""").find(out)
-        val readback = readbackMatch?.groupValues?.get(1)?.trim()
+    fun closeShizukuExecutor() = shizukuExecutor?.close()
 
-        val ok = (rc == 0)
-        val verified = ok && (readback == expectedValue || (readback != null && readback.contains(expectedValue)))
+    private fun rootWriteCommand(path: String, value: String): String =
+        "mode=\$(stat -c '%a' '$path' 2>/dev/null || echo ''); " +
+            "printf '%s\\n' '$value' > '$path'; rc=\$?; " +
+            "if [ \"\$rc\" -ne 0 ] && [ -n \"\$mode\" ]; then " +
+            "chmod 644 '$path' 2>/dev/null; printf '%s\\n' '$value' > '$path'; rc=\$?; " +
+            "chmod \"\$mode\" '$path' 2>/dev/null; fi; " +
+            "readback=\$(cat '$path' 2>/dev/null | tr -d '\\n'); " +
+            "printf 'RC=%s READBACK=%s\\n' \"\$rc\" \"\$readback\""
+
+    private fun shellWriteCommand(path: String, value: String): String =
+        "printf '%s\\n' '$value' > '$path'; rc=\$?; " +
+            "readback=\$(cat '$path' 2>/dev/null | tr -d '\\n'); " +
+            "printf 'RC=%s READBACK=%s\\n' \"\$rc\" \"\$readback\""
+
+    private fun parseWriteOutput(result: ShellResult, expected: String, tier: PrivilegeTier, mode: VerificationMode): WriteResult {
+        if (!result.isSuccess) return failure(tier, mode, result.output.ifBlank { "command exit ${result.exitCode}" }, MutationFailure.COMMAND_FAILED)
+        val output = result.output.trim()
+        val rc = Regex("""(?:^|\\s)RC=(\\d+)""").find(output)?.groupValues?.get(1)?.toIntOrNull() ?: -1
+        val readback = Regex("""(?:^|\\s)READBACK=(.*)""").find(output)?.groupValues?.get(1)?.trim()
+        val commandOk = rc == 0
+        val verified = commandOk && valuesMatch(expected, readback, mode)
         return WriteResult(
-            ok = ok,
+            ok = commandOk,
             verified = verified,
             readback = readback,
             tier = tier,
-            error = if (!ok) "Exit code $rc" else null
+            error = when {
+                !commandOk -> "Exit code $rc"
+                !verified -> "Readback did not match requested value"
+                else -> null
+            },
+            verificationMode = mode
         )
     }
 
-    fun clearCache() {}
-
-    private fun executeViaShizuku(command: String, timeoutMs: Long = 8_000L): ShellResult {
-        return try {
-            val proc = newShizukuProcess(arrayOf("sh", "-c", command))
-                ?: return ShellResult("error: newProcess=null", -1)
-            val output = BufferedReader(InputStreamReader(proc.inputStream))
-                .readText()
-                .trim()
-            val exit = waitExit(proc, timeoutMs) ?: -1
-            ShellResult(output, exit)
-        } catch (e: Exception) {
-            Log.w(TAG, "Shizuku shell failed: ${e.message}")
-            ShellResult("error: ${e.message}", -1)
+    private fun valuesMatch(expected: String, actual: String?, mode: VerificationMode): Boolean {
+        if (actual == null) return false
+        val e = expected.trim()
+        val a = actual.trim()
+        return when (mode) {
+            VerificationMode.EXACT_INT -> e.toBigIntegerOrNull() != null && a.toBigIntegerOrNull() == e.toBigIntegerOrNull()
+            VerificationMode.BOOLEAN_NORMALIZED -> normalizeBoolean(e) != null && normalizeBoolean(e) == normalizeBoolean(a)
+            VerificationMode.IO_SCHEDULER_ACTIVE_TOKEN -> activeScheduler(a) == activeScheduler(e)
+            VerificationMode.EXACT_STRING, VerificationMode.GOVERNOR_TOKEN,
+            VerificationMode.SETTINGS_VALUE, VerificationMode.CUSTOM -> a == e
         }
     }
 
-    private fun newShizukuProcess(cmd: Array<String>): Process? {
-        return try {
-            val cls = Class.forName("rikka.shizuku.Shizuku")
-            val method = findNewProcessMethod(cls)
-            method.isAccessible = true
-            method.invoke(null, cmd, null, null) as? Process
-        } catch (t: Throwable) {
-            Log.w(TAG, "Shizuku newProcess reflection failed: ${t.message}")
-            null
-        }
+    private fun normalizeBoolean(value: String): String? = when (value.trim().lowercase()) {
+        "1", "y", "yes", "true", "on", "enabled" -> "1"
+        "0", "n", "no", "false", "off", "disabled" -> "0"
+        else -> null
     }
 
-    private fun findNewProcessMethod(cls: Class<*>): java.lang.reflect.Method {
-        val targetTypes = arrayOf(
-            Array<String>::class.java,
-            Array<String>::class.java,
-            String::class.java
-        )
-        try {
-            return cls.getDeclaredMethod("newProcess", *targetTypes)
-        } catch (_: NoSuchMethodException) {
-        }
-        try {
-            return cls.getMethod("newProcess", *targetTypes)
-        } catch (_: NoSuchMethodException) {
-        }
-        for (method in cls.declaredMethods + cls.methods) {
-            if (method.name == "newProcess" && method.parameterTypes.size == 3) {
-                return method
-            }
-        }
-        throw NoSuchMethodException("Shizuku.newProcess not found")
-    }
+    private fun activeScheduler(value: String): String = Regex("""\\[([^]]+)]""").find(value)?.groupValues?.get(1)?.trim() ?: value.trim()
 
-    private fun waitExit(proc: Process, timeoutMs: Long): Int? {
-        try {
-            return proc.exitValue()
-        } catch (_: IllegalThreadStateException) {
+    private fun inferVerificationMode(value: String): VerificationMode = if (value.toBigIntegerOrNull() != null) VerificationMode.EXACT_INT else VerificationMode.EXACT_STRING
+
+    private fun failure(tier: PrivilegeTier, mode: VerificationMode, message: String, failure: MutationFailure) =
+        WriteResult(false, false, null, tier, "$message (${failure.name})", mode)
+
+    private fun executeViaShizuku(command: String, timeoutMs: Long): ShellResult {
+        shizukuExecutor?.let { client ->
+            val result = client.execute(command, timeoutMs)
+            if (result.exitCode != -1 || !result.output.contains("user service unavailable")) return result
         }
-        val deadline = System.currentTimeMillis() + timeoutMs
-        while (System.currentTimeMillis() < deadline) {
-            try {
-                return proc.exitValue()
-            } catch (_: IllegalThreadStateException) {
-            }
-            try {
-                Thread.sleep(20)
-            } catch (_: InterruptedException) {
-                return null
-            }
-        }
-        try {
-            proc.destroy()
-        } catch (_: Throwable) {
-        }
-        return null
+        // Compatibility-only migration route; UserService is always attempted first.
+        return LegacyShizukuProcessExecutor.execute(command, timeoutMs)
     }
 
     companion object {
-        private const val TAG = "ApexCore.ShellGateway"
+        private const val ROOT_PROBE_TIMEOUT_MS = 1_500L
         private val PATH_REGEX = Regex("""^/(sys|dev|proc)/[A-Za-z0-9/_.:=-]+$""")
         private val VALUE_REGEX = Regex("""^[A-Za-z0-9_.:-]+$""")
-        private val blockedReasons = mutableMapOf<ShellResult, String>()
-
-        internal fun markBlocked(result: ShellResult, reason: String) {
-            blockedReasons[result] = reason
-        }
-
-        fun blockReason(result: ShellResult): String? = blockedReasons[result]
     }
 }
-

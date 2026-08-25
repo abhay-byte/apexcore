@@ -25,6 +25,77 @@ enum class TuneVendor {
     GENERIC
 }
 
+enum class TuneBackendIdentity {
+    SU_ROOT,
+    SHIZUKU_ROOT,
+    SHIZUKU_SHELL,
+    STANDARD;
+
+    val isRootCapable: Boolean
+        get() = this == SU_ROOT || this == SHIZUKU_ROOT
+
+    val isElevated: Boolean
+        get() = this != STANDARD
+
+    fun asPrivilegeTier(): PrivilegeTier = when (this) {
+        SU_ROOT -> PrivilegeTier.SU_ROOT
+        SHIZUKU_ROOT -> PrivilegeTier.SHIZUKU_ROOT
+        SHIZUKU_SHELL -> PrivilegeTier.SHIZUKU_SHELL
+        STANDARD -> PrivilegeTier.STANDARD
+    }
+}
+
+enum class RequiredIdentity {
+    ANY,
+    SHELL_OR_ROOT,
+    ROOT
+}
+
+enum class VerificationMode {
+    EXACT_STRING,
+    EXACT_INT,
+    GOVERNOR_TOKEN,
+    IO_SCHEDULER_ACTIVE_TOKEN,
+    BOOLEAN_NORMALIZED,
+    SETTINGS_VALUE,
+    CUSTOM
+}
+
+enum class ProbeStrategy {
+    READ_METADATA_ONLY,
+    WRITE_SAME_VALUE_SAFE,
+    APPLY_VERIFY_ROLLBACK,
+    COMMAND_QUERY
+}
+
+enum class CapabilityReason {
+    AVAILABLE,
+    NEEDS_ROOT,
+    SHIZUKU_SHELL_LIMITED,
+    NODE_NOT_FOUND,
+    READ_DENIED,
+    WRITE_DENIED,
+    WRITE_NOT_EFFECTIVE,
+    OPTION_NOT_SUPPORTED,
+    THERMAL_SAFETY_BLOCKED,
+    PROBE_TIMEOUT,
+    UNKNOWN
+}
+
+enum class MutationFailure {
+    INVALID_PATH,
+    INVALID_VALUE,
+    NO_PERMISSION,
+    COMMAND_FAILED,
+    WRITE_NOT_EFFECTIVE,
+    READBACK_MISMATCH,
+    TIMEOUT,
+    ROLLED_BACK,
+    UNSUPPORTED,
+    THERMAL_SAFETY_BLOCKED,
+    UNKNOWN
+}
+
 enum class TunePrivilege {
     ROOT_ONLY,
     SHELL_OK
@@ -53,7 +124,18 @@ data class TuneNode(
     val privilege: TunePrivilege,
     val valueKind: TuneValueKind,
     val availablePath: String? = null,
-    val groupId: String
+    val groupId: String,
+    val requiredIdentity: RequiredIdentity = when (privilege) {
+        TunePrivilege.ROOT_ONLY -> RequiredIdentity.ROOT
+        TunePrivilege.SHELL_OK -> RequiredIdentity.SHELL_OR_ROOT
+    },
+    val verificationMode: VerificationMode = when (valueKind) {
+        TuneValueKind.ENUM -> VerificationMode.GOVERNOR_TOKEN
+        TuneValueKind.PWRLEVEL, TuneValueKind.FREQ_HZ, TuneValueKind.FREQ_KHZ,
+        TuneValueKind.FREQ_MHZ -> VerificationMode.EXACT_INT
+        TuneValueKind.RAW -> VerificationMode.EXACT_STRING
+    },
+    val probeStrategy: ProbeStrategy = ProbeStrategy.WRITE_SAME_VALUE_SAFE
 )
 
 data class TuneCapability(
@@ -63,14 +145,27 @@ data class TuneCapability(
     val writablePaths: List<String>,
     val subtitle: String,
     val availableOptions: List<String> = emptyList(),
-    val sliderRange: IntRange? = null
+    val sliderRange: IntRange? = null,
+    val reason: CapabilityReason = if (available) CapabilityReason.AVAILABLE else CapabilityReason.UNKNOWN,
+    val backend: TuneBackendIdentity = TuneBackendIdentity.STANDARD,
+    val diagnostics: Map<String, String> = emptyMap()
 )
 
 data class TuneApplyReport(
     val applied: Int,
     val failed: Int,
     val skipped: Int,
-    val sessionActive: Boolean
+    val sessionActive: Boolean,
+    val details: Map<String, String> = emptyMap()
+)
+
+data class MutationResult(
+    val commandOk: Boolean,
+    val verified: Boolean,
+    val requested: String,
+    val readback: String? = null,
+    val effectiveBackend: TuneBackendIdentity,
+    val failure: MutationFailure? = null
 )
 
 interface KeyValue {

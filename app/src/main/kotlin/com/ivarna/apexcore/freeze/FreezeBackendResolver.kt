@@ -18,7 +18,7 @@ class FreezeBackendResolver(candidates: List<FreezeBackend>) {
 
     constructor(appContext: Context) : this(
         listOf(
-            ShizukuFreezeBackend(),
+            ShizukuFreezeBackend(appContext),
             RootFreezeBackend()
         )
     )

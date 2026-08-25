@@ -5,7 +5,12 @@ import android.content.Context
 import android.provider.Settings
 import android.util.Log
 import com.ivarna.apexcore.fps.privilege.PrivilegeTier
-import java.io.File
+import com.ivarna.apexcore.tune.cpu.CpuFrequencyLockController
+import com.ivarna.apexcore.tune.cpu.CpuGovernorController
+import com.ivarna.apexcore.tune.cpu.CpuPolicyDiscovery
+import com.ivarna.apexcore.tune.gpu.GpuDevfreqDiscovery
+import com.ivarna.apexcore.tune.gpu.GpuFrequencyLockController
+import com.ivarna.apexcore.tune.gpu.GpuGovernorController
 
 /**
  * Concrete executor for applying and restoring kernel and settings tunes.
@@ -18,6 +23,12 @@ open class TuneApplier(
     private val snapshotStore: TuneSnapshotStore
 ) {
     private val appliedGroups = mutableSetOf<String>()
+    private val cpuGovernorController = CpuGovernorController(shell, snapshotStore)
+    private val cpuFrequencyLockController = CpuFrequencyLockController(shell, snapshotStore)
+    private val gpuGovernorController = GpuGovernorController(shell, snapshotStore)
+    private val gpuFrequencyLockController = GpuFrequencyLockController(shell, snapshotStore)
+    private val gameModeController = GameModeController(shell, snapshotStore)
+    @Volatile private var gameModePackage: String? = null
 
     open fun applyBundle(id: TuneId, intent: TuneValue, tier: PrivilegeTier): Int {
         if (tier == PrivilegeTier.STANDARD && !isSettingsOnly(id)) {
@@ -27,6 +38,26 @@ open class TuneApplier(
 
         var successCount = 0
         when (id) {
+            TuneId.CPU_GOVERNOR -> {
+                val policies = CpuPolicyDiscovery.discover(shell, tier)
+                successCount += cpuGovernorController.apply(policies, intent, tier, backendFor(tier))
+            }
+            TuneId.CPU_LOCK_MAX -> {
+                val policies = CpuPolicyDiscovery.discover(shell, tier)
+                successCount += cpuFrequencyLockController.apply(policies, intent, tier, backendFor(tier))
+            }
+            TuneId.GPU_GOVERNOR -> {
+                val gpu = GpuDevfreqDiscovery.discover(shell, tier).firstOrNull()
+                if (gpu != null) successCount += gpuGovernorController.apply(gpu, intent, tier, backendFor(tier))
+            }
+            TuneId.GPU_LOCK_MAX -> {
+                val gpu = GpuDevfreqDiscovery.discover(shell, tier).firstOrNull()
+                successCount += gpuFrequencyLockController.apply(gpu, intent, tier, backendFor(tier))
+            }
+            TuneId.GAME_MODE_PERFORMANCE -> {
+                // The target package is session state, so callers use
+                // applyGameModeForSession rather than a package-less bundle.
+            }
             TuneId.FOCUS_DND -> {
                 if (applyFocusDnd()) successCount++
             }
@@ -62,6 +93,22 @@ open class TuneApplier(
     open fun restoreBundle(id: TuneId, tier: PrivilegeTier): Int {
         var restored = 0
         when (id) {
+            TuneId.CPU_GOVERNOR -> {
+                restored += restoreCpuGovernor(tier)
+            }
+            TuneId.CPU_LOCK_MAX -> {
+                restored += cpuFrequencyLockController.restore(CpuPolicyDiscovery.discover(shell, tier), tier)
+            }
+            TuneId.GPU_GOVERNOR -> {
+                restored += restoreGpuGovernor(tier)
+            }
+            TuneId.GPU_LOCK_MAX -> {
+                restored += gpuFrequencyLockController.restore(GpuDevfreqDiscovery.discover(shell, tier).firstOrNull(), tier)
+            }
+            TuneId.GAME_MODE_PERFORMANCE -> {
+                val pkg = gameModePackage
+                if (pkg != null && gameModeController.restore(pkg, tier, backendFor(tier)).verified) restored++
+            }
             TuneId.FOCUS_DND -> {
                 if (restoreFocusDnd()) restored++
             }
@@ -82,8 +129,9 @@ open class TuneApplier(
                 for (node in nodes) {
                     appliedGroups.remove(node.groupId)
                     val original = snapshotStore.getOriginal(node.path) ?: continue
-                    val res = shell.write(node.path, original, tier, timeoutMs = RESTORE_TIMEOUT_MS)
-                    if (res.ok) {
+                    val mode = snapshotStore.getEntry(node.path)?.verificationMode ?: verificationModeFor(original)
+                    val res = shell.write(node.path, original, tier, timeoutMs = RESTORE_TIMEOUT_MS, verificationMode = mode)
+                    if (res.verified) {
                         snapshotStore.removeOriginal(node.path)
                         restored++
                         Log.i(TAG, "Restored ${node.path} to original: $original")
@@ -104,13 +152,32 @@ open class TuneApplier(
         if (restoreFocusImmersive(tier)) restored++
         if (restoreDisplayPeak(tier)) restored++
         if (restoreDisplayMiui(tier)) restored++
+        val modePackages = buildSet {
+            gameModePackage?.let(::add)
+            snapshotStore.getAllEntries().keys
+                .filter { it.startsWith("game-mode://") }
+                .mapTo(this) { it.removePrefix("game-mode://") }
+        }
+        for (modePackage in modePackages) {
+            if (gameModeController.restore(modePackage, tier, backendFor(tier)).verified) restored++
+        }
+        gameModePackage = null
+
+        // Restore bound pairs in their safe order before the generic recovery
+        // loop. Any entry that remains is still retried below.
+        restored += restoreCpuGovernor(tier)
+        restored += restoreGpuGovernor(tier)
+        restored += cpuFrequencyLockController.restore(CpuPolicyDiscovery.discover(shell, tier), tier)
+        restored += gpuFrequencyLockController.restore(GpuDevfreqDiscovery.discover(shell, tier).firstOrNull(), tier)
 
         // Restore all recorded sysfs paths
         val originals = snapshotStore.getAllOriginals()
         for ((path, original) in originals) {
             if (path.startsWith("settings://")) continue
-            val res = shell.write(path, original, tier, timeoutMs = RESTORE_TIMEOUT_MS)
-            if (res.ok) {
+            if (path.startsWith("game-mode://")) continue
+            val mode = snapshotStore.getEntry(path)?.verificationMode ?: verificationModeFor(original)
+            val res = shell.write(path, original, tier, timeoutMs = RESTORE_TIMEOUT_MS, verificationMode = mode)
+            if (res.verified) {
                 snapshotStore.removeOriginal(path)
                 restored++
                 Log.i(TAG, "Restored $path to original: $original")
@@ -122,7 +189,71 @@ open class TuneApplier(
         return restored
     }
 
+    fun applyGameModeForSession(
+        packageName: String,
+        tier: PrivilegeTier,
+        backend: TuneBackendIdentity = backendFor(tier)
+    ): MutationResult {
+        gameModePackage = packageName
+        return gameModeController.applyPerformance(packageName, tier, backend)
+    }
+
+    fun gameModeCapability(packageName: String, tier: PrivilegeTier): GameModeCapability =
+        gameModeController.query(packageName, tier)
+
+    fun releaseMaxLocks(tier: PrivilegeTier): Int {
+        var released = cpuFrequencyLockController.restore(CpuPolicyDiscovery.discover(shell, tier), tier)
+        released += gpuFrequencyLockController.restore(GpuDevfreqDiscovery.discover(shell, tier).firstOrNull(), tier)
+        return released
+    }
+
+    private fun restoreCpuGovernor(tier: PrivilegeTier): Int {
+        var restored = 0
+        for (policy in CpuPolicyDiscovery.discover(shell, tier)) {
+            val original = snapshotStore.getOriginal(policy.governorPath) ?: continue
+            val shouldRestore = snapshotStore.releaseOwner(policy.governorPath, TuneId.CPU_GOVERNOR)
+            if (!shouldRestore) continue
+            val result = shell.write(policy.governorPath, original, tier, verificationMode = VerificationMode.GOVERNOR_TOKEN)
+            if (result.verified) {
+                snapshotStore.removeOriginal(policy.governorPath)
+                restored++
+            }
+        }
+        return restored
+    }
+
+    private fun restoreGpuGovernor(tier: PrivilegeTier): Int {
+        var restored = 0
+        val path = GpuDevfreqDiscovery.discover(shell, tier).firstOrNull()?.governorPath ?: return 0
+        val original = snapshotStore.getOriginal(path) ?: return 0
+        if (!snapshotStore.releaseOwner(path, TuneId.GPU_GOVERNOR)) return 0
+        val result = shell.write(path, original, tier, verificationMode = VerificationMode.GOVERNOR_TOKEN)
+        if (result.verified) {
+            snapshotStore.removeOriginal(path)
+            restored++
+        }
+        return restored
+    }
+
+    private fun backendFor(tier: PrivilegeTier): TuneBackendIdentity = when (tier) {
+        PrivilegeTier.SU_ROOT -> TuneBackendIdentity.SU_ROOT
+        PrivilegeTier.SHIZUKU_ROOT -> TuneBackendIdentity.SHIZUKU_ROOT
+        PrivilegeTier.SHIZUKU_SHELL -> TuneBackendIdentity.SHIZUKU_SHELL
+        PrivilegeTier.STANDARD -> TuneBackendIdentity.STANDARD
+    }
+
+    private fun verificationModeFor(value: String): VerificationMode =
+        if (value.trim().toLongOrNull() != null) VerificationMode.EXACT_INT else VerificationMode.EXACT_STRING
+
+    private fun tierIsRootCapable(tier: PrivilegeTier): Boolean =
+        tier == PrivilegeTier.SU_ROOT || tier == PrivilegeTier.SHIZUKU_ROOT
+
     private fun applySingleNode(node: TuneNode, intent: TuneValue, tier: PrivilegeTier): Boolean {
+        if (node.requiredIdentity == RequiredIdentity.ROOT && !tierIsRootCapable(tier)) {
+            Log.w(TAG, "Security rejection: ${node.path} requires a root-capable backend")
+            return false
+        }
+
         // Forbidden path audit
         if (isForbiddenPath(node.path)) {
             Log.e(TAG, "Security rejection: forbidden path ${node.path}")
@@ -155,19 +286,27 @@ open class TuneApplier(
         snapshotStore.recordOriginal(node.path, tokenToSnapshot)
 
         // Write target value
-        var writeRes = shell.write(node.path, targetValue, tier, timeoutMs = APPLY_TIMEOUT_MS)
+        val writeRes = shell.write(
+            node.path,
+            targetValue,
+            tier,
+            timeoutMs = APPLY_TIMEOUT_MS,
+            verificationMode = node.verificationMode
+        )
 
-        // Special fallback for thermal sconfig (13 -> 10)
-        if (!writeRes.ok && node.id == TuneId.THERMAL_SCONFIG && targetValue == "13") {
-            Log.i(TAG, "sconfig 13 write failed, attempting fallback 10")
-            writeRes = shell.write(node.path, "10", tier, timeoutMs = APPLY_TIMEOUT_MS)
-        }
-
-        if (writeRes.ok) {
+        if (writeRes.verified) {
             Log.i(TAG, "Applied ${node.path}: $original -> $targetValue")
             return true
         } else {
-            Log.w(TAG, "Failed to apply ${node.path} to $targetValue: ${writeRes.error}")
+            val rollback = shell.write(
+                node.path,
+                tokenToSnapshot,
+                tier,
+                timeoutMs = RESTORE_TIMEOUT_MS,
+                verificationMode = node.verificationMode
+            )
+            if (rollback.verified) snapshotStore.removeOriginal(node.path)
+            Log.w(TAG, "Failed to apply ${node.path} to $targetValue: ${writeRes.error}; rollback=${rollback.verified}")
             return false
         }
     }
