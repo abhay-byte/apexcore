@@ -548,7 +548,8 @@ object TuneCatalog {
             vendor = TuneVendor.GENERIC,
             privilege = TunePrivilege.ROOT_ONLY,
             valueKind = TuneValueKind.ENUM,
-            groupId = "io_scheduler"
+            groupId = "io_scheduler",
+            verificationMode = VerificationMode.IO_SCHEDULER_ACTIVE_TOKEN
         ),
         TuneNode(
             path = "/sys/block/sdb/queue/scheduler",
@@ -556,7 +557,8 @@ object TuneCatalog {
             vendor = TuneVendor.GENERIC,
             privilege = TunePrivilege.ROOT_ONLY,
             valueKind = TuneValueKind.ENUM,
-            groupId = "io_scheduler"
+            groupId = "io_scheduler",
+            verificationMode = VerificationMode.IO_SCHEDULER_ACTIVE_TOKEN
         ),
         TuneNode(
             path = "/sys/block/mmcblk0/queue/scheduler",
@@ -564,7 +566,8 @@ object TuneCatalog {
             vendor = TuneVendor.GENERIC,
             privilege = TunePrivilege.ROOT_ONLY,
             valueKind = TuneValueKind.ENUM,
-            groupId = "io_scheduler"
+            groupId = "io_scheduler",
+            verificationMode = VerificationMode.IO_SCHEDULER_ACTIVE_TOKEN
         ),
         TuneNode(
             path = "/sys/block/dm-0/queue/scheduler",
@@ -572,7 +575,8 @@ object TuneCatalog {
             vendor = TuneVendor.GENERIC,
             privilege = TunePrivilege.ROOT_ONLY,
             valueKind = TuneValueKind.ENUM,
-            groupId = "io_scheduler"
+            groupId = "io_scheduler",
+            verificationMode = VerificationMode.IO_SCHEDULER_ACTIVE_TOKEN
         ),
 
         // 29. IO_READAHEAD

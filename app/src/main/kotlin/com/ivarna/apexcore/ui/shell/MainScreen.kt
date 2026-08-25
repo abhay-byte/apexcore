@@ -218,36 +218,105 @@ fun MainScreen(
     var tuneCategories by remember { mutableStateOf<List<TuneCategoryUi>>(emptyList()) }
     var isTuneProbing by remember { mutableStateOf(false) }
     val tuneSessionActive by tuneManager.sessionActive.collectAsState()
+    val tunePrefs = remember { com.ivarna.apexcore.tune.TunePrefs(context) }
+    val tunePresetManager = remember { com.ivarna.apexcore.tune.TunePresetManager(tuneManager) }
+    var selectedTuneGamePkg by remember { mutableStateOf<String?>(null) }
+    var presetReport by remember { mutableStateOf<com.ivarna.apexcore.tune.TunePresetReport?>(null) }
+    var showMaxLockAck by remember { mutableStateOf(false) }
+    var pendingAckId by remember { mutableStateOf<com.ivarna.apexcore.tune.TuneId?>(null) }
+    var pendingAckChecked by remember { mutableStateOf(false) }
+    var pendingAckRaw by remember { mutableStateOf<String?>(null) }
 
-    fun refreshTune() {
+    LaunchedEffect(gamesList) {
+        if (selectedTuneGamePkg == null) selectedTuneGamePkg = gamesList.firstOrNull()?.pkg
+    }
+
+    fun refreshTune(pkgOverride: String? = selectedTuneGamePkg) {
         scope.launch {
             isTuneProbing = true
-            tuneManager.refreshCapabilities()
-            val caps = tuneManager.capabilities.value
-            val specs = com.ivarna.apexcore.tune.TuneSpecs.all
-            val grouped = com.ivarna.apexcore.tune.TuneCategory.entries.map { cat ->
-                val catSpecs = specs.filter { it.category == cat }
-                val options = catSpecs.map { spec ->
-                    val cap = caps[spec.id]
-                    val isAvail = cap?.available == true
-                    val isChecked = tuneManager.intent(spec.id).on
-                    TuneOptionUi(
-                        key = spec.id.name,
-                        title = spec.title,
-                        description = spec.description,
-                        available = isAvail,
-                        reason = if (!isAvail) "Not available on kernel" else null,
-                        checked = isChecked,
-                        onToggle = { checked ->
-                            tuneManager.setIntent(spec.id, com.ivarna.apexcore.tune.TuneValue(checked))
-                            refreshTune()
+            try {
+                val caps = tuneManager.refreshCapabilitiesSync()
+                val specs = com.ivarna.apexcore.tune.TuneSpecs.all
+                val selectedPkg = pkgOverride
+                val grouped = com.ivarna.apexcore.tune.TuneCategory.entries.map { cat ->
+                    val catSpecs = specs.filter { it.category == cat }
+                    val options = catSpecs.map { spec ->
+                        val id = spec.id
+                        // Per-package Game Mode handling
+                        val (isAvail, reason) = if (id == com.ivarna.apexcore.tune.TuneId.GAME_MODE_PERFORMANCE) {
+                            val pkg = selectedPkg?.takeIf { it.isNotBlank() } ?: tunePrefs.getSessionPkg().takeIf { it.isNotBlank() }
+                            val gmCap = pkg?.let { tuneManager.gameModeCapability(it) }
+                            val avail = gmCap?.supportsPerformance == true
+                            val r = when {
+                                pkg.isNullOrBlank() -> "Select a game"
+                                gmCap == null -> "Game Mode unavailable"
+                                !avail -> gmCap.reason?.name ?: "Performance not exposed by this game"
+                                else -> null
+                            }
+                            avail to r
+                        } else {
+                            val cap = caps[id]
+                            val avail = cap?.available == true
+                            val r = if (!avail) cap?.subtitle ?: "Not available on kernel" else null
+                            avail to r
                         }
-                    )
+                        val intent = tuneManager.intent(id)
+                        val isChecked = intent.on
+                        val cap = caps[id]
+                        val enumOpts = when (id) {
+                            com.ivarna.apexcore.tune.TuneId.CPU_GOVERNOR, com.ivarna.apexcore.tune.TuneId.GPU_GOVERNOR -> cap?.availableOptions ?: emptyList()
+                            com.ivarna.apexcore.tune.TuneId.IO_SCHEDULER -> cap?.availableOptions ?: emptyList()
+                            com.ivarna.apexcore.tune.TuneId.NET_TCP -> cap?.availableOptions ?: emptyList()
+                            else -> emptyList()
+                        }
+                        val selectedEnum = intent.raw ?: when (id) {
+                            com.ivarna.apexcore.tune.TuneId.CPU_GOVERNOR, com.ivarna.apexcore.tune.TuneId.GPU_GOVERNOR ->
+                                enumOpts.firstOrNull { it == "performance" } ?: enumOpts.firstOrNull()
+                            else -> enumOpts.firstOrNull()
+                        }
+                        TuneOptionUi(
+                            key = id.name,
+                            title = spec.title,
+                            description = spec.description,
+                            available = isAvail,
+                            reason = if (!isAvail) reason else null,
+                            kind = spec.kind,
+                            checked = isChecked,
+                            onToggle = { checked ->
+                                // First-use acknowledgement for max locks
+                                if (checked && (id == com.ivarna.apexcore.tune.TuneId.CPU_LOCK_MAX || id == com.ivarna.apexcore.tune.TuneId.GPU_LOCK_MAX) && !tunePrefs.isMaxLockAcked()) {
+                                    pendingAckId = id
+                                    pendingAckChecked = checked
+                                    pendingAckRaw = intent.raw
+                                    showMaxLockAck = true
+                                } else {
+                                    val raw = if (spec.kind == com.ivarna.apexcore.tune.TuneControlKind.ENUM) {
+                                        if (checked) selectedEnum else intent.raw
+                                    } else intent.raw
+                                    tuneManager.setIntent(id, com.ivarna.apexcore.tune.TuneValue(checked, raw))
+                                    refreshTune(pkgOverride)
+                                }
+                            },
+                            enumOptions = enumOpts,
+                            selectedEnum = selectedEnum,
+                            onEnumSelect = { token ->
+                                tuneManager.setIntent(id, com.ivarna.apexcore.tune.TuneValue(true, token))
+                                refreshTune(pkgOverride)
+                            },
+                            sliderRange = spec.slider,
+                            sliderValue = intent.raw?.toIntOrNull() ?: spec.defaultVal?.toIntOrNull() ?: spec.slider?.first,
+                            onSliderChange = { v ->
+                                tuneManager.setIntent(id, com.ivarna.apexcore.tune.TuneValue(true, v.toString()))
+                                refreshTune(pkgOverride)
+                            }
+                        )
+                    }
+                    TuneCategoryUi(name = cat.name, options = options)
                 }
-                TuneCategoryUi(name = cat.name, options = options)
+                tuneCategories = grouped
+            } finally {
+                isTuneProbing = false
             }
-            tuneCategories = grouped
-            isTuneProbing = false
         }
     }
 
@@ -255,6 +324,9 @@ fun MainScreen(
         if (ironSlot == IronSlot.TUNE) {
             refreshTune()
         }
+    }
+    LaunchedEffect(selectedTuneGamePkg) {
+        if (ironSlot == IronSlot.TUNE) refreshTune(selectedTuneGamePkg)
     }
 
     // Pressure Room State
@@ -310,6 +382,46 @@ fun MainScreen(
             }
             try { context.startActivity(play) } catch (_: Throwable) {}
         }
+    }
+
+    if (showMaxLockAck) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showMaxLockAck = false; pendingAckId = null },
+            title = { androidx.compose.material3.Text("High-power disclosure") },
+            text = {
+                androidx.compose.material3.Text(
+                    "Maximum clocks can increase heat and battery drain. ApexCore keeps Android/kernel thermal protection enabled and will release max locks if the device reaches severe thermal stress."
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    tunePrefs.setMaxLockAcked(true)
+                    showMaxLockAck = false
+                    val ackId = pendingAckId
+                    if (ackId != null) {
+                        tuneManager.setIntent(ackId, com.ivarna.apexcore.tune.TuneValue(pendingAckChecked, pendingAckRaw))
+                        refreshTune()
+                    } else {
+                        // Preset ack — retry preset
+                        val pkg = selectedTuneGamePkg
+                        if (pkg != null) {
+                            scope.launch {
+                                val report = tunePresetManager.applyMaximumPerformance(pkg)
+                                presetReport = report
+                                refreshTune(pkg)
+                                toast.show("${report.applied}/${report.requested} verified")
+                            }
+                        }
+                    }
+                    pendingAckId = null
+                }) { androidx.compose.material3.Text("Acknowledge") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    showMaxLockAck = false; pendingAckId = null
+                }) { androidx.compose.material3.Text("Cancel") }
+            }
+        )
     }
 
     IronShell(
@@ -570,7 +682,31 @@ fun MainScreen(
                     sessionApplied = tuneCategories.sumOf { it.options.count { opt -> opt.checked } },
                     isProbing = isTuneProbing,
                     onProbe = { refreshTune() },
-                    onBack = { ironSlot = IronSlot.NONE }
+                    onBack = { ironSlot = IronSlot.NONE },
+                    selectedGamePkg = selectedTuneGamePkg,
+                    gameOptions = gamesList.map { it.pkg to it.name },
+                    onGamePkgSelect = { pkg -> selectedTuneGamePkg = pkg; refreshTune(pkg) },
+                    onMaximumPerformance = {
+                        val pkg = selectedTuneGamePkg?.takeIf { it.isNotBlank() } ?: run {
+                            toast.show("SELECT A GAME FIRST")
+                            return@TuningRoom
+                        }
+                        if (!tunePrefs.isMaxLockAcked()) {
+                            // Show ack for preset as well
+                            pendingAckId = null // preset ack marker
+                            showMaxLockAck = true
+                            // store pkg for retry after ack
+                            selectedTuneGamePkg = pkg
+                            return@TuningRoom
+                        }
+                        scope.launch {
+                            val report = tunePresetManager.applyMaximumPerformance(pkg)
+                            presetReport = report
+                            refreshTune(pkg)
+                            toast.show("${report.applied}/${report.requested} verified")
+                        }
+                    },
+                    presetReport = presetReport
                 )
                 IronSlot.PRESSURE -> PressureRoom(
                     state = pressureState,

@@ -66,11 +66,15 @@ class TunePrefs(
         }
     }
 
+    fun isMaxLockAcked(): Boolean = kv.getBoolean(KEY_MAX_LOCK_ACKED, false)
+    fun setMaxLockAcked(v: Boolean) = kv.putBoolean(KEY_MAX_LOCK_ACKED, v)
+
     companion object {
         const val PREFS_NAME = "apexcore"
         const val KEY_OWNER = "tune_owner"
         const val KEY_SESSION_PKG = "tune_session_pkg"
         const val KEY_MIGRATED_V1 = "tune_migrated_v1"
+        const val KEY_MAX_LOCK_ACKED = "tune_ack_max_locks"
 
         private fun prefixOn(id: TuneId): String = "tune_on_${id.name}"
         private fun prefixVal(id: TuneId): String = "tune_val_${id.name}"

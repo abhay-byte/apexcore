@@ -4,6 +4,7 @@ data class TunePresetComponent(
     val id: TuneId,
     val requested: Boolean,
     val supported: Boolean,
+    val verified: Boolean = false,
     val reason: String
 )
 
@@ -39,23 +40,28 @@ class TunePresetManager(private val manager: TuneManager) {
                 id = id,
                 requested = true,
                 supported = supported,
+                verified = false,
                 reason = if (supported) "requested" else when (id) {
                     TuneId.GAME_MODE_PERFORMANCE -> manager.gameModeCapability(gamePackage)?.reason?.name ?: "not probed"
                     else -> capability?.subtitle ?: "not probed"
                 }
             )
         }
-        val report = manager.applyForSession(gamePackage)
+        val report = manager.applyForSession(gamePackage, ids.toSet())
         val requested = components.count { it.supported }
-        val applied = report.applied.coerceAtMost(requested)
+        // Per-component truth: count verified components from report.components map
+        val verifiedMap = report.components
+        val verifiedComponents = components.map { c ->
+            val verified = verifiedMap[c.id] == true
+            c.copy(verified = verified, reason = if (verified) "verified" else c.reason)
+        }
+        val applied = verifiedComponents.count { it.verified }
         return TunePresetReport(
             name = "Maximum Performance",
             applied = applied,
             requested = requested,
-            partial = applied < ids.size,
-            components = components.mapIndexed { index, component ->
-                if (index < applied) component.copy(reason = "verified") else component
-            }
+            partial = applied < requested,
+            components = verifiedComponents
         )
     }
 }

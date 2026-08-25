@@ -3,6 +3,8 @@ package com.ivarna.apexcore.ui.iron.tune
 import android.view.WindowManager
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.HorizontalDivider
@@ -30,8 +32,15 @@ data class TuneOptionUi(
     val description: String,
     val available: Boolean,
     val reason: String?,
+    val kind: com.ivarna.apexcore.tune.TuneControlKind = com.ivarna.apexcore.tune.TuneControlKind.SWITCH,
     val checked: Boolean,
     val onToggle: (Boolean) -> Unit,
+    val enumOptions: List<String> = emptyList(),
+    val selectedEnum: String? = null,
+    val onEnumSelect: (String) -> Unit = {},
+    val sliderRange: IntRange? = null,
+    val sliderValue: Int? = null,
+    val onSliderChange: (Int) -> Unit = {},
 )
 
 data class TuneCategoryUi(val name: String, val options: List<TuneOptionUi>) {
@@ -47,6 +56,11 @@ fun TuningRoom(
     isProbing: Boolean,
     onProbe: () -> Unit,
     onBack: () -> Unit,
+    selectedGamePkg: String? = null,
+    gameOptions: List<Pair<String, String>> = emptyList(),
+    onGamePkgSelect: ((String) -> Unit)? = null,
+    onMaximumPerformance: (() -> Unit)? = null,
+    presetReport: com.ivarna.apexcore.tune.TunePresetReport? = null,
 ) {
     val clack = rememberClack()
     val serial = rememberSerial()
@@ -136,6 +150,18 @@ fun TuningRoom(
                 style = IronType.Caption, color = skin.textDim
             )
             Spacer(Modifier.height(10.dp))
+
+            if (gameOptions.isNotEmpty() && onGamePkgSelect != null) {
+                Text("Target game for Game Mode", style = IronType.Label, color = skin.textDim)
+                Spacer(Modifier.height(6.dp))
+                GamePicker(selectedGamePkg, gameOptions, onGamePkgSelect)
+                Spacer(Modifier.height(10.dp))
+            }
+
+            if (onMaximumPerformance != null) {
+                MaximumPerformanceCard(onMaximumPerformance, presetReport, enabled = !isProbing)
+                Spacer(Modifier.height(10.dp))
+            }
 
             if (sessionActive) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -239,25 +265,236 @@ private fun DrawerHeader(name: String, available: Int) {
 @Composable
 private fun TuneRow(opt: TuneOptionUi) {
     val skin = ironSkin()
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = 64.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(
-            Modifier
-                .weight(1f)
-                .then(if (!opt.available) Modifier.alpha(0.55f) else Modifier)
-        ) {
-            Text(opt.title, style = IronType.Title.copy(fontSize = 15.sp), color = skin.text)
-            Text(
-                opt.reason ?: opt.description,
-                style = IronType.Caption,
-                color = if (opt.reason != null) Iron.Ember500 else skin.textDim
-            )
+    when (opt.kind) {
+        com.ivarna.apexcore.tune.TuneControlKind.ENUM -> {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .then(if (!opt.available) Modifier.alpha(0.55f) else Modifier)
+                    .padding(vertical = 6.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(opt.title, style = IronType.Title.copy(fontSize = 15.sp), color = skin.text)
+                        Text(
+                            opt.reason ?: opt.description,
+                            style = IronType.Caption,
+                            color = if (opt.reason != null) Iron.Ember500 else skin.textDim
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    MachinedToggle(opt.checked, opt.onToggle, enabled = opt.available)
+                }
+                Spacer(Modifier.height(8.dp))
+                if (opt.enumOptions.isEmpty()) {
+                    Text(
+                        if (!opt.available) opt.reason ?: "Not available on this kernel"
+                        else "No common governor — no selection available",
+                        style = IronType.Caption, color = Iron.Ember500
+                    )
+                } else {
+                    EnumSelector(
+                        selected = opt.selectedEnum,
+                        options = opt.enumOptions,
+                        enabled = opt.checked && opt.available,
+                        onSelect = opt.onEnumSelect
+                    )
+                    if (opt.selectedEnum != null && opt.available) {
+                        Text(
+                            "Selected: ${opt.selectedEnum}",
+                            style = IronType.MonoSm, color = skin.textDim,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+            }
         }
-        Spacer(Modifier.width(12.dp))
-        MachinedToggle(opt.checked, opt.onToggle, enabled = opt.available)
+        com.ivarna.apexcore.tune.TuneControlKind.SLIDER -> {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .then(if (!opt.available) Modifier.alpha(0.55f) else Modifier)
+                    .padding(vertical = 6.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(opt.title, style = IronType.Title.copy(fontSize = 15.sp), color = skin.text)
+                        Text(
+                            opt.reason ?: opt.description,
+                            style = IronType.Caption,
+                            color = if (opt.reason != null) Iron.Ember500 else skin.textDim
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    MachinedToggle(opt.checked, opt.onToggle, enabled = opt.available)
+                }
+                val range = opt.sliderRange ?: 0..100
+                val value = opt.sliderValue ?: range.first
+                Spacer(Modifier.height(8.dp))
+                androidx.compose.material3.Slider(
+                    value = value.toFloat(),
+                    onValueChange = { v -> opt.onSliderChange(v.toInt()) },
+                    valueRange = range.first.toFloat()..range.last.toFloat(),
+                    enabled = opt.checked && opt.available
+                )
+                Text(
+                    "$value",
+                    style = IronType.MonoSm, color = skin.textDim,
+                    modifier = Modifier.align(Alignment.End)
+                )
+            }
+        }
+        else -> {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 64.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    Modifier
+                        .weight(1f)
+                        .then(if (!opt.available) Modifier.alpha(0.55f) else Modifier)
+                ) {
+                    Text(opt.title, style = IronType.Title.copy(fontSize = 15.sp), color = skin.text)
+                    Text(
+                        opt.reason ?: opt.description,
+                        style = IronType.Caption,
+                        color = if (opt.reason != null) Iron.Ember500 else skin.textDim
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                MachinedToggle(opt.checked, opt.onToggle, enabled = opt.available)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EnumSelector(
+    selected: String?,
+    options: List<String>,
+    enabled: Boolean,
+    onSelect: (String) -> Unit
+) {
+    val skin = ironSkin()
+    if (options.isEmpty()) return
+    if (options.size <= 4) {
+        val idx = options.indexOf(selected).takeIf { it >= 0 } ?: 0
+        MachinedSegment(
+            options = options,
+            selected = idx,
+            onSelect = { i -> if (enabled) onSelect(options[i]) },
+            modifier = Modifier.fillMaxWidth().then(if (!enabled) Modifier.alpha(0.5f) else Modifier)
+        )
+    } else {
+        var expanded by remember { mutableStateOf(false) }
+        Box {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .background(Iron.Anvil950, IronShape.Slot)
+                    .border(1.dp, Iron.Anvil600, IronShape.Slot)
+                    .then(if (!enabled) Modifier.alpha(0.5f) else Modifier)
+                    .clickable(enabled = enabled) { expanded = true }
+                    .padding(10.dp)
+            ) {
+                androidx.compose.material3.Text(
+                    selected ?: options.first(),
+                    style = IronType.Label,
+                    color = skin.text
+                )
+            }
+            androidx.compose.material3.DropdownMenu(
+                expanded = expanded && enabled,
+                onDismissRequest = { expanded = false }
+            ) {
+                options.forEach { opt ->
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(opt, style = IronType.Label) },
+                        onClick = { expanded = false; onSelect(opt) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GamePicker(
+    selectedPkg: String?,
+    options: List<Pair<String, String>>,
+    onSelect: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val skin = ironSkin()
+    val selectedLabel = options.find { it.first == selectedPkg }?.second ?: "Select game"
+    Box {
+        PaperPlate(
+            modifier = Modifier.fillMaxWidth().then(if (selectedPkg == null) Modifier else Modifier),
+            padding = PaddingValues(12.dp),
+            withShadow = false
+        ) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .let { m ->
+                        m
+                    },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(selectedLabel, style = IronType.Label, color = skin.text, modifier = Modifier.weight(1f))
+                ChamferButton("CHANGE", onClick = { expanded = true }, tall = false, variant = ChamferVariant.Outline)
+            }
+        }
+        androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { (pkg, name) ->
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text(name, style = IronType.Body) },
+                    onClick = { expanded = false; onSelect(pkg) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MaximumPerformanceCard(
+    onClick: () -> Unit,
+    report: com.ivarna.apexcore.tune.TunePresetReport?,
+    enabled: Boolean
+) {
+    EngravedPlate(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Maximum Performance", style = IronType.Title.copy(fontSize = 15.sp), color = ironSkin().text)
+                Text(
+                    "OEM Game Mode + CPU/GPU performance governor + max locks (verified only)",
+                    style = IronType.Caption, color = ironSkin().textDim
+                )
+                if (report != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "${report.applied}/${report.requested} verified",
+                        style = IronType.MonoSm,
+                        color = if (report.partial) Iron.Ember500 else Iron.Signal500
+                    )
+                    report.components.forEach { c ->
+                        Text(
+                            "${c.id.name}: ${if (c.verified) "verified" else c.reason}",
+                            style = IronType.Caption, color = if (c.verified) ironSkin().textDim else Iron.Ember500
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(12.dp))
+            ChamferButton("APPLY", onClick = onClick, enabled = enabled, tall = false)
+        }
     }
 }

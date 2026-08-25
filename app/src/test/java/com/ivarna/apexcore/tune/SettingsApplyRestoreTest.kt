@@ -39,7 +39,10 @@ class SettingsApplyRestoreTest {
 
         val restoreCmd = fakeShell.executedCommands.find { it.first.startsWith("settings put global heads_up_notifications_enabled") }
         assertNotNull("Must execute settings restore command for heads-up", restoreCmd)
-        assertEquals(2, fakeShell.executedCommands.filter { it.first.contains("heads_up_notifications_enabled") }.size)
+        // Verified path now does extra reads: apply put + verify get + restore put + verify get + initial read
+        val putCount = fakeShell.executedCommands.count { it.first.contains("settings put") && it.first.contains("heads_up_notifications_enabled") }
+        assertEquals(2, putCount)
+        assertTrue("Must have verified readback via settings get", fakeShell.executedCommands.any { it.first.contains("settings get") && it.first.contains("heads_up_notifications_enabled") })
     }
 
     @Test

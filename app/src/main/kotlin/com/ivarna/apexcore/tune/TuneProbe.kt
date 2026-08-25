@@ -73,6 +73,7 @@ class TuneProbe(
     }
 
     suspend fun probeSync(): Map<TuneId, TuneCapability> = withContext(Dispatchers.IO) {
+        try { probeJob?.join() } catch (_: Throwable) {}
         probeInternal()
         _capabilities.value
     }

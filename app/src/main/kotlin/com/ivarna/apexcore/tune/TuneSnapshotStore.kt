@@ -34,6 +34,14 @@ class TuneSnapshotStore(
     }
 
     @Synchronized
+    fun recordOriginal(path: String, originalValue: String, verificationMode: VerificationMode) {
+        if (path !in entries) {
+            entries[path] = TuneSnapshotEntry(path, originalValue, verificationMode = verificationMode)
+            saveSnapshotToPrefs()
+        }
+    }
+
+    @Synchronized
     fun recordOriginal(
         path: String,
         originalValue: String,
@@ -41,14 +49,27 @@ class TuneSnapshotStore(
         transactionId: String,
         backend: TuneBackendIdentity
     ) {
+        recordOriginal(path, originalValue, owner, transactionId, backend, VerificationMode.EXACT_STRING)
+    }
+
+    @Synchronized
+    fun recordOriginal(
+        path: String,
+        originalValue: String,
+        owner: TuneId,
+        transactionId: String,
+        backend: TuneBackendIdentity,
+        verificationMode: VerificationMode
+    ) {
         val existing = entries[path]
         entries[path] = if (existing == null) {
-            TuneSnapshotEntry(path, originalValue, setOf(owner), null, VerificationMode.EXACT_STRING, transactionId, backend)
+            TuneSnapshotEntry(path, originalValue, setOf(owner), null, verificationMode, transactionId, backend)
         } else {
             existing.copy(
                 owners = existing.owners + owner,
                 transactionId = transactionId,
-                backend = backend
+                backend = backend,
+                verificationMode = verificationMode
             )
         }
         saveSnapshotToPrefs()

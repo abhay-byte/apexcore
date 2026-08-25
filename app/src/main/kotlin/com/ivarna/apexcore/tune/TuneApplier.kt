@@ -283,7 +283,7 @@ open class TuneApplier(
         } else {
             original
         }
-        snapshotStore.recordOriginal(node.path, tokenToSnapshot)
+        snapshotStore.recordOriginal(node.path, tokenToSnapshot, node.verificationMode)
 
         // Write target value
         val writeRes = shell.write(
@@ -295,6 +295,7 @@ open class TuneApplier(
         )
 
         if (writeRes.verified) {
+            snapshotStore.recordVerified(node.path, targetValue, node.verificationMode)
             Log.i(TAG, "Applied ${node.path}: $original -> $targetValue")
             return true
         } else {
@@ -510,116 +511,156 @@ open class TuneApplier(
 
     private fun applyFocusHeadsUp(tier: PrivilegeTier): Boolean {
         if (tier == PrivilegeTier.STANDARD) return false
-        val prev = try {
-            Settings.Global.getInt(context.contentResolver, "heads_up_notifications_enabled", 1)
-        } catch (_: Throwable) { 1 }
-        snapshotStore.recordOriginal("settings://heads_up", prev.toString())
-        val res = shell.execute("settings put global heads_up_notifications_enabled 0", tier, timeoutMs = APPLY_TIMEOUT_MS)
-        return res.isSuccess
+        val prev = readSettingsWithFallback("global", "heads_up_notifications_enabled", tier) ?: "1"
+        snapshotStore.recordOriginal("settings://heads_up", prev, VerificationMode.SETTINGS_VALUE)
+        shell.execute("settings put global heads_up_notifications_enabled 0", tier, timeoutMs = APPLY_TIMEOUT_MS)
+        val cur = readSettingsWithFallback("global", "heads_up_notifications_enabled", tier)
+        val verified = cur?.trim() == "0"
+        if (verified) {
+            snapshotStore.recordVerified("settings://heads_up", "0", VerificationMode.SETTINGS_VALUE)
+            return true
+        } else {
+            snapshotStore.removeOriginal("settings://heads_up")
+            Log.w(TAG, "applyFocusHeadsUp verify failed: expected 0 readback=$cur")
+            return false
+        }
     }
 
     private fun restoreFocusHeadsUp(tier: PrivilegeTier): Boolean {
         val orig = snapshotStore.getOriginal("settings://heads_up") ?: return false
         if (tier == PrivilegeTier.STANDARD) return false
-        val res = shell.execute("settings put global heads_up_notifications_enabled $orig", tier, timeoutMs = RESTORE_TIMEOUT_MS)
-        if (res.isSuccess) {
+        shell.execute("settings put global heads_up_notifications_enabled $orig", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+        val cur = readSettingsWithFallback("global", "heads_up_notifications_enabled", tier)
+        val verified = cur?.trim() == orig.trim()
+        if (verified) {
             snapshotStore.removeOriginal("settings://heads_up")
             return true
         }
+        Log.w(TAG, "restoreFocusHeadsUp verify failed: expected $orig readback=$cur")
         return false
     }
 
     private fun applyFocusImmersive(tier: PrivilegeTier): Boolean {
         if (tier == PrivilegeTier.STANDARD) return false
-        val prev = try {
-            Settings.Global.getString(context.contentResolver, "policy_control").orEmpty()
-        } catch (_: Throwable) { "" }
-        snapshotStore.recordOriginal("settings://policy_control", prev)
-        val res = shell.execute("settings put global policy_control 'immersive.full=*'", tier, timeoutMs = APPLY_TIMEOUT_MS)
-        return res.isSuccess
+        val prev = readSettingsWithFallback("global", "policy_control", tier).orEmpty()
+        snapshotStore.recordOriginal("settings://policy_control", prev, VerificationMode.SETTINGS_VALUE)
+        shell.execute("settings put global policy_control 'immersive.full=*'", tier, timeoutMs = APPLY_TIMEOUT_MS)
+        val cur = readSettingsWithFallback("global", "policy_control", tier).orEmpty()
+        val verified = cur.trim() == "immersive.full=*"
+        if (verified) {
+            snapshotStore.recordVerified("settings://policy_control", "immersive.full=*", VerificationMode.SETTINGS_VALUE)
+            return true
+        } else {
+            snapshotStore.removeOriginal("settings://policy_control")
+            Log.w(TAG, "applyFocusImmersive verify failed: readback=$cur")
+            return false
+        }
     }
 
     private fun restoreFocusImmersive(tier: PrivilegeTier): Boolean {
         val orig = snapshotStore.getOriginal("settings://policy_control") ?: return false
         if (tier == PrivilegeTier.STANDARD) return false
-        val res = if (orig.isBlank()) {
+        if (orig.isBlank()) {
             shell.execute("settings delete global policy_control", tier, timeoutMs = RESTORE_TIMEOUT_MS)
         } else {
             shell.execute("settings put global policy_control '$orig'", tier, timeoutMs = RESTORE_TIMEOUT_MS)
         }
-        if (res.isSuccess) {
+        val cur = readSettingsWithFallback("global", "policy_control", tier).orEmpty()
+        val expected = orig.trim()
+        val verified = if (expected.isBlank()) cur.isBlank() else cur.trim() == expected
+        if (verified) {
             snapshotStore.removeOriginal("settings://policy_control")
             return true
         }
+        Log.w(TAG, "restoreFocusImmersive verify failed: expected=$orig readback=$cur")
         return false
     }
 
     private fun applyDisplayPeak(tier: PrivilegeTier): Boolean {
         if (tier == PrivilegeTier.STANDARD) return false
-        val curPeak = try {
-            Settings.System.getString(context.contentResolver, "peak_refresh_rate")
-                ?: Settings.Global.getString(context.contentResolver, "peak_refresh_rate")
-                ?: Settings.Secure.getString(context.contentResolver, "peak_refresh_rate")
-        } catch (_: Throwable) { null }
+        val curPeak = readSettingsTriad("peak_refresh_rate", tier)
         if (curPeak.isNullOrBlank()) return false
-
-        val curMin = try {
-            Settings.System.getString(context.contentResolver, "min_refresh_rate")
-                ?: Settings.Global.getString(context.contentResolver, "min_refresh_rate")
-                ?: Settings.Secure.getString(context.contentResolver, "min_refresh_rate")
-        } catch (_: Throwable) { "" }
-
-        snapshotStore.recordOriginal("settings://peak_refresh_rate", curPeak)
-        if (!curMin.isNullOrBlank()) {
-            snapshotStore.recordOriginal("settings://min_refresh_rate", curMin)
+        val curMin = readSettingsTriad("min_refresh_rate", tier).orEmpty()
+        snapshotStore.recordOriginal("settings://peak_refresh_rate", curPeak, VerificationMode.SETTINGS_VALUE)
+        if (curMin.isNotBlank()) {
+            snapshotStore.recordOriginal("settings://min_refresh_rate", curMin, VerificationMode.SETTINGS_VALUE)
         }
-
-        val res = shell.execute("settings put system peak_refresh_rate $curPeak && settings put system min_refresh_rate $curPeak", tier, timeoutMs = APPLY_TIMEOUT_MS)
-        return res.isSuccess
+        shell.execute("settings put system peak_refresh_rate $curPeak && settings put system min_refresh_rate $curPeak", tier, timeoutMs = APPLY_TIMEOUT_MS)
+        val peakAfter = readSettingsWithFallback("system", "peak_refresh_rate", tier)?.trim()
+        val minAfter = readSettingsWithFallback("system", "min_refresh_rate", tier)?.trim()
+        val verified = peakAfter == curPeak.trim() && minAfter == curPeak.trim()
+        if (verified) {
+            snapshotStore.recordVerified("settings://peak_refresh_rate", curPeak, VerificationMode.SETTINGS_VALUE)
+            if (curMin.isNotBlank()) snapshotStore.recordVerified("settings://min_refresh_rate", curPeak, VerificationMode.SETTINGS_VALUE)
+            return true
+        } else {
+            // remove only if not verified to avoid stale snapshot leak? Keep for retry? Plan says remove on fail
+            snapshotStore.removeOriginal("settings://peak_refresh_rate")
+            if (curMin.isNotBlank()) snapshotStore.removeOriginal("settings://min_refresh_rate")
+            Log.w(TAG, "applyDisplayPeak verify failed: peak=$peakAfter min=$minAfter expected=$curPeak")
+            return false
+        }
     }
 
     private fun restoreDisplayPeak(tier: PrivilegeTier): Boolean {
         val origPeak = snapshotStore.getOriginal("settings://peak_refresh_rate") ?: return false
         val origMin = snapshotStore.getOriginal("settings://min_refresh_rate")
         if (tier == PrivilegeTier.STANDARD) return false
-
         val restoreCmd = if (!origMin.isNullOrBlank()) {
             "settings put system peak_refresh_rate $origPeak && settings put system min_refresh_rate $origMin"
         } else {
             "settings put system peak_refresh_rate $origPeak && settings delete system min_refresh_rate"
         }
-        val res = shell.execute(restoreCmd, tier, timeoutMs = RESTORE_TIMEOUT_MS)
-        if (res.isSuccess) {
+        shell.execute(restoreCmd, tier, timeoutMs = RESTORE_TIMEOUT_MS)
+        val peakAfter = readSettingsWithFallback("system", "peak_refresh_rate", tier)?.trim()
+        val minAfter = readSettingsWithFallback("system", "min_refresh_rate", tier)?.trim()
+        val peakOk = peakAfter == origPeak.trim()
+        val minOk = if (!origMin.isNullOrBlank()) minAfter == origMin.trim() else minAfter.isNullOrEmpty()
+        if (peakOk && minOk) {
             snapshotStore.removeOriginal("settings://peak_refresh_rate")
             snapshotStore.removeOriginal("settings://min_refresh_rate")
             return true
         }
+        Log.w(TAG, "restoreDisplayPeak verify failed: peak=$peakAfter min=$minAfter expected=$origPeak/$origMin")
         return false
     }
 
     private fun applyDisplayMiui(tier: PrivilegeTier): Boolean {
         if (tier == PrivilegeTier.STANDARD) return false
-        val mode = try {
-            Settings.System.getString(context.contentResolver, "refresh_rate_mode")
-        } catch (_: Throwable) { null }
-        val miuiRate = try {
-            Settings.System.getString(context.contentResolver, "miui_refresh_rate")
-        } catch (_: Throwable) { null }
-
+        val mode = readSettingsWithFallback("system", "refresh_rate_mode", tier)
+        val miuiRate = readSettingsWithFallback("system", "miui_refresh_rate", tier)
         if (mode.isNullOrBlank() && miuiRate.isNullOrBlank()) return false
-
-        var success = false
+        var verifiedOverall = false
+        var anyAttempted = false
         if (!mode.isNullOrBlank()) {
-            snapshotStore.recordOriginal("settings://refresh_rate_mode", mode)
-            val res = shell.execute("settings put system refresh_rate_mode 1", tier, timeoutMs = APPLY_TIMEOUT_MS)
-            if (res.isSuccess) success = true
+            snapshotStore.recordOriginal("settings://refresh_rate_mode", mode, VerificationMode.SETTINGS_VALUE)
+            shell.execute("settings put system refresh_rate_mode 1", tier, timeoutMs = APPLY_TIMEOUT_MS)
+            val after = readSettingsWithFallback("system", "refresh_rate_mode", tier)?.trim()
+            val verified = after == "1"
+            if (verified) {
+                snapshotStore.recordVerified("settings://refresh_rate_mode", "1", VerificationMode.SETTINGS_VALUE)
+                verifiedOverall = true
+            } else {
+                snapshotStore.removeOriginal("settings://refresh_rate_mode")
+                Log.w(TAG, "applyDisplayMiui refresh_rate_mode verify failed: $after")
+            }
+            anyAttempted = true
         }
         if (!miuiRate.isNullOrBlank()) {
-            snapshotStore.recordOriginal("settings://miui_refresh_rate", miuiRate)
-            val res = shell.execute("settings put system miui_refresh_rate 120", tier, timeoutMs = APPLY_TIMEOUT_MS)
-            if (res.isSuccess) success = true
+            snapshotStore.recordOriginal("settings://miui_refresh_rate", miuiRate, VerificationMode.SETTINGS_VALUE)
+            shell.execute("settings put system miui_refresh_rate 120", tier, timeoutMs = APPLY_TIMEOUT_MS)
+            val after = readSettingsWithFallback("system", "miui_refresh_rate", tier)?.trim()
+            val verified = after == "120"
+            if (verified) {
+                snapshotStore.recordVerified("settings://miui_refresh_rate", "120", VerificationMode.SETTINGS_VALUE)
+                verifiedOverall = true
+            } else {
+                snapshotStore.removeOriginal("settings://miui_refresh_rate")
+                Log.w(TAG, "applyDisplayMiui miui_refresh_rate verify failed: $after")
+            }
+            anyAttempted = true
         }
-        return success
+        return verifiedOverall && anyAttempted
     }
 
     private fun restoreDisplayMiui(tier: PrivilegeTier): Boolean {
@@ -627,25 +668,53 @@ open class TuneApplier(
         val origRate = snapshotStore.getOriginal("settings://miui_refresh_rate")
         if (origMode == null && origRate == null) return false
         if (tier == PrivilegeTier.STANDARD) return false
-
-        var success = true
+        var allVerified = true
         if (origMode != null) {
-            val res = shell.execute("settings put system refresh_rate_mode $origMode", tier, timeoutMs = RESTORE_TIMEOUT_MS)
-            if (res.isSuccess) {
+            shell.execute("settings put system refresh_rate_mode $origMode", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+            val after = readSettingsWithFallback("system", "refresh_rate_mode", tier)?.trim()
+            if (after == origMode.trim()) {
                 snapshotStore.removeOriginal("settings://refresh_rate_mode")
             } else {
-                success = false
+                Log.w(TAG, "restoreDisplayMiui refresh_rate_mode verify failed: $after vs $origMode")
+                allVerified = false
             }
         }
         if (origRate != null) {
-            val res = shell.execute("settings put system miui_refresh_rate $origRate", tier, timeoutMs = RESTORE_TIMEOUT_MS)
-            if (res.isSuccess) {
+            shell.execute("settings put system miui_refresh_rate $origRate", tier, timeoutMs = RESTORE_TIMEOUT_MS)
+            val after = readSettingsWithFallback("system", "miui_refresh_rate", tier)?.trim()
+            if (after == origRate.trim()) {
                 snapshotStore.removeOriginal("settings://miui_refresh_rate")
             } else {
-                success = false
+                Log.w(TAG, "restoreDisplayMiui miui_refresh_rate verify failed: $after vs $origRate")
+                allVerified = false
             }
         }
-        return success
+        return allVerified
+    }
+
+    private fun readSettingsWithFallback(namespace: String, key: String, tier: PrivilegeTier): String? {
+        val cr = context.contentResolver
+        val viaCR = try {
+            when (namespace) {
+                "system" -> Settings.System.getString(cr, key)
+                "global" -> Settings.Global.getString(cr, key)
+                "secure" -> Settings.Secure.getString(cr, key)
+                else -> null
+            }
+        } catch (_: Throwable) { null }
+        if (!viaCR.isNullOrBlank() && viaCR != "null") return viaCR.trim()
+        // Fallback via shell settings get
+        return try {
+            val out = shell.execute("settings get $namespace $key 2>/dev/null", tier, 120L).output.trim()
+            if (out.isNotEmpty() && out != "null" && !out.startsWith("error:")) out else viaCR?.trim()
+        } catch (_: Throwable) { viaCR?.trim() }
+    }
+
+    private fun readSettingsTriad(key: String, tier: PrivilegeTier): String? {
+        readSettingsWithFallback("system", key, tier)?.let { if (it.isNotBlank() && it != "null") return it }
+        readSettingsWithFallback("global", key, tier)?.let { if (it.isNotBlank() && it != "null") return it }
+        readSettingsWithFallback("secure", key, tier)?.let { if (it.isNotBlank() && it != "null") return it }
+        return null
     }
 
     private fun isSettingsOnly(id: TuneId): Boolean {

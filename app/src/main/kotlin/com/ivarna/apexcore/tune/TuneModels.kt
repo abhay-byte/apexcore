@@ -156,7 +156,8 @@ data class TuneApplyReport(
     val failed: Int,
     val skipped: Int,
     val sessionActive: Boolean,
-    val details: Map<String, String> = emptyMap()
+    val details: Map<String, String> = emptyMap(),
+    val components: Map<TuneId, Boolean> = emptyMap()
 )
 
 data class MutationResult(

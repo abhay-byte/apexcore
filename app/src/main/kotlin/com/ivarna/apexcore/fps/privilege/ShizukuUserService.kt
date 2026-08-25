@@ -19,42 +19,62 @@ class ShizukuUserService : IPrivilegedExecutor.Stub() {
         val safeTimeout = timeoutMs.coerceIn(50L, 30_000L)
         return try {
             val process = ProcessBuilder("sh", "-c", command)
-                .redirectErrorStream(true)
+                .redirectErrorStream(false)
                 .start()
-            val output = StringBuilder()
-            val reader = BufferedReader(InputStreamReader(process.inputStream))
-            val readerThread = Thread {
+            val stdout = StringBuilder()
+            val stderr = StringBuilder()
+            val outReader = BufferedReader(InputStreamReader(process.inputStream))
+            val errReader = BufferedReader(InputStreamReader(process.errorStream))
+            val outThread = Thread {
                 try {
                     var line: String?
-                    while (reader.readLine().also { line = it } != null) {
-                        if (output.isNotEmpty()) output.append('\n')
-                        output.append(line)
+                    while (outReader.readLine().also { line = it } != null) {
+                        if (stdout.isNotEmpty()) stdout.append('\n')
+                        stdout.append(line)
                     }
-                } catch (_: Throwable) {
-                    // The process result still carries the useful timeout/exit code.
-                }
+                } catch (_: Throwable) {}
             }.apply { isDaemon = true }
-            readerThread.start()
+            val errThread = Thread {
+                try {
+                    var line: String?
+                    while (errReader.readLine().also { line = it } != null) {
+                        if (stderr.isNotEmpty()) stderr.append('\n')
+                        stderr.append(line)
+                    }
+                } catch (_: Throwable) {}
+            }.apply { isDaemon = true }
+            outThread.start()
+            errThread.start()
 
             val finished = process.waitFor(safeTimeout, TimeUnit.MILLISECONDS)
             if (!finished) {
                 process.destroy()
                 process.destroyForcibly()
-                readerThread.interrupt()
+                outThread.interrupt()
+                errThread.interrupt()
                 return Bundle().apply {
                     putString(KEY_OUTPUT, "error: timeout")
+                    putString(KEY_STDOUT, "error: timeout")
+                    putString(KEY_STDERR, "")
                     putInt(KEY_EXIT_CODE, -1)
                 }
             }
 
-            readerThread.join(200L)
+            outThread.join(200L)
+            errThread.join(200L)
+            val outStr = stdout.toString().trim()
+            val errStr = stderr.toString().trim()
             Bundle().apply {
-                putString(KEY_OUTPUT, output.toString().trim())
+                putString(KEY_STDOUT, outStr)
+                putString(KEY_STDERR, errStr)
+                putString(KEY_OUTPUT, if (errStr.isNotEmpty()) "$outStr\n[stderr] $errStr".trim() else outStr)
                 putInt(KEY_EXIT_CODE, process.exitValue())
             }
         } catch (t: Throwable) {
             Bundle().apply {
                 putString(KEY_OUTPUT, "error: ${t.message ?: "executor failure"}")
+                putString(KEY_STDOUT, "error: ${t.message ?: "executor failure"}")
+                putString(KEY_STDERR, "")
                 putInt(KEY_EXIT_CODE, -1)
             }
         }
@@ -72,6 +92,8 @@ class ShizukuUserService : IPrivilegedExecutor.Stub() {
 
     companion object {
         const val KEY_OUTPUT = "output"
+        const val KEY_STDOUT = "stdout"
+        const val KEY_STDERR = "stderr"
         const val KEY_EXIT_CODE = "exitCode"
     }
 }

@@ -85,6 +85,10 @@ class TuneManager internal constructor(
         probe.refreshCapabilities()
     }
 
+    suspend fun refreshCapabilitiesSync(): Map<TuneId, TuneCapability> {
+        return probe.probeSync()
+    }
+
     /** Per-game capability because Android Game Mode is package-specific. */
     fun gameModeCapability(gamePackage: String): GameModeCapability? {
         val tier = writeTier() ?: return null
@@ -121,10 +125,22 @@ class TuneManager internal constructor(
                             } else if (id == TuneId.GAME_MODE_PERFORMANCE && prefs.getSessionPkg().isNotBlank()) {
                                 applier.applyGameModeForSession(prefs.getSessionPkg(), tier, backendFor(tier))
                             } else {
-                                applier.applyBundle(id, value, tier)
+                                val count = applier.applyBundle(id, value, tier)
+                                if (id.isMaxLock() && count > 0) {
+                                    thermalGuard.start()
+                                }
                             }
                         } else {
-                            applier.restoreBundle(id, tier)
+                            val restored = applier.restoreBundle(id, tier)
+                            if (id.isMaxLock()) {
+                                val anyMaxOn = prefs.getIntent(TuneId.CPU_LOCK_MAX).on || prefs.getIntent(TuneId.GPU_LOCK_MAX).on
+                                val hasOwner = snapshotStore.getAllEntries().values.any {
+                                    TuneId.CPU_LOCK_MAX in it.owners || TuneId.GPU_LOCK_MAX in it.owners
+                                }
+                                if (!anyMaxOn && !hasOwner) {
+                                    thermalGuard.stop()
+                                }
+                            }
                             // If all bundles are turned off, end session
                             val anyOn = TuneSpecs.all.any { spec ->
                                 prefs.getIntent(spec.id).on &&
@@ -163,7 +179,7 @@ class TuneManager internal constructor(
         }
     }
 
-    suspend fun applyForSession(gamePkg: String): TuneApplyReport {
+    suspend fun applyForSession(gamePkg: String, filterIds: Set<TuneId>? = null): TuneApplyReport {
         if (!isRealGamePkg(gamePkg)) {
             Log.i(TAG, "applyForSession skipped: self or blank pkg ($gamePkg)")
             return TuneApplyReport(0, 0, 0, _sessionActive.value)
@@ -190,9 +206,11 @@ class TuneManager internal constructor(
             var applied = 0
             var failed = 0
             var skipped = 0
+            val components = mutableMapOf<TuneId, Boolean>()
 
             val onIntentsCount = TuneSpecs.all.count { spec ->
-                prefs.getIntent(spec.id).on && capabilities.value[spec.id]?.available == true
+                (filterIds == null || spec.id in filterIds) &&
+                    prefs.getIntent(spec.id).on && (spec.id == TuneId.GAME_MODE_PERFORMANCE || capabilities.value[spec.id]?.available == true)
             }
             val budgetMs = if (onIntentsCount > 4) 2500L else 1500L
             val cpuFloorOn = prefs.getIntent(TuneId.CPU_FLOOR).on
@@ -200,28 +218,44 @@ class TuneManager internal constructor(
             withTimeoutOrNull(budgetMs) {
                 for (spec in TuneSpecs.all) {
                     val id = spec.id
+                    if (filterIds != null && id !in filterIds) continue
                     val intent = prefs.getIntent(id)
                     val cap = capabilities.value[id]
 
                     if (!intent.on || (id != TuneId.GAME_MODE_PERFORMANCE && cap?.available != true)) {
                         skipped++
+                        components[id] = false
                         continue
                     }
 
                     // Mutex: if CPU_FLOOR is on, ignore split cluster intents
                     if (cpuFloorOn && (id == TuneId.CPU_FLOOR_LITTLE || id == TuneId.CPU_FLOOR_BIG || id == TuneId.CPU_FLOOR_PRIME)) {
                         skipped++
+                        components[id] = false
                         continue
                     }
 
                     if (id == TuneId.GAME_MODE_PERFORMANCE) {
                         val result = applier.applyGameModeForSession(gamePkg, tier, backendResolver?.current() ?: backendFor(tier))
-                        if (result.verified) applied++ else failed++
+                        if (result.verified) {
+                            applied++
+                            components[id] = true
+                        } else {
+                            failed++
+                            components[id] = false
+                        }
                     } else if (id.isMaxLock() && thermalGuard.severe) {
                         skipped++
+                        components[id] = false
                     } else {
                         val count = applier.applyBundle(id, intent, tier)
-                        if (count > 0) applied += count else failed++
+                        if (count > 0) {
+                            applied += count
+                            components[id] = true
+                        } else {
+                            failed++
+                            components[id] = false
+                        }
                     }
                 }
             } ?: run {
@@ -232,13 +266,15 @@ class TuneManager internal constructor(
                 _sessionActive.value = true
                 prefs.setApplied(true)
                 prefs.setSessionPkg(gamePkg)
-                if (prefs.getIntent(TuneId.CPU_LOCK_MAX).on || prefs.getIntent(TuneId.GPU_LOCK_MAX).on) {
+                val maxLockVerified = components[com.ivarna.apexcore.tune.TuneId.CPU_LOCK_MAX] == true ||
+                    components[com.ivarna.apexcore.tune.TuneId.GPU_LOCK_MAX] == true
+                if (maxLockVerified) {
                     thermalGuard.start()
                 }
             }
 
-            Log.i(TAG, "applyForSession for $gamePkg: applied=$applied failed=$failed skipped=$skipped (budget=${budgetMs}ms)")
-            TuneApplyReport(applied, failed, skipped, _sessionActive.value)
+            Log.i(TAG, "applyForSession for $gamePkg: applied=$applied failed=$failed skipped=$skipped (budget=${budgetMs}ms) components=$components")
+            TuneApplyReport(applied, failed, skipped, _sessionActive.value, components = components)
         }
     }
 

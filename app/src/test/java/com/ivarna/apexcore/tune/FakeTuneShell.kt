@@ -54,6 +54,7 @@ class FakeTuneShell : TuneShell {
 
     val executedCommands = mutableListOf<Triple<String, PrivilegeTier, Long>>()
     val failCommands = mutableSetOf<String>()
+    private val settingsStore = mutableMapOf<String, String>()
 
     @Synchronized
     override fun exists(path: String, timeoutMs: Long): Boolean {
@@ -64,9 +65,71 @@ class FakeTuneShell : TuneShell {
     override fun execute(command: String, tier: PrivilegeTier, timeoutMs: Long): com.ivarna.apexcore.fps.util.ShellResult {
         executedCommands.add(Triple(command, tier, timeoutMs))
         if (failCommands.any { command.contains(it) }) {
-            return com.ivarna.apexcore.fps.util.ShellResult("Command failed", exitCode = 1)
+            return com.ivarna.apexcore.fps.util.ShellResult("Command failed", exitCode = 1, stderr = null)
+        }
+        // Stateful emulation for `settings` commands so verified readback works in unit tests.
+        if (command.contains("settings ")) {
+            // Handle chained commands with &&
+            val parts = command.split("&&").map { it.trim() }
+            var lastOutput = "Success"
+            for (part in parts) {
+                when {
+                    part.startsWith("settings put") -> {
+                        // settings put <namespace> <key> <value>
+                        val tokens = part.split(Regex("\\s+"))
+                        if (tokens.size >= 5) {
+                            val ns = tokens[2]
+                            val key = tokens[3]
+                            val value = tokens.drop(4).joinToString(" ").trim().removeSurrounding("'").removeSurrounding("\"")
+                            settingsStore["$ns:$key"] = value
+                        }
+                        lastOutput = "Success"
+                    }
+                    part.startsWith("settings get") -> {
+                        val tokens = part.split(Regex("\\s+"))
+                        if (tokens.size >= 4) {
+                            val ns = tokens[2]
+                            val key = tokens[3]
+                            lastOutput = settingsStore["$ns:$key"] ?: "null"
+                            // also check commandOutputs override
+                            commandOutputs.entries.firstOrNull { part.contains(it.key) }?.value?.let { lastOutput = it }
+                        }
+                    }
+                    part.startsWith("settings delete") -> {
+                        val tokens = part.split(Regex("\\s+"))
+                        if (tokens.size >= 4) {
+                            val ns = tokens[2]
+                            val key = tokens[3]
+                            settingsStore.remove("$ns:$key")
+                        }
+                        lastOutput = "Success"
+                    }
+                    else -> {
+                        val output = commandOutputs.entries.firstOrNull { part.contains(it.key) }?.value ?: "Success"
+                        lastOutput = output
+                    }
+                }
+                // if any part was a get, return its output immediately when it's the only part
+                if (parts.size == 1 && part.startsWith("settings get")) {
+                    return com.ivarna.apexcore.fps.util.ShellResult(lastOutput, exitCode = 0, stderr = null)
+                }
+            }
+            // For put chained, return Success; for get chained, return last get output
+            if (command.contains("settings get")) {
+                return com.ivarna.apexcore.fps.util.ShellResult(lastOutput, exitCode = 0, stderr = null)
+            }
+            val output = commandOutputs.entries.firstOrNull { command.contains(it.key) }?.value ?: "Success"
+            // If command was purely put/delete, prefer Success over settingsStore get result
+            if (command.contains("settings put") || command.contains("settings delete")) {
+                return com.ivarna.apexcore.fps.util.ShellResult(output, exitCode = 0, stderr = null)
+            }
+            return com.ivarna.apexcore.fps.util.ShellResult(lastOutput, exitCode = 0, stderr = null)
         }
         val output = commandOutputs.entries.firstOrNull { command.contains(it.key) }?.value ?: "Success"
-        return com.ivarna.apexcore.fps.util.ShellResult(output, exitCode = 0)
+        return com.ivarna.apexcore.fps.util.ShellResult(output, exitCode = 0, stderr = null)
+    }
+
+    fun setSettingsValue(namespace: String, key: String, value: String) {
+        settingsStore["$namespace:$key"] = value
     }
 }

@@ -37,17 +37,21 @@ class ShizukuExecutorClient(context: Context) {
 
     fun execute(command: String, timeoutMs: Long): ShellResult {
         val executor = ensureBound(timeoutMs.coerceAtMost(BIND_TIMEOUT_MS))
-            ?: return ShellResult("error: user service unavailable", -1)
+            ?: return ShellResult("error: user service unavailable", -1, null)
         return try {
             val result = executor.execute(command, timeoutMs)
+            val stdout = result.getString(ShizukuUserService.KEY_STDOUT)
+                ?: result.getString(ShizukuUserService.KEY_OUTPUT).orEmpty()
+            val stderr = result.getString(ShizukuUserService.KEY_STDERR)
             ShellResult(
-                result.getString(ShizukuUserService.KEY_OUTPUT).orEmpty(),
-                result.getInt(ShizukuUserService.KEY_EXIT_CODE, -1)
+                stdout,
+                result.getInt(ShizukuUserService.KEY_EXIT_CODE, -1),
+                stderr?.takeIf { it.isNotEmpty() }
             )
         } catch (t: Throwable) {
             Log.w(TAG, "UserService execution failed: ${t.message}")
             invalidate()
-            ShellResult("error: ${t.message ?: "user service failure"}", -1)
+            ShellResult("error: ${t.message ?: "user service failure"}", -1, null)
         }
     }
 

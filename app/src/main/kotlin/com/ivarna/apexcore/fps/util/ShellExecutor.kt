@@ -5,7 +5,8 @@ import java.io.InputStreamReader
 
 data class ShellResult(
     val output: String,
-    val exitCode: Int
+    val exitCode: Int,
+    val stderr: String? = null
 ) {
     val isSuccess: Boolean get() = exitCode == 0
 }
