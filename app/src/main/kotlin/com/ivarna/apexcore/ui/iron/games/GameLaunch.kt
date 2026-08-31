@@ -35,11 +35,15 @@ object LaunchTiming {
     const val WIND_MS = 160L
     const val PRESS_MS = 100L          // hold long enough for squash spring to read
     const val PART_MS = 280L
+    /** Frames of visible opening before startActivity (64–80 ms; ~4–6 frames @ 60–90 Hz). */
+    const val PART_LEAD_MS = 72L
     const val RAIL_ATTACH_MS = 520L
     const val FAIL_HOLD_MS = 900L
     const val FREEZE_TIMEOUT_MS = 6_000L
-    /** Floor so an instant / empty freeze still shows the seam before PART. */
+    /** Floor so an instant freeze with real targets still shows the seam before PART. */
     const val MIN_FREEZE_MS = 320L
+    /** Shorter beat when there is nothing to freeze (OPTIMIZED) — logo stays visible. */
+    const val MIN_EMPTY_FREEZE_MS = 180L
 }
 
 /**
@@ -52,6 +56,8 @@ class GameLaunchCoordinator(
     private val attachRail: (pkg: String) -> Unit,
     private val reducedMotion: () -> Boolean = { false },
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+    /** Monotonic ms clock; override in tests with the virtual scheduler clock. */
+    private val monoNowMs: () -> Long = { System.nanoTime() / 1_000_000L },
 ) {
     var state by mutableStateOf(LaunchState())
         private set
@@ -95,7 +101,7 @@ class GameLaunchCoordinator(
         }
         state = state.copy(phase = LaunchPhase.FREEZE)
 
-        val freezeStarted = System.nanoTime()
+        val freezeStarted = monoNowMs()
         val outcome = withTimeoutOrNull(LaunchTiming.FREEZE_TIMEOUT_MS) {
             try {
                 freeze(app.pkg) { frozen, total ->
@@ -106,19 +112,31 @@ class GameLaunchCoordinator(
             }
         } ?: FreezeOutcome.Failed("freeze timed out")
 
-        when (outcome) {
+        val ok = when (outcome) {
             is FreezeOutcome.Blocked -> return fail("FREEZE BLOCKED", outcome.reason)
             is FreezeOutcome.Failed -> return fail("LAUNCH ABORTED", outcome.reason)
-            is FreezeOutcome.Ok -> state = state.copy(
-                frozenCount = outcome.frozen,
-                totalTargets = outcome.total,
-            )
+            is FreezeOutcome.Ok -> {
+                state = state.copy(
+                    frozenCount = outcome.frozen,
+                    totalTargets = outcome.total,
+                )
+                outcome
+            }
         }
 
         // Keep the seam on screen for a readable beat even when freeze was instant.
-        val freezeElapsedMs = (System.nanoTime() - freezeStarted) / 1_000_000L
-        val remain = LaunchTiming.MIN_FREEZE_MS - freezeElapsedMs
+        val freezeElapsedMs = (monoNowMs() - freezeStarted).coerceAtLeast(0L)
+        val minHold = if (ok.total == 0) {
+            LaunchTiming.MIN_EMPTY_FREEZE_MS
+        } else {
+            LaunchTiming.MIN_FREEZE_MS
+        }
+        val remain = minHold - freezeElapsedMs
         if (remain > 0) delay(remain)
+
+        // Enter PART before startActivity so Compose can paint the opening press.
+        state = state.copy(phase = LaunchPhase.PART)
+        delay(LaunchTiming.PART_LEAD_MS)
 
         val launched = try {
             launchIntent(app.pkg)
@@ -126,13 +144,13 @@ class GameLaunchCoordinator(
             false
         }
         if (!launched) return fail("LAUNCH FAILED", "no launchable activity")
-        state = state.copy(phase = LaunchPhase.PART)
 
-        delay(LaunchTiming.RAIL_ATTACH_MS - LaunchTiming.PART_MS)
+        // Rail is timed from PART start, not from the delayed intent fire.
+        delay(LaunchTiming.RAIL_ATTACH_MS - LaunchTiming.PART_LEAD_MS)
         attachRail(app.pkg)
 
-        // Let the iris finish under the incoming game activity.
-        delay(LaunchTiming.PART_MS + 120)
+        // Plates finish under the incoming activity; small buffer then clear.
+        delay(120)
         state = LaunchState()
     }
 

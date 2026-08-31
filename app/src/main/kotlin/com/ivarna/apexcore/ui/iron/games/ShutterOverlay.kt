@@ -2,6 +2,7 @@ package com.ivarna.apexcore.ui.iron.games
 
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -32,9 +34,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.ivarna.apexcore.ui.iron.Iron
 import com.ivarna.apexcore.ui.iron.IronMotion
 import com.ivarna.apexcore.ui.iron.IronType
@@ -61,6 +65,7 @@ fun ShutterOverlay(
     val plateTop = remember { Animatable(0f) }
     val plateBottom = remember { Animatable(0f) }
     val iconAppear = remember { Animatable(0f) }
+    val iconAlpha = remember { Animatable(1f) }
     val squash = remember { Animatable(0f) }
     val scrim = remember { Animatable(0f) }
     val tickFill = remember { Animatable(0f) }
@@ -78,10 +83,14 @@ fun ShutterOverlay(
                 plateTop.snapTo(0f)
                 plateBottom.snapTo(0f)
                 iconAppear.snapTo(0f)
+                iconAlpha.snapTo(1f)
                 squash.snapTo(0f)
                 tickFill.snapTo(0f)
                 clack.confirm()
                 if (reduced) {
+                    // Identity stays visible; no plate travel / squash / scan.
+                    iconAppear.snapTo(1f)
+                    iconAlpha.snapTo(1f)
                     scrim.animateTo(0.97f, tween(200))
                 } else {
                     launch { iconAppear.animateTo(1f, tween(140, easing = IronMotion.EaseWind)) }
@@ -91,35 +100,54 @@ fun ShutterOverlay(
                 }
             }
             LaunchPhase.PRESS -> {
+                mounted = true
                 clack.thud()
                 if (!reduced) {
                     squash.animateTo(1f, IronMotion.machined())
                 }
             }
             LaunchPhase.FREEZE -> {
-                // Icon stamped flat — gone by mid-FREEZE.
+                mounted = true
+                // Direct FREEZE (tests / restore): plates closed, logo readable.
+                if (plateTop.value < 0.9f) plateTop.snapTo(1f)
+                if (plateBottom.value < 0.9f) plateBottom.snapTo(1f)
+                if (iconAppear.value < 0.5f) iconAppear.snapTo(1f)
+                // Stamp then rebound — logo stays readable through OPTIMIZED / FREEZING.
                 if (!reduced) {
-                    squash.snapTo(1f)
-                    launch { iconAppear.animateTo(0f, tween(90, easing = LinearEasing)) }
+                    launch {
+                        iconAlpha.animateTo(1f, tween(80))
+                    }
+                    launch {
+                        squash.animateTo(0f, tween(110, easing = FastOutSlowInEasing))
+                    }
+                } else {
+                    iconAppear.snapTo(1f)
+                    iconAlpha.snapTo(1f)
                 }
             }
             LaunchPhase.PART -> {
-                iconAppear.snapTo(0f)
-                squash.snapTo(0f)
+                mounted = true
                 if (reduced) {
                     scrim.animateTo(0f, tween(200))
+                    iconAlpha.animateTo(0f, tween(80))
                 } else {
-                    // Iris open: top leads 40ms.
+                    // Fade identity while plates open — do not wait on icon fade.
+                    launch { iconAlpha.animateTo(0f, tween(120)) }
+                    launch { iconAppear.animateTo(0f, tween(140)) }
                     launch { plateTop.animateTo(0f, tween(280, easing = IronMotion.EaseWind)) }
                     delay(40)
                     plateBottom.animateTo(0f, tween(240, easing = IronMotion.EaseWind))
                 }
             }
             LaunchPhase.FAILED -> {
+                mounted = true
                 clack.no()
                 plateTop.snapTo(1f)
                 plateBottom.snapTo(1f)
-                iconAppear.snapTo(0f)
+                iconAppear.snapTo(1f)
+                iconAlpha.snapTo(1f)
+                squash.snapTo(0f)
+                if (reduced) scrim.snapTo(0.97f)
             }
             LaunchPhase.IDLE -> {
                 if (!mounted) return@LaunchedEffect
@@ -128,6 +156,7 @@ fun ShutterOverlay(
                 launch { plateBottom.animateTo(0f, tween(d, easing = IronMotion.EaseWind)) }
                 launch { iconAppear.animateTo(0f, tween(120)) }
                 launch { scrim.animateTo(0f, tween(140)) }
+                iconAlpha.snapTo(1f)
                 squash.snapTo(0f)
                 backScrub = 0f
                 delay(d.toLong() + 20)
@@ -185,8 +214,28 @@ fun ShutterOverlay(
                     .background(Iron.Anvil900)
                     .ironGrain(0.05f)
             )
-            if (state.phase == LaunchPhase.FREEZE || state.phase == LaunchPhase.FAILED) {
-                CenterStatus(state, Modifier.align(Alignment.Center))
+            // Reduced motion still shows selected app identity.
+            LaunchAppIcon(
+                state = state,
+                iconAppear = { iconAppear.value },
+                iconAlpha = { iconAlpha.value },
+                squash = { 0f },
+                modifier = Modifier.align(Alignment.Center),
+            )
+            if (
+                state.phase == LaunchPhase.FREEZE ||
+                state.phase == LaunchPhase.FAILED ||
+                state.phase == LaunchPhase.PRESS ||
+                state.phase == LaunchPhase.WIND
+            ) {
+                CenterStatus(
+                    state,
+                    Modifier
+                        .align(Alignment.Center)
+                        .offset(y = 64.dp)
+                        .zIndex(3f)
+                        .testTag("launch_readout"),
+                )
             }
             return@Box
         }
@@ -207,6 +256,8 @@ fun ShutterOverlay(
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .fillMaxHeight(0.5f)
+                .zIndex(0f)
+                .testTag("launch_press_top")
                 .graphicsLayer {
                     // closed=0 translation; open=fully off-screen; scrub nudges open
                     translationY = -size.height * ((1f - plateTop.value) + backScrub * 0.22f)
@@ -217,40 +268,18 @@ fun ShutterOverlay(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .fillMaxHeight(0.5f)
+                .zIndex(0f)
+                .testTag("launch_press_bottom")
                 .graphicsLayer {
                     translationY = size.height * ((1f - plateBottom.value) + backScrub * 0.22f)
                 }
         )
 
-        // Icon lives in the seam: fades in on WIND, squashes on PRESS, gone by FREEZE.
-        state.app?.let { app ->
-            Box(
-                Modifier
-                    .align(Alignment.Center)
-                    .graphicsLayer {
-                        val appear = iconAppear.value
-                        val sq = squash.value
-                        val s = 0.55f + 0.45f * appear
-                        scaleX = s
-                        scaleY = s * (1f - 0.88f * sq)
-                        alpha = appear
-                    }
-                    .size(88.dp)
-                    .clip(CircleShape)
-                    .background(Iron.Anvil900)
-                    .border(2.dp, Iron.Brass400, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Box(
-                    Modifier.fillMaxSize().padding(14.dp),
-                    contentAlignment = Alignment.Center,
-                ) { app.icon() }
-            }
-        }
-
         Column(
             Modifier
                 .align(Alignment.Center)
+                .zIndex(1f)
+                .testTag("launch_seam")
                 .graphicsLayer {
                     val closed = (plateTop.value + plateBottom.value) / 2f
                     // Seam only reads once plates are nearly met.
@@ -277,14 +306,34 @@ fun ShutterOverlay(
                 else -> null
             }
             readout?.let {
-                Spacer(Modifier.height(6.dp))
-                Text(it, style = IronType.Mono, color = Iron.Bone300)
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    it,
+                    style = IronType.Mono,
+                    color = Iron.Bone300,
+                    modifier = Modifier.testTag("launch_readout"),
+                )
             }
         }
 
+        // Logo above seam — visible through FREEZE, fades only on PART.
+        LaunchAppIcon(
+            state = state,
+            iconAppear = { iconAppear.value },
+            iconAlpha = { iconAlpha.value },
+            squash = { squash.value },
+            modifier = Modifier
+                .align(Alignment.Center)
+                .zIndex(2f)
+                .offset(y = (-28).dp),
+        )
+
         if (state.phase == LaunchPhase.FAILED) {
             Column(
-                Modifier.align(Alignment.Center).padding(horizontal = 32.dp),
+                Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 32.dp)
+                    .zIndex(3f),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 state.errorTitle?.let { StampLabel(it, StampInk.Ember) }
@@ -294,6 +343,39 @@ fun ShutterOverlay(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun LaunchAppIcon(
+    state: LaunchState,
+    iconAppear: () -> Float,
+    iconAlpha: () -> Float,
+    squash: () -> Float,
+    modifier: Modifier = Modifier,
+) {
+    val app = state.app ?: return
+    Box(
+        modifier
+            .testTag("launch_app_icon")
+            .graphicsLayer {
+                val base = 0.82f + 0.18f * iconAppear()
+                // ~45% vertical compression at full squash — readable stamp, not a line.
+                val pressedY = 1f - 0.45f * squash()
+                scaleX = base
+                scaleY = base * pressedY
+                alpha = iconAppear() * iconAlpha()
+            }
+            .size(88.dp)
+            .clip(CircleShape)
+            .background(Iron.Anvil900)
+            .border(2.dp, Iron.Brass400, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier.fillMaxSize().padding(14.dp),
+            contentAlignment = Alignment.Center,
+        ) { app.icon() }
     }
 }
 
@@ -308,6 +390,8 @@ private fun CenterStatus(state: LaunchState, modifier: Modifier = Modifier) {
             Text(
                 if (state.totalTargets > 0) {
                     "FREEZING · ${state.frozenCount} / ${state.totalTargets}"
+                } else if (state.phase == LaunchPhase.FREEZE) {
+                    "OPTIMIZED"
                 } else {
                     "PREPARING…"
                 },

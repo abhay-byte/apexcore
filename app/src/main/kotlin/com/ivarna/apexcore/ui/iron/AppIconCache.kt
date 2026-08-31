@@ -1,6 +1,7 @@
 package com.ivarna.apexcore.ui.iron
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,7 +10,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import android.util.LruCache
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Central cache for app icons loaded from PackageManager.
@@ -18,19 +22,48 @@ import kotlinx.coroutines.withContext
  */
 object AppIconCache {
     private val cache = LruCache<String, Drawable>(128)
+    private val inFlight = ConcurrentHashMap<String, Mutex>()
 
-    suspend fun get(context: Context, pkg: String): Drawable? = withContext(Dispatchers.IO) {
-        synchronized(cache) { cache[pkg] }?.let { return@withContext it }
-        try {
-            val d = context.packageManager.getApplicationIcon(pkg)
-            synchronized(cache) { cache.put(pkg, d) }
-            d
-        } catch (_: Throwable) { null }
-    }
+    suspend fun get(context: Context, pkg: String): Drawable? =
+        load(context.packageManager, pkg)
 
     fun getIfCached(pkg: String): Drawable? = synchronized(cache) { cache[pkg] }
 
     fun put(pkg: String, d: Drawable) = synchronized(cache) { cache.put(pkg, d) }
+
+    /**
+     * Warm the cache off the main thread when a Games / All Apps detail is selected.
+     * Safe to call repeatedly; no-ops when already cached.
+     */
+    suspend fun prefetch(pm: PackageManager, packageName: String) {
+        if (getIfCached(packageName) != null) return
+        load(pm, packageName)
+    }
+
+    suspend fun prefetch(context: Context, packageName: String) {
+        prefetch(context.packageManager, packageName)
+    }
+
+    private suspend fun load(pm: PackageManager, pkg: String): Drawable? {
+        synchronized(cache) { cache[pkg] }?.let { return it }
+        val gate = inFlight.getOrPut(pkg) { Mutex() }
+        return try {
+            gate.withLock {
+                synchronized(cache) { cache[pkg] }?.let { return@withLock it }
+                withContext(Dispatchers.IO) {
+                    try {
+                        val d = pm.getApplicationIcon(pkg)
+                        synchronized(cache) { cache.put(pkg, d) }
+                        d
+                    } catch (_: Throwable) {
+                        null
+                    }
+                }
+            }
+        } finally {
+            inFlight.remove(pkg, gate)
+        }
+    }
 }
 
 /**

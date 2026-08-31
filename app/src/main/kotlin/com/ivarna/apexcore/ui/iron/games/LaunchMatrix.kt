@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,8 +29,10 @@ import com.ivarna.apexcore.ui.iron.*
 import com.ivarna.apexcore.ui.iron.shell.IronSeamColumn
 import com.ivarna.apexcore.ui.iron.window.IronFormFactor
 import com.ivarna.apexcore.ui.iron.window.LocalIronWindow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
 enum class Demand(val cells: Int) { LOW(1), MEDIUM(2), HIGH(3) }
@@ -41,6 +44,18 @@ data class AppCardData(
     val tint: Color,
     val icon: @Composable () -> Unit,
 )
+
+/** Warm PackageManager icons off-main when a Games / All Apps detail is selected. */
+@Composable
+private fun PrefetchSelectedIcon(pkg: String?) {
+    val context = LocalContext.current
+    LaunchedEffect(pkg) {
+        val target = pkg ?: return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            AppIconCache.prefetch(context.packageManager, target)
+        }
+    }
+}
 
 @Composable
 fun LaunchMatrixScreen(
@@ -213,6 +228,8 @@ private fun RackMasterDetail(
             selected = games.firstOrNull()
         }
     }
+
+    PrefetchSelectedIcon(selected?.pkg)
 
     Box(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxSize()) {
@@ -491,6 +508,9 @@ private fun Rack(
             savedPage = it
         }
     }
+
+    val settledPkg = apps.getOrNull(pagerState.settledPage)?.pkg
+    PrefetchSelectedIcon(settledPkg)
 
     Box(
         modifier
