@@ -24,6 +24,7 @@ import com.ivarna.apexcore.ui.iron.window.IronFold
 import com.ivarna.apexcore.ui.iron.window.IronFormFactor
 import com.ivarna.apexcore.ui.iron.window.LocalIronFold
 import com.ivarna.apexcore.ui.iron.window.LocalIronWindow
+import com.ivarna.apexcore.ui.theme.ApexBrandIcon
 
 enum class GearTab(val label: String) { HOME("HOME"), GAMES("GAMES"), HUD("HUD"), TOOLS("TOOLS") }
 
@@ -210,15 +211,12 @@ fun BridgePlate(
     ) {
         Screw()
         Spacer(Modifier.width(10.dp))
-        Column {
-            if (isPaper) {
-                Text("APEXCORE", style = IronType.Label.copy(fontSize = 14.sp), color = titleColor)
-            } else {
-                EngravedText("APEXCORE", IronType.Label.copy(fontSize = 14.sp))
-            }
-            if (!compact) {
-                Text("MK·II", style = IronType.MonoSm, color = dimColor)
-            }
+        ApexBrandIcon(size = if (compact) 24.dp else 28.dp)
+        Spacer(Modifier.width(8.dp))
+        if (isPaper) {
+            Text("APEXCORE", style = IronType.Label.copy(fontSize = 14.sp), color = titleColor)
+        } else {
+            EngravedText("APEXCORE", IronType.Label.copy(fontSize = 14.sp))
         }
         if (verbose && serial.isNotEmpty()) {
             Spacer(Modifier.width(14.dp))

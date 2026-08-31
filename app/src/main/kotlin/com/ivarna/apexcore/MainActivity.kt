@@ -37,6 +37,7 @@ import com.ivarna.apexcore.ui.iron.window.IronFold
 import com.ivarna.apexcore.ui.iron.window.IronWindowBox
 import com.ivarna.apexcore.ui.onboarding.OnboardingPreferences
 import com.ivarna.apexcore.ui.shell.MainScreen
+import com.ivarna.apexcore.ui.theme.ThemeBrand
 import com.ivarna.apexcore.ui.theme.ThemePreferences
 import kotlinx.coroutines.launch
 
@@ -50,10 +51,16 @@ class MainActivity : ComponentActivity() {
     private val gameManager by lazy { GameManager(this) }
     private val foldState = mutableStateOf<IronFold>(IronFold.None)
 
+    override fun attachBaseContext(newBase: android.content.Context) {
+        // Align night resources (splash FG/BG) with locked Graphite/Vellum before inflate.
+        super.attachBaseContext(ThemeBrand.wrapContextForTheme(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        ThemeBrand.syncLauncherIcon(this)
         FreezeFramework.init(this)
         windowInfoFlow()
         try {
@@ -201,6 +208,7 @@ class MainActivity : ComponentActivity() {
                                     onThemeModeChange = { mode ->
                                         themeModeOrdinal = mode.ordinal
                                         ThemePreferences.set(this@MainActivity, mode)
+                                        ThemeBrand.syncLauncherIcon(this@MainActivity, mode)
                                     },
                                     lightTankBg = paperInserts,
                                     onLightTankBgChange = { enabled ->

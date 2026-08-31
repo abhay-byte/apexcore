@@ -1,5 +1,18 @@
 # Store listing assets
 
+## App icon (official)
+
+Graphite (dark plate) and Vellum (light plate) masters live beside the Play sizes:
+
+| File | Role |
+|------|------|
+| `icon_graphite.png` | 1024 Graphite master |
+| `icon_vellum.png` | 1024 Vellum master |
+| `icon.png` / `app_icon_512.png` / `icon_1024.png` | Play default = **Graphite** |
+| `icon_48`…`icon_256.png` | Density ladder from Graphite |
+
+In-app / launcher: Graphite vs Vellum switches with the selected Iron theme (`ThemeBrand`).
+
 ## Generated Play phone set (current)
 
 Script: `generate_playstore_images.py`

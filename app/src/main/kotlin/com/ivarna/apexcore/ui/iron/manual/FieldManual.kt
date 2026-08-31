@@ -210,10 +210,12 @@ internal fun CoverPage(pagerState: androidx.compose.foundation.pager.PagerState,
         verticalArrangement = Arrangement.Center
     ) {
         FigFrame(
-            "APEXCORE · MK·II", Modifier.size(figureSize)
+            "APEXCORE", Modifier.size(figureSize)
             .manualParallax(pagerState, 0, 0.4f, LocalReducedMotion.current)
         ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { FigArtwork(0) }
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                com.ivarna.apexcore.ui.theme.ApexBrandIcon(size = figureSize * 0.55f)
+            }
         }
         Spacer(Modifier.height(24.dp))
         RisoText("APEXCORE", IronType.Display.copy(fontSize = 30.sp), color = ironSkin().text)

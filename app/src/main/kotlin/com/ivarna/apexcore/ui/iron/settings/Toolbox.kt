@@ -246,13 +246,14 @@ private fun AboutSection(
     if (showHeader) SectionHeader("ABOUT")
     IronSurface {
         Row(verticalAlignment = Alignment.CenterVertically) {
+            com.ivarna.apexcore.ui.theme.ApexBrandIcon(size = 36.dp)
+            Spacer(Modifier.width(10.dp))
             Text(
                 "APEXCORE",
                 style = IronType.Title.copy(fontSize = 18.sp),
                 color = skin.text,
                 modifier = Modifier.weight(1f)
             )
-            Text("MK·II", style = IronType.MonoSm, color = Iron.Brass400)
         }
         Spacer(Modifier.height(8.dp))
         KeyValue("VERSION", versionName)

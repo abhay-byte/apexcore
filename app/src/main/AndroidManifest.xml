@@ -30,12 +30,36 @@
             android:name=".MainActivity"
             android:theme="@style/Theme.ApexCore.Splash"
             android:exported="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden">
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden" />
+
+        <!-- Theme-aware launcher icons: Graphite (dark) vs Vellum (light). Exactly one enabled. -->
+        <activity-alias
+            android:name=".LauncherGraphite"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:label="ApexCore"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherVellum"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_vellum"
+            android:roundIcon="@mipmap/ic_launcher_vellum_round"
+            android:label="ApexCore"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
