@@ -38,26 +38,36 @@ fun SearchSlot(
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
+    val skin = ironSkin()
+    val slotBg = if (skin.isPaper) Iron.Bone100 else Iron.Anvil950
+    val slotBorder = when {
+        focused -> Iron.Brass400
+        skin.isPaper -> skin.hairline
+        else -> Iron.Anvil700
+    }
+    val textColor = skin.text
+    val hintColor = skin.textDim
+    val loupeIdle = if (skin.isPaper) Iron.Ink600 else Iron.Bone500
     Row(
         modifier
             .height(48.dp)
             .clip(IronShape.Slot)
-            .background(Iron.Anvil950)
-            .border(1.dp, if (focused) Iron.Brass400 else Iron.Anvil700, IronShape.Slot)
+            .background(slotBg)
+            .border(1.dp, slotBorder, IronShape.Slot)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        LoupeGlyph(if (focused) Iron.Brass400 else Iron.Bone500)
+        LoupeGlyph(if (focused) Iron.Brass400 else loupeIdle)
         Spacer(Modifier.width(10.dp))
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.weight(1f),
-            textStyle = IronType.Mono.copy(color = Iron.Bone100),
+            textStyle = IronType.Mono.copy(color = textColor),
             singleLine = true,
             interactionSource = interaction,
             decorationBox = { inner ->
-                if (value.isEmpty() && !focused) Text(placeholder, style = IronType.Mono, color = Iron.Bone500)
+                if (value.isEmpty() && !focused) Text(placeholder, style = IronType.Mono, color = hintColor)
                 else inner()
             }
         )
@@ -75,6 +85,7 @@ fun IndexRail(
     val clack = rememberClack()
     var active by remember { mutableIntStateOf(-1) }
     val measurer = rememberTextMeasurer()
+    val idleColor = ironSkin().textDim
 
     fun pick(y: Float, height: Float) {
         val idx = (y / height * letters.length).toInt().coerceIn(0, letters.length - 1)
@@ -115,7 +126,7 @@ fun IndexRail(
                 val y = (i + 0.5f) / letters.length * size.height - l.size.height / 2f
                 drawText(
                     l,
-                    color = if (i == active) Iron.Brass400 else Iron.Bone500,
+                    color = if (i == active) Iron.Brass400 else idleColor,
                     topLeft = Offset((size.width - l.size.width) / 2f, y)
                 )
             }

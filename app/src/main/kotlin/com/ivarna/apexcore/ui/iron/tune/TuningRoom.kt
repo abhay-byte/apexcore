@@ -7,6 +7,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -23,6 +25,9 @@ import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ivarna.apexcore.ui.iron.*
+import com.ivarna.apexcore.ui.iron.shell.IronSeamColumn
+import com.ivarna.apexcore.ui.iron.window.IronFormFactor
+import com.ivarna.apexcore.ui.iron.window.LocalIronWindow
 
 /* ═══ §7.8 TUNING ROOM ═══════════════════════════════════════════════ */
 
@@ -179,57 +184,68 @@ fun TuningRoom(
             val sortedCategories = remember(categories) {
                 categories.sortedByDescending { it.availableCount }
             }
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(bottom = 12.dp),
-            ) {
-                items(
-                    count = sortedCategories.size,
-                    key = { i -> sortedCategories[i].name },
-                    contentType = { "category" }
-                ) { idx ->
-                    val cat = sortedCategories[idx]
-                    DrawerHeader(cat.name, cat.availableCount)
-                    Spacer(Modifier.height(8.dp))
-                    // Direct adaptive plate – no extra lambda allocation per item; disable shadow for scroll perf
-                    if (skin.isPaper) {
-                        PaperPlate(
-                            modifier = Modifier.fillMaxWidth(),
-                            padding = PaddingValues(16.dp),
-                            withShadow = false
-                        ) {
-                            cat.options.forEachIndexed { i, opt ->
-                                // Key per row not needed as not lazy, but keep stable content
-                                TuneRow(opt)
-                                if (i < cat.options.lastIndex) {
-                                    Spacer(Modifier.height(6.dp))
-                                    HorizontalDivider(color = skin.hairline, thickness = 1.dp)
-                                    Spacer(Modifier.height(6.dp))
-                                }
-                            }
-                        }
-                    } else {
-                        EngravedPlate(Modifier.fillMaxWidth()) {
-                            cat.options.forEachIndexed { i, opt ->
-                                TuneRow(opt)
-                                if (i < cat.options.lastIndex) {
-                                    Spacer(Modifier.height(6.dp))
-                                    HorizontalDivider(color = skin.hairline, thickness = 1.dp)
-                                    Spacer(Modifier.height(6.dp))
-                                }
-                            }
-                        }
+            val form = LocalIronWindow.current.form
+            if (form == IronFormFactor.PHONE) {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(bottom = 12.dp),
+                ) {
+                    items(
+                        count = sortedCategories.size,
+                        key = { i -> sortedCategories[i].name },
+                        contentType = { "category" }
+                    ) { idx ->
+                        val cat = sortedCategories[idx]
+                        DrawerHeader(cat.name, cat.availableCount)
+                        Spacer(Modifier.height(8.dp))
+                        CategoryPlate(cat, skin)
+                        Spacer(Modifier.height(20.dp))
                     }
-                    Spacer(Modifier.height(20.dp))
+                    item(key = "footer", contentType = "footer") {
+                        TuneFooter(serial)
+                    }
                 }
-                item(key = "footer", contentType = "footer") {
-                    PaperPlate(withShadow = false) {
-                        Text(
-                            "Applies when you launch a game from ApexCore. Restored when the session ends. Does not disable thermal protections.",
-                            style = IronType.Caption, color = Iron.Ink600
-                        )
+            } else {
+                var catIdx by remember { mutableIntStateOf(0) }
+                val safeCat = catIdx.coerceIn(0, (sortedCategories.size - 1).coerceAtLeast(0))
+                Row(Modifier.weight(1f).fillMaxWidth()) {
+                    Column(
+                        Modifier
+                            .width(300.dp)
+                            .fillMaxHeight()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        sortedCategories.forEachIndexed { i, c ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp)
+                                    .clickableNoIndication { clack.tick(); catIdx = i },
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(
+                                    Modifier
+                                        .width(4.dp)
+                                        .height(if (i == safeCat) 24.dp else 0.dp)
+                                        .background(Iron.Brass400)
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                EngravedText(c.name, IronType.Label, color = skin.text)
+                                Spacer(Modifier.width(8.dp))
+                                Text("${c.availableCount}", style = IronType.MonoSm, color = skin.textDim)
+                            }
+                        }
                     }
-                    SerialFooter(7, "TUNE", serial)
+                    Spacer(Modifier.width(16.dp))
+                    IronSeamColumn(brass = false)
+                    LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 12.dp)) {
+                        if (sortedCategories.isNotEmpty()) {
+                            item {
+                                CategoryPlate(sortedCategories[safeCat], skin)
+                            }
+                        }
+                        item { TuneFooter(serial) }
+                    }
                 }
             }
         }
@@ -243,6 +259,49 @@ fun TuningRoom(
             }
         }
     }
+}
+
+@Composable
+private fun CategoryPlate(cat: TuneCategoryUi, skin: IronSkin) {
+    if (skin.isPaper) {
+        PaperPlate(
+            modifier = Modifier.fillMaxWidth(),
+            padding = PaddingValues(16.dp),
+            withShadow = false,
+        ) {
+            cat.options.forEachIndexed { i, opt ->
+                TuneRow(opt)
+                if (i < cat.options.lastIndex) {
+                    Spacer(Modifier.height(6.dp))
+                    HorizontalDivider(color = skin.hairline, thickness = 1.dp)
+                    Spacer(Modifier.height(6.dp))
+                }
+            }
+        }
+    } else {
+        EngravedPlate(Modifier.fillMaxWidth()) {
+            cat.options.forEachIndexed { i, opt ->
+                TuneRow(opt)
+                if (i < cat.options.lastIndex) {
+                    Spacer(Modifier.height(6.dp))
+                    HorizontalDivider(color = skin.hairline, thickness = 1.dp)
+                    Spacer(Modifier.height(6.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TuneFooter(serial: String) {
+    Spacer(Modifier.height(16.dp))
+    PaperPlate(withShadow = false) {
+        Text(
+            "Applies when you launch a game from ApexCore. Restored when the session ends. Does not disable thermal protections.",
+            style = IronType.Caption, color = Iron.Ink600
+        )
+    }
+    SerialFooter(7, "TUNE", serial)
 }
 
 @Composable

@@ -13,7 +13,10 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 enum class ChamferVariant { Primary, Outline }
 
@@ -52,16 +55,19 @@ fun ChamferButton(
         }
     }
 
+    // Primary stays ink-on-signal in both finishes (high contrast on orange).
+    // Outline tracks the active skin so Vellum stays readable.
     val outlineColor = if (skin.isPaper) Iron.Ink600 else Iron.Bone300
     val labelColor = if (variant == ChamferVariant.Primary) Iron.Ink900 else outlineColor
+    val labelStyle = IronType.Label.copy(
+        fontSize = 12.sp,
+        lineHeight = 14.sp,
+        letterSpacing = 0.7.sp,
+    )
 
     Box(
         modifier
             .height(if (tall) 56.dp else 44.dp)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
             .clip(shape)
             .background(
                 if (variant == ChamferVariant.Primary)
@@ -106,12 +112,22 @@ fun ChamferButton(
             .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
+        // Scale the label only — scaling the clipped chamfer layer blew glyphs up on wide tablet panes.
         Text(
-            text,
-            style = IronType.Label,
+            text = text,
+            style = labelStyle,
             color = labelColor,
             maxLines = 1,
-            softWrap = false
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                },
         )
     }
 }

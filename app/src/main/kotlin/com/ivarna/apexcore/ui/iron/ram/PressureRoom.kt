@@ -16,6 +16,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,6 +42,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.ivarna.apexcore.ui.iron.*
+import com.ivarna.apexcore.ui.iron.shell.IronSeamColumn
+import com.ivarna.apexcore.ui.iron.window.IronFormFactor
+import com.ivarna.apexcore.ui.iron.window.LocalIronWindow
 import kotlinx.coroutines.flow.drop
 
 enum class PressurePhase { IDLE, PREFREEZE, FILLING, HOLDING, RELEASING, DONE }
@@ -149,62 +154,60 @@ fun PressureRoom(
 
         Spacer(Modifier.height(8.dp))
 
-        TubeManometer(
-            ramFraction = state.ramUsedMb.toFloat() / state.ramTotalMb.coerceAtLeast(1),
-            swapFraction = state.swapUsedMb.toFloat() / state.swapTotalMb.coerceAtLeast(1),
-            ramText = "%d / %d MB".format(state.ramUsedMb, state.ramTotalMb),
-            swapText = "%d / %d MB".format(state.swapUsedMb, state.swapTotalMb),
-            energized = true,
-        )
+        val ramF = state.ramUsedMb.toFloat() / state.ramTotalMb.coerceAtLeast(1)
+        val swapF = state.swapUsedMb.toFloat() / state.swapTotalMb.coerceAtLeast(1)
+        val ramText = "%d / %d MB".format(state.ramUsedMb, state.ramTotalMb)
+        val swapText = "%d / %d MB".format(state.swapUsedMb, state.swapTotalMb)
 
-        Spacer(Modifier.height(6.dp))
-
-        EngravedText("STATE RAILWAY", IronType.Label, color = skin.textDim)
-        Spacer(Modifier.height(8.dp))
-        StateRailway(state.phase)
-
-        AnimatedVisibility(
-            state.phase == PressurePhase.DONE,
-            enter = fadeIn(tween(220)),
-            exit = fadeOut(tween(160))
-        ) {
-            state.resultGb?.let {
-                Spacer(Modifier.height(10.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("RESULT", style = IronType.MonoSm, color = skin.textDim)
-                    Spacer(Modifier.width(10.dp))
-                    OdometerCounter("+%.1f".format(it), style = IronType.Mono.copy(fontSize = 26.sp))
-                    Text(" GB RECLAIMED", style = IronType.Mono, color = ironSkin().phosphor())
+        if (LocalIronWindow.current.form == IronFormFactor.PHONE) {
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                TubeManometer(ramF, swapF, ramText, swapText, energized = true)
+                Spacer(Modifier.height(6.dp))
+                EngravedText("STATE RAILWAY", IronType.Label, color = skin.textDim)
+                Spacer(Modifier.height(8.dp))
+                StateRailway(state.phase)
+                ResultOdometer(state)
+                Spacer(Modifier.height(16.dp))
+                PreFreezeRow(preFreeze, onPreFreeze)
+                Spacer(Modifier.height(12.dp))
+                PressureActionButton(state, onStart, onHold, onRelease, onCancel)
+                SerialFooter(8, "PRESSURE", serial)
+            }
+        } else {
+            Row(Modifier.weight(1f).fillMaxWidth()) {
+                Column(
+                    Modifier.weight(0.5f).fillMaxHeight(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    TubeManometer(ramF, swapF, ramText, swapText, energized = true)
+                    ResultOdometer(state)
+                }
+                Spacer(Modifier.width(16.dp))
+                IronSeamColumn(brass = false)
+                Column(
+                    Modifier
+                        .weight(0.5f)
+                        .fillMaxHeight()
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Spacer(Modifier.height(12.dp))
+                    EngravedText("STATE RAILWAY", IronType.Label, color = skin.textDim)
+                    Spacer(Modifier.height(8.dp))
+                    StateRailway(state.phase)
+                    Spacer(Modifier.height(20.dp))
+                    PreFreezeRow(preFreeze, onPreFreeze)
+                    Spacer(Modifier.height(16.dp))
+                    PressureActionButton(state, onStart, onHold, onRelease, onCancel)
+                    SerialFooter(8, "PRESSURE", serial)
                 }
             }
         }
-
-        Spacer(Modifier.height(16.dp))
-
-        Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("PRE-FREEZE BEFORE FILL", style = IronType.Label, color = skin.text)
-                Text("Purge user apps before pressure test", style = IronType.Caption, color = skin.textDim)
-            }
-            MachinedToggle(preFreeze, onPreFreeze)
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        val (label, primary, action) = when (state.phase) {
-            PressurePhase.IDLE, PressurePhase.DONE -> Triple("START PRESSURE TEST", true, onStart)
-            PressurePhase.PREFREEZE, PressurePhase.FILLING -> Triple("HOLD", true, onHold)
-            PressurePhase.HOLDING -> Triple("RELEASE", false, onRelease)
-            PressurePhase.RELEASING -> Triple("CANCEL", false, onCancel)
-        }
-        ChamferButton(
-            label, action,
-            variant = if (primary) ChamferVariant.Primary else ChamferVariant.Outline,
-            busy = state.phase == PressurePhase.FILLING,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        SerialFooter(8, "PRESSURE", serial)
     }
 
     if (scrub > 0.01f) {
@@ -215,6 +218,60 @@ fun PressureRoom(
             }
         }
     }
+}
+
+@Composable
+private fun ResultOdometer(state: PressureUiState) {
+    val skin = ironSkin()
+    AnimatedVisibility(
+        state.phase == PressurePhase.DONE,
+        enter = fadeIn(tween(220)),
+        exit = fadeOut(tween(160))
+    ) {
+        state.resultGb?.let {
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("RESULT", style = IronType.MonoSm, color = skin.textDim)
+                Spacer(Modifier.width(10.dp))
+                OdometerCounter("+%.1f".format(it), style = IronType.Mono.copy(fontSize = 26.sp))
+                Text(" GB RECLAIMED", style = IronType.Mono, color = ironSkin().phosphor())
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreFreezeRow(preFreeze: Boolean, onPreFreeze: (Boolean) -> Unit) {
+    val skin = ironSkin()
+    Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("PRE-FREEZE BEFORE FILL", style = IronType.Label, color = skin.text)
+            Text("Purge user apps before pressure test", style = IronType.Caption, color = skin.textDim)
+        }
+        MachinedToggle(preFreeze, onPreFreeze)
+    }
+}
+
+@Composable
+private fun PressureActionButton(
+    state: PressureUiState,
+    onStart: () -> Unit,
+    onHold: () -> Unit,
+    onRelease: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val (label, primary, action) = when (state.phase) {
+        PressurePhase.IDLE, PressurePhase.DONE -> Triple("START PRESSURE TEST", true, onStart)
+        PressurePhase.PREFREEZE, PressurePhase.FILLING -> Triple("HOLD", true, onHold)
+        PressurePhase.HOLDING -> Triple("RELEASE", false, onRelease)
+        PressurePhase.RELEASING -> Triple("CANCEL", false, onCancel)
+    }
+    ChamferButton(
+        label, action,
+        variant = if (primary) ChamferVariant.Primary else ChamferVariant.Outline,
+        busy = state.phase == PressurePhase.FILLING,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable

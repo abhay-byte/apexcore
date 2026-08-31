@@ -33,8 +33,8 @@ android {
         applicationId = applicationIdOverride ?: "com.ivarna.apexcore"
         minSdk = 24
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 5
+        versionName = "1.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -91,6 +91,7 @@ dependencies {
     implementation("dev.rikka.shizuku:provider:13.1.5")
 
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.window:window:1.3.0")
     implementation("com.google.accompanist:accompanist-drawablepainter:0.36.0")
 
     testImplementation("junit:junit:4.13.2")

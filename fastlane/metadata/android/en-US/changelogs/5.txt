@@ -1,0 +1,7 @@
+FPS Accuracy & Performance Rework (v1.4):
+• Accurate FPS via SurfaceFlinger present timestamps + Choreographer fallback for Standard mode (90Hz verified on realme X2 Pro).
+• No fabricated FPS — clamped 1..240, separate current vs history, median-of-3 smoothing only for display flicker.
+• Lower overhead: cached Surface, 850ms sampling vs 350ms HUD, Surface list sparingly with monotonic elapsedRealtime.
+• Privilege-aware fail-closed: switching Root/Shizuku/Standard instantly clears stale samples.
+• Candidate-layer probing and 90Hz ceiling fix for high-refresh devices.
+• Version 1.4 (Build 5) — Target SDK 36, Min SDK 24.

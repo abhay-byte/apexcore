@@ -26,7 +26,8 @@ fun MachinedToggle(
 ) {
     val clack = rememberClack()
     val reduced = LocalReducedMotion.current
-    val phosphor = ironSkin().phosphor()
+    val skin = ironSkin()
+    val phosphor = skin.phosphor()
     val travel = 24.dp
     val x = remember { Animatable(if (checked) 1f else 0f) }
     val wob = remember { Animatable(0f) }
@@ -43,18 +44,26 @@ fun MachinedToggle(
         })
     }
 
+    val trackOff = if (skin.isPaper) Iron.Bone300 else Iron.Anvil600
+    val trackDisabled = if (skin.isPaper) Iron.Bone100 else Iron.Anvil800
+    val trackBorder = when {
+        checked -> phosphor.copy(alpha = 0.4f)
+        skin.isPaper -> skin.hairline
+        else -> Iron.Anvil600
+    }
+
     Box(
         modifier
             .size(52.dp, 28.dp)
             .clip(IronShape.Slot)
             .background(
                 when {
-                    !enabled -> Iron.Anvil800
-                    checked  -> phosphor.copy(alpha = 0.30f)
-                    else     -> Iron.Anvil600
+                    !enabled -> trackDisabled
+                    checked -> phosphor.copy(alpha = if (skin.isPaper) 0.22f else 0.30f)
+                    else -> trackOff
                 }
             )
-            .border(1.dp, if (checked) phosphor.copy(alpha = 0.4f) else Iron.Anvil600, IronShape.Slot)
+            .border(1.dp, trackBorder, IronShape.Slot)
             .toggleable(
                 value = checked,
                 role = Role.Switch,
@@ -77,7 +86,7 @@ fun MachinedToggle(
                     rotationZ = wob.value
                 }
                 .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(if (enabled) Iron.Brass400 else Iron.Bone500)
+                .background(if (enabled) Iron.Brass400 else if (skin.isPaper) Iron.Bone500 else Iron.Bone500)
                 .border(1.dp, Iron.Ink900, androidx.compose.foundation.shape.CircleShape)
         )
     }
@@ -92,12 +101,17 @@ fun MachinedSegment(
     modifier: Modifier = Modifier,
 ) {
     val clack = rememberClack()
+    val skin = ironSkin()
+    val groove = if (skin.isPaper) Iron.Bone100 else Iron.Anvil950
+    val grooveBorder = if (skin.isPaper) skin.hairline else Iron.Anvil600
+    val idleLabel = if (skin.isPaper) Iron.Ink600 else Iron.Bone300
+
     BoxWithConstraints(
         modifier
             .height(40.dp)
             .clip(IronShape.Slot)
-            .background(Iron.Anvil950)
-            .border(1.dp, Iron.Anvil600, IronShape.Slot)
+            .background(groove)
+            .border(1.dp, grooveBorder, IronShape.Slot)
     ) {
         val w = maxWidth / options.size
         val blockX by animateDpAsState(w * selected, IronMotion.block(), label = "segBlock")
@@ -126,7 +140,7 @@ fun MachinedSegment(
                     Text(
                         option,
                         style = IronType.Label,
-                        color = if (i == selected) Iron.Ink900 else Iron.Bone300
+                        color = if (i == selected) Iron.Ink900 else idleLabel
                     )
                 }
             }

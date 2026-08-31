@@ -2,6 +2,37 @@
 
 ---
 
+## Version 1.4 (Build 5) — FPS Accuracy & Performance
+
+**Release Date:** August 26, 2026  
+**Target SDK:** 36 (Android 16 Ready)  
+**Min SDK:** 24 (Android 7.0+)
+
+### Highlights
+
+Version 1.4 is an FPS accuracy and performance release: correct SurfaceFlinger presentation cadence, Standard-mode Choreographer fallback verified on 90Hz (realme X2 Pro) and 120Hz (OPD2403EEA), lower sampling overhead, and fail-closed privilege handling with no fabricated FPS.
+
+---
+
+### Key Improvements
+
+#### 1. Correct SurfaceFlinger Cadence
+* Uses middle column `actualPresentTime` (`desired/actual/ready`) per Chromium `surface_stats_collector.py`; filters `0`/`MAX`/negative/non-monotonic/`>9e15`, intervals `1M..500M ns`, recent `32` → `fps=1e9/avg` clamped `1..240`; jank via `periods=((delta+period/2)/period)`.
+
+#### 2. Standard-Mode Choreographer Fallback
+* New `ChoreographerFpsDataSource` (priority 4, `STALE_MS=6000`) with `frameTimesNs` 32-avg; routing `GAME: SF only`, `UI: DMA→SF→GFX→CHR`; Standard `dumpsys --list` permission failure now shows `CHR:vsync 89.6 FPS` on 90Hz and `120 FPS` on 120Hz (removed 60Hz ceiling, `resolveDisplayFps` trusts source).
+
+#### 3. Lower Overhead & Monotonic Timing
+* `CachedSurface` `30s` + `listCache 5s`, `findCandidateLayers()` iterating `#` suffix until `parseLatency` succeeds; `850ms` sampling vs `350ms` HUD with `elapsedRealtime()` compensation; all TTLs monotonic.
+
+#### 4. Fail-Closed Privilege
+* `setTargetPackage()` before first sample, `onPrivilegeModeChanged()` clears `lastGood/lastSource/recentDisplayFps`/DMA+SF+GFX+CHR caches; `syncPreferredBackend` stops daemon on `SHIZUKU/STANDARD`.
+
+#### 5. Version Bump
+* `versionCode 4→5`, `versionName 1.3→1.4` in `app/build.gradle.kts` and fallback in `MainScreen.kt`; toolbox displays 1.4.
+
+---
+
 ## Version 1.3 (Build 4) — Performance & Polish
 
 **Release Date:** August 24, 2026  

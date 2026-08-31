@@ -92,9 +92,9 @@ fun EngravedPlate(
             content()
             if (caption != null) {
                 Spacer(Modifier.height(10.dp))
-                HorizontalDivider(color = Iron.Anvil600, thickness = 1.dp)
+                HorizontalDivider(color = skin.hairline, thickness = 1.dp)
                 Spacer(Modifier.height(6.dp))
-                Text(caption, style = IronType.MonoSm, color = Iron.Bone500)
+                Text(caption, style = IronType.MonoSm, color = skin.textDim)
             }
         }
         if (structural) {

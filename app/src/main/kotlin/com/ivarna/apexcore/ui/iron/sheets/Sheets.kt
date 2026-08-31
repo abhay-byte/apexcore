@@ -45,23 +45,24 @@ fun SystemAccessSheet(
     var localSel by remember { mutableStateOf<BackendChoice?>(null) }
     val sel = localSel ?: selected
 
+    val skin = ironSkin()
     BenchSheet(visible = visible, onDismiss = onDismiss) {
         StampLabel("SYSTEM ACCESS", StampInk.Signal, slam = true)
         Spacer(Modifier.height(6.dp))
         Text(
             "Deep freeze (BOOST) requires Shizuku or Root access.",
-            style = IronType.Caption, color = Iron.Bone500
+            style = IronType.Caption, color = skin.textDim
         )
         Spacer(Modifier.height(16.dp))
         KeyCard(
-            BackendChoice.SHIZUKU, shizuku, sel == BackendChoice.SHIZUKU, onPaper = false,
+            BackendChoice.SHIZUKU, shizuku, sel == BackendChoice.SHIZUKU, onPaper = skin.isPaper,
             badge = "RECOMMENDED",
             onUse = { onSelect(BackendChoice.SHIZUKU); localSel = BackendChoice.SHIZUKU },
             onConfigure = onConfigureShizuku
         )
         Spacer(Modifier.height(12.dp))
         KeyCard(
-            BackendChoice.ROOT, root, sel == BackendChoice.ROOT, onPaper = false, badge = null,
+            BackendChoice.ROOT, root, sel == BackendChoice.ROOT, onPaper = skin.isPaper, badge = null,
             onUse = { onSelect(BackendChoice.ROOT); localSel = BackendChoice.ROOT },
             onConfigure = onGrantRoot
         )
@@ -106,11 +107,12 @@ fun PinAppsSheet(
         map
     }
 
+    val skin = ironSkin()
     BenchSheet(visible = visible, onDismiss = onDismiss) {
         RisoText("PIN APPS", IronType.Title.copy(fontSize = 18.sp))
         Text(
             "PINNED APPS ARE NEVER FROZEN · ${pinned.size} PINNED",
-            style = IronType.MonoSm, color = Iron.Bone500
+            style = IronType.MonoSm, color = skin.textDim
         )
         Spacer(Modifier.height(12.dp))
         SearchSlot(query, { query = it })
@@ -162,9 +164,10 @@ fun AddGameSheet(
         }
     }
 
+    val skin = ironSkin()
     BenchSheet(visible = visible, onDismiss = onDismiss) {
         RisoText("ADD GAMES", IronType.Title.copy(fontSize = 18.sp))
-        Text("BUILD YOUR RACK · ${apps.size} INSTALLED", style = IronType.MonoSm, color = Iron.Bone500)
+        Text("BUILD YOUR RACK · ${apps.size} INSTALLED", style = IronType.MonoSm, color = skin.textDim)
         Spacer(Modifier.height(12.dp))
         SearchSlot(query, { query = it })
         Spacer(Modifier.height(12.dp))
@@ -213,6 +216,7 @@ fun AddGameSheet(
 
 @Composable
 private fun PickerRow(app: PickerApp, on: Boolean, onToggle: () -> Unit) {
+    val skin = ironSkin()
     Row(
         Modifier
             .fillMaxWidth()
@@ -223,15 +227,15 @@ private fun PickerRow(app: PickerApp, on: Boolean, onToggle: () -> Unit) {
             Modifier
                 .size(38.dp)
                 .clip(CircleShape)
-                .border(1.5.dp, Iron.Anvil500, CircleShape),
+                .border(1.5.dp, if (skin.isPaper) skin.hairline else Iron.Anvil500, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Box(Modifier.size(28.dp)) { app.icon() }
         }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(app.name, style = IronType.Body.copy(color = Iron.Bone100))
-            Text(app.pkg, style = IronType.MonoSm, color = Iron.Bone500)
+            Text(app.name, style = IronType.Body.copy(color = skin.text))
+            Text(app.pkg, style = IronType.MonoSm, color = skin.textDim)
         }
         MachinedToggleCompact(on, onToggle = { onToggle() })
     }
@@ -240,6 +244,8 @@ private fun PickerRow(app: PickerApp, on: Boolean, onToggle: () -> Unit) {
 @Composable
 fun MachinedToggleCompact(checked: Boolean, onToggle: () -> Unit) {
     val clack = rememberClack()
+    val skin = ironSkin()
+    val offTrack = if (skin.isPaper) Iron.Bone300 else Iron.Anvil600
     val x = remember { Animatable(if (checked) 1f else 0f) }
     val wob = remember { Animatable(0f) }
     LaunchedEffect(checked) {
@@ -255,8 +261,8 @@ fun MachinedToggleCompact(checked: Boolean, onToggle: () -> Unit) {
         Modifier
             .size(40.dp, 22.dp)
             .clip(IronShape.Slot)
-            .background(if (checked) Iron.Brass400.copy(alpha = 0.35f) else Iron.Anvil600)
-            .border(1.dp, if (checked) Iron.Brass400 else Iron.Anvil600, IronShape.Slot)
+            .background(if (checked) Iron.Brass400.copy(alpha = 0.35f) else offTrack)
+            .border(1.dp, if (checked) Iron.Brass400 else if (skin.isPaper) skin.hairline else Iron.Anvil600, IronShape.Slot)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null

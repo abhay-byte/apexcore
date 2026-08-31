@@ -48,59 +48,53 @@ class SurfaceFlingerFpsDataSource(
     override suspend fun readFps(): FpsSnapshot? {
         val foreground = foregroundAppResolver.resolve() ?: return null
         val pkg = foreground.packageName
-        val surface = findSurfaceForPackage(pkg)
-        if (surface == null) {
+        // Try cached surface first if still valid
+        val cached = cachedSurface?.takeIf { it.packageName == pkg && android.os.SystemClock.elapsedRealtime() - surfaceCacheAtElapsedMs < surfaceCacheTtlMs }?.layerName
+        val candidates = if (cached != null) {
+            listOf(cached) + findCandidateLayers(pkg).filter { it != cached }
+        } else {
+            findCandidateLayers(pkg)
+        }
+        if (candidates.isEmpty()) {
             consecutiveLatencyFailure++
             if (consecutiveLatencyFailure >= maxFailureBeforeInvalidate) clearCache()
             return null
         }
-        val (latencyResult, tier) = shellGateway.executeChain(
-            "dumpsys SurfaceFlinger --latency \"$surface\" 2>/dev/null",
-            shellGateway.currentPolicy().chain(PrivilegePolicy.DEFAULT_CHAIN)
-        )
-        if (!latencyResult.isSuccess) {
-            consecutiveLatencyFailure++
-            if (consecutiveLatencyFailure >= maxFailureBeforeInvalidate) {
-                // Invalidate cached layer when --latency fails (layer disappeared)
-                cachedSurface = null
-            }
-            return null
-        }
-        if (latencyResult.output.isBlank()) {
-            consecutiveEmptyLatency++
-            if (consecutiveEmptyLatency >= maxEmptyBeforeInvalidate) cachedSurface = null
-            return null
-        }
+        var lastTier: PrivilegeTier? = null
+        for (surface in candidates) {
+            val (latencyResult, tier) = shellGateway.executeChain(
+                "dumpsys SurfaceFlinger --latency \"$surface\" 2>/dev/null",
+                shellGateway.currentPolicy().chain(PrivilegePolicy.DEFAULT_CHAIN)
+            )
+            lastTier = tier
+            if (!latencyResult.isSuccess) continue
+            if (latencyResult.output.isBlank()) continue
 
-        val snapshot = parseLatency(
-            output = latencyResult.output,
-            accessTier = tier,
-            packageName = pkg,
-            surfaceName = surface,
-            refreshHintHz = foreground.refreshRateHz
-        )
-        if (snapshot == null) {
-            consecutiveEmptyLatency++
-            if (consecutiveEmptyLatency >= maxEmptyBeforeInvalidate) {
-                // No usable present timestamps for several samples -> layer likely gone
-                cachedSurface = null
+            val snapshot = parseLatency(
+                output = latencyResult.output,
+                accessTier = tier,
+                packageName = pkg,
+                surfaceName = surface,
+                refreshHintHz = foreground.refreshRateHz
+            )
+            if (snapshot != null) {
+                // Cache the successful layer
+                cachedSurface = CachedSurface(pkg, surface, android.os.SystemClock.elapsedRealtime())
+                surfaceCacheAtElapsedMs = android.os.SystemClock.elapsedRealtime()
+                consecutiveEmptyLatency = 0
+                consecutiveLatencyFailure = 0
+                return snapshot
             }
-        } else {
-            consecutiveEmptyLatency = 0
-            consecutiveLatencyFailure = 0
         }
-        return snapshot
+        // All candidates failed to produce valid present timestamps
+        consecutiveEmptyLatency++
+        if (consecutiveEmptyLatency >= maxEmptyBeforeInvalidate) cachedSurface = null
+        // Also consider latency failure if no success and tier was null? Keep cached stale.
+        return null
     }
 
-    private fun findSurfaceForPackage(packageName: String): String? {
+    private fun findCandidateLayers(packageName: String): List<String> {
         val now = android.os.SystemClock.elapsedRealtime()
-        // Reuse cached surface for same package within TTL — avoids SF --list spam every sample
-        cachedSurface?.let { cached ->
-            if (cached.packageName == packageName && now - surfaceCacheAtElapsedMs < surfaceCacheTtlMs) {
-                return cached.layerName
-            }
-        }
-
         val listOutput: String
         if (listCacheOutput != null && now - listCacheAtElapsedMs < listCacheTtlMs) {
             listOutput = listCacheOutput!!
@@ -109,12 +103,12 @@ class SurfaceFlingerFpsDataSource(
                 "dumpsys SurfaceFlinger --list 2>/dev/null",
                 shellGateway.currentPolicy().chain(PrivilegePolicy.DEFAULT_CHAIN)
             )
-            if (!listResult.isSuccess) return null
+            if (!listResult.isSuccess) return emptyList()
             listOutput = listResult.output
             listCacheOutput = listOutput
             listCacheAtElapsedMs = now
         }
-        if (listOutput.isBlank()) return null
+        if (listOutput.isBlank()) return emptyList()
 
         val shortPkg = packageName.substringAfterLast('.')
         val owned = listOutput.lineSequence()
@@ -123,20 +117,32 @@ class SurfaceFlingerFpsDataSource(
             .filter { it.contains(packageName) || (shortPkg.length >= 4 && it.contains(shortPkg)) }
             .filter { !it.contains("ActivityRecord") && !it.contains("InputSink") }
             .toList()
+        if (owned.isEmpty()) return emptyList()
 
         // Prefer game/render surfaces over Activity chrome layers.
         val preferred = owned.firstOrNull { line ->
             listOf("SurfaceView", "NativeActivity", "Vulkan", "BLAST", "GLSurfaceView")
                 .any { marker -> line.contains(marker, ignoreCase = true) }
         }
-        val chosen = preferred
-            ?: owned.firstOrNull { it.contains("#") }
-            ?: owned.firstOrNull()
+        // Order: preferred first, then remaining with "#", then rest
+        val withHash = owned.filter { it.contains("#") }
+        val withoutHash = owned.filter { !it.contains("#") }
+        val ordered = mutableListOf<String>()
+        preferred?.let { ordered.add(it) }
+        for (c in withHash) if (c != preferred && c !in ordered) ordered.add(c)
+        for (c in withoutHash) if (c !in ordered) ordered.add(c)
+        // Fallback to at least preferred or first
+        if (ordered.isEmpty() && owned.isNotEmpty()) ordered.addAll(owned)
+        return ordered
+    }
 
-        if (chosen != null) {
-            cachedSurface = CachedSurface(packageName, chosen, now)
-            surfaceCacheAtElapsedMs = now
-        }
+    private fun findSurfaceForPackage(packageName: String): String? {
+        val candidates = findCandidateLayers(packageName)
+        val chosen = candidates.firstOrNull() ?: return null
+        val now = android.os.SystemClock.elapsedRealtime()
+        // Cache for backward compat (tests may call this)
+        cachedSurface = CachedSurface(packageName, chosen, now)
+        surfaceCacheAtElapsedMs = now
         return chosen
     }
 

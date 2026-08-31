@@ -21,7 +21,10 @@ import com.ivarna.apexcore.games.GameOverlayService
 import com.ivarna.apexcore.ui.iron.*
 import com.ivarna.apexcore.ui.iron.games.AppCardData
 import com.ivarna.apexcore.ui.iron.games.Demand
+import com.ivarna.apexcore.ui.iron.games.FreezeOutcome
+import com.ivarna.apexcore.ui.iron.games.GameLaunchCoordinator
 import com.ivarna.apexcore.ui.iron.games.LaunchMatrixScreen
+import com.ivarna.apexcore.ui.iron.games.ShutterOverlay
 import com.ivarna.apexcore.ui.iron.home.BenchViewModel
 import com.ivarna.apexcore.ui.iron.home.TheBench
 import com.ivarna.apexcore.ui.iron.legal.MdBlock
@@ -66,6 +69,42 @@ fun MainScreen(
     val benchVm: BenchViewModel = viewModel()
     val benchUi by benchVm.ui.collectAsState()
     val toast = rememberStampToast()
+    val reducedMotionState = rememberUpdatedState(LocalReducedMotion.current)
+    val appContext = remember(context) { context.applicationContext }
+
+    val launchCoordinator = remember(scope, appContext) {
+        GameLaunchCoordinator(
+            freeze = { targetPkg, onFrozen ->
+                // ALLOCATE & LAUNCH: freeze is best-effort. Without elevation we still
+                // proceed to PART (same contract as GameLauncher.launch) so the game opens.
+                val ready = try {
+                    FreezeFramework.isReady()
+                } catch (_: Throwable) {
+                    false
+                }
+                if (!ready) {
+                    onFrozen(0, 0)
+                    return@GameLaunchCoordinator FreezeOutcome.Ok(0, 0)
+                }
+                val result = FreezeFramework.freezeAll(
+                    context = appContext,
+                    protectPackages = setOf(targetPkg, appContext.packageName),
+                )
+                if (result.backend == "blocked") {
+                    onFrozen(0, 0)
+                    return@GameLaunchCoordinator FreezeOutcome.Ok(0, 0)
+                }
+                val total = (result.killed + result.failed + result.skipped).coerceAtLeast(0)
+                // One-shot framework → single 160ms tick sweep when the result lands.
+                onFrozen(result.killed, total)
+                FreezeOutcome.Ok(result.killed, total)
+            },
+            launchIntent = { pkg -> GameLauncher.fireIntent(appContext, pkg) },
+            attachRail = { pkg -> GameLauncher.attachRail(appContext, pkg) },
+            reducedMotion = { reducedMotionState.value },
+            scope = scope,
+        )
+    }
 
     var gearTab by rememberSaveable { mutableStateOf(GearTab.HOME) }
     var ironSlot by rememberSaveable { mutableStateOf(IronSlot.NONE) }
@@ -458,11 +497,18 @@ fun MainScreen(
                 active = gearTab == GearTab.HOME && !showReplayManual
             )
         },
+        shutterOverlay = {
+            ShutterOverlay(
+                state = launchCoordinator.state,
+                onCancel = launchCoordinator::cancel,
+            )
+        },
         games = {
             LaunchMatrixScreen(
                 games = gamesList,
                 allApps = allAppsList,
                 allLoading = allAppsLoading,
+                coordinator = launchCoordinator,
                 onAdd = {
                     showAddGameSheet = true
                 },
@@ -500,11 +546,6 @@ fun MainScreen(
                     }
                 },
                 autoScanning = autoScanLoading,
-                onLaunch = { card ->
-                    scope.launch {
-                        GameLauncher.launch(context, card.pkg)
-                    }
-                },
                 onRemove = { card ->
                     gameManager.remove(card.pkg)
                     refreshGames()
@@ -671,7 +712,7 @@ fun MainScreen(
                         action = { probeKeys() }
                     )
                 ),
-                versionName = try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.3" } catch (_: Throwable) { "1.3" },
+                versionName = try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.4" } catch (_: Throwable) { "1.4" },
                 onPrivacy = { ironSlot = IronSlot.LEDGER },
                 onTour = { showReplayManual = true }
             )

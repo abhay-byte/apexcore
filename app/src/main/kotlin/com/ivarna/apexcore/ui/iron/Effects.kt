@@ -184,6 +184,7 @@ fun FlipCard(
     front: @Composable () -> Unit,
     back: @Composable () -> Unit,
 ) {
+    val density = LocalDensity.current.density
     val rot = remember { Animatable(0f) }
     var showBack by remember { mutableStateOf(flipped) }
     LaunchedEffect(flipped) {
@@ -193,7 +194,16 @@ fun FlipCard(
             rot.animateTo(0f, tween(160, easing = FastOutSlowInEasing))
         }
     }
-    Box(modifier.graphicsLayer { rotationX = rot.value }) {
+    // Avoid a persistent 3D layer at rest — it distorted ChamferButton glyphs on wide tablets.
+    Box(
+        modifier.then(
+            if (rot.value == 0f) Modifier
+            else Modifier.graphicsLayer {
+                rotationX = rot.value
+                cameraDistance = 16f * density
+            }
+        )
+    ) {
         if (showBack) back() else front()
     }
 }

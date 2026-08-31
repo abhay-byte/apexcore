@@ -7,6 +7,7 @@ import com.ivarna.apexcore.fps.privilege.PrivilegeMode
 import com.ivarna.apexcore.fps.privilege.PrivilegeModeStore
 import com.ivarna.apexcore.fps.privilege.PrivilegeTier
 import com.ivarna.apexcore.fps.privilege.ShellGateway
+import com.ivarna.apexcore.fps.source.ChoreographerFpsDataSource
 import com.ivarna.apexcore.fps.source.DmaFenceFpsDataSource
 import com.ivarna.apexcore.fps.source.FpsDaemonManager
 import com.ivarna.apexcore.fps.source.FpsDataSource
@@ -48,13 +49,15 @@ class FpsRepositoryImpl(
     private val foregroundAppResolver: ForegroundAppResolver,
     private val fpsDaemonManager: FpsDaemonManager,
     private val privilegeModeStore: PrivilegeModeStore? = null,
-    private val shellGateway: ShellGateway? = null
+    private val shellGateway: ShellGateway? = null,
+    private val choreographerSource: ChoreographerFpsDataSource? = null
 ) : FpsRepository {
 
-    private val sources: List<FpsDataSource> = listOf(
+    private val sources: List<FpsDataSource> = listOfNotNull(
         dmaFenceSource,
         surfaceFlingerSource,
-        gfxinfoSource
+        gfxinfoSource,
+        choreographerSource
     ).sortedBy { it.priority }
 
     private val frametimeBuffers = mutableMapOf<String, FrametimeBuffer>()
@@ -164,6 +167,10 @@ class FpsRepositoryImpl(
                     // Last resort: gfxinfo for UI only
                     rawSnapshot = gfxinfoSource.readFps()?.takeIf { it.currentFps in 1f..240f && it.method != FpsMethod.NONE }
                     if (rawSnapshot != null) routingLog.append("ui GFX fallback hit ${rawSnapshot.currentFps.toInt()}FPS; ") else routingLog.append("ui GFX miss; ")
+                }
+                if (rawSnapshot == null && choreographerSource != null) {
+                    rawSnapshot = choreographerSource.readFps()?.takeIf { it.currentFps in 1f..240f && it.method != FpsMethod.NONE }
+                    if (rawSnapshot != null) routingLog.append("ui CHR hit ${rawSnapshot.currentFps.toInt()}FPS; ") else routingLog.append("ui CHR miss; ")
                 }
             }
         }
@@ -328,14 +335,10 @@ class FpsRepositoryImpl(
     }
 
     private fun resolveDisplayFps(snapshot: FpsSnapshot, refreshHz: Float): Float {
-        val refreshCeiling = refreshHz.coerceIn(1f, 240f)
-        // DMA path already computed via daemon hybrid — trust it (cap only)
-        if (snapshot.method == FpsMethod.DMA_FENCE) {
-            return snapshot.currentFps.coerceIn(1f, refreshCeiling * 1.05f)
-        }
-        // For SF, trust snapshot's own responsive FPS (already delta-based and snapped)
-        // Just clamp to ceiling and avoid fabricated jump when histogram stale
-        return snapshot.currentFps.coerceAtMost(refreshCeiling * 1.05f).coerceIn(1f, 240f)
+        // Trust source's responsive FPS; only validate bounds.
+        // Do not cap to stale 60Hz fallback when real display is 90/120/144.
+        // Refresh is used for jank, not for hard FPS ceiling.
+        return snapshot.currentFps.coerceIn(1f, 240f)
     }
 
     private fun ingestFrametimes(snapshot: FpsSnapshot, buffer: FrametimeBuffer, sourceKey: String) {

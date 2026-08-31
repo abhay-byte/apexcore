@@ -20,10 +20,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import com.ivarna.apexcore.ui.iron.*
+import com.ivarna.apexcore.ui.iron.window.IronFormFactor
+import com.ivarna.apexcore.ui.iron.window.LocalIronWindow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val pageData = listOf(
+internal val pageData = listOf(
     Triple("", "", ""),
     Triple("01 · PURGE ENGINE", "Focus Resources for Gaming",
         "ApexCore deep-freezes background apps and hands the reclaimed RAM to your game. One switch, every spare cycle."),
@@ -34,7 +36,7 @@ private val pageData = listOf(
     Triple("04 · SYSTEM ACCESS", "Elevate Your Control",
         "Deep freeze needs a key. Pick Shizuku or Root — change it any time in Settings."),
 )
-private val marginNotes = listOf("", "~ wind it up!", "~ it hides when idle", "~ pin what you love", "~ pick your key")
+internal val marginNotes = listOf("", "~ wind it up!", "~ it hides when idle", "~ pin what you love", "~ pick your key")
 
 @Composable
 fun FieldManual(
@@ -50,12 +52,6 @@ fun FieldManual(
     onFinish: (BackendChoice?) -> Unit,
     onClose: () -> Unit,
 ) {
-    val clack = rememberClack()
-    val scope = rememberCoroutineScope()
-    val pagerState = rememberPagerState(initialPage = 0) { 5 }
-    val page = pagerState.currentPage
-
-    // Manual surface = ironSkin().canvas: Graphite (anvil) needs light icons, Vellum (cream) needs dark icons.
     val view = LocalView.current
     val lightBars = ironSkin().isPaper
     if (!view.isInEditMode) SideEffect {
@@ -66,6 +62,53 @@ fun FieldManual(
         }
     }
 
+    if (LocalIronWindow.current.form == IronFormFactor.TABLET) {
+        ManualSpread(
+            isReplay = isReplay,
+            shizuku = shizuku,
+            root = root,
+            selectedBackend = selectedBackend,
+            onProbe = onProbe,
+            onSelect = onSelect,
+            onConfigureShizuku = onConfigureShizuku,
+            onGrantRoot = onGrantRoot,
+            onFinish = onFinish,
+            onClose = onClose,
+        )
+    } else {
+        ManualSingle(
+            isReplay = isReplay,
+            shizuku = shizuku,
+            root = root,
+            selectedBackend = selectedBackend,
+            onProbe = onProbe,
+            onSelect = onSelect,
+            onConfigureShizuku = onConfigureShizuku,
+            onGrantRoot = onGrantRoot,
+            onFinish = onFinish,
+            onClose = onClose,
+        )
+    }
+}
+
+@Composable
+private fun ManualSingle(
+    isReplay: Boolean,
+    shizuku: KeyStatus,
+    root: KeyStatus,
+    selectedBackend: BackendChoice?,
+    onProbe: () -> Unit,
+    onSelect: (BackendChoice) -> Unit,
+    onConfigureShizuku: () -> Unit,
+    onGrantRoot: () -> Unit,
+    onFinish: (BackendChoice?) -> Unit,
+    onClose: () -> Unit,
+) {
+    val clack = rememberClack()
+    val scope = rememberCoroutineScope()
+    val pagerState = rememberPagerState(initialPage = 0) { 5 }
+    val page = pagerState.currentPage
+
     LaunchedEffect(page) {
         if (page != 4) return@LaunchedEffect
         while (true) {
@@ -75,56 +118,56 @@ fun FieldManual(
     }
 
     IronScreen("MANUAL") {
-    val skin = ironSkin()
-    Box(Modifier.fillMaxSize().background(skin.canvas).ironGrain(0.05f)) {
-        Row(Modifier.fillMaxSize()) {
-            BindingLane()
-            Column(
-                Modifier.weight(1f).fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+        val skin = ironSkin()
+        Box(Modifier.fillMaxSize().background(skin.canvas).ironGrain(0.05f)) {
+            Row(Modifier.fillMaxSize()) {
+                BindingLane()
+                Column(
+                    Modifier.weight(1f).fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.safeDrawing)
                 ) {
-                    if (isReplay) BackArrow(skin.text, onClose)
-                    else BackArrow(skin.text, {
-                        if (page > 0) scope.launch { pagerState.animateScrollToPage(page - 1) } else onClose()
-                    })
-                    Spacer(Modifier.weight(1f))
-                    RulerPager(5, page)
-                    Spacer(Modifier.weight(1f))
-                    if (!isReplay) Text("SKIP", style = IronType.MonoSm, color = skin.textDim,
-                        modifier = Modifier.clickableNoIndication { clack.row(); onFinish(null) })
-                    else Spacer(Modifier.width(40.dp))
-                }
-
-                HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { p ->
-                    when (p) {
-                        0 -> CoverPage(pagerState)
-                        in 1..3 -> FigurePage(p, pagerState)
-                        else -> KeyPage(pagerState, shizuku, root, selectedBackend,
-                            onSelect, onConfigureShizuku, onGrantRoot)
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (isReplay) BackArrow(skin.text, onClose)
+                        else BackArrow(skin.text, {
+                            if (page > 0) scope.launch { pagerState.animateScrollToPage(page - 1) } else onClose()
+                        })
+                        Spacer(Modifier.weight(1f))
+                        RulerPager(5, page)
+                        Spacer(Modifier.weight(1f))
+                        if (!isReplay) Text("SKIP", style = IronType.MonoSm, color = skin.textDim,
+                            modifier = Modifier.clickableNoIndication { clack.row(); onFinish(null) })
+                        else Spacer(Modifier.width(40.dp))
                     }
-                }
 
-                val cta = when (page) { 0 -> "GET STARTED"; 4 -> "ENTER THE WORKSHOP"; else -> "CONTINUE" }
-                ChamferButton(cta, {
-                    clack.confirm()
-                    if (page < 4) scope.launch { pagerState.animateScrollToPage(page + 1) }
-                    else onFinish(selectedBackend)
-                }, Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp))
+                    HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { p ->
+                        when (p) {
+                            0 -> CoverPage(pagerState)
+                            in 1..3 -> FigurePageContent(p, pagerState, pageIndex = p)
+                            else -> KeyPage(pagerState, shizuku, root, selectedBackend,
+                                onSelect, onConfigureShizuku, onGrantRoot)
+                        }
+                    }
+
+                    val cta = when (page) { 0 -> "GET STARTED"; 4 -> "ENTER THE WORKSHOP"; else -> "CONTINUE" }
+                    ChamferButton(cta, {
+                        clack.confirm()
+                        if (page < 4) scope.launch { pagerState.animateScrollToPage(page + 1) }
+                        else onFinish(selectedBackend)
+                    }, Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp))
+                }
             }
         }
-    }
     }
 }
 
 @Composable
-private fun BindingLane() {
+internal fun BindingLane(modifier: Modifier = Modifier) {
     val dash = inkColor()
     val stitch = ironSkin().text
-    Canvas(Modifier.width(22.dp).fillMaxHeight()) {
+    Canvas(modifier.width(22.dp).fillMaxHeight()) {
         val cx = 12.dp.toPx()
         var y = 0f
         while (y < size.height) {
@@ -140,7 +183,7 @@ private fun BindingLane() {
 }
 
 @Composable
-private fun RulerPager(count: Int, active: Int) {
+internal fun RulerPager(count: Int, active: Int) {
     Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         repeat(count) { i ->
             Box(
@@ -151,7 +194,7 @@ private fun RulerPager(count: Int, active: Int) {
     }
 }
 
-private fun Modifier.manualParallax(
+internal fun Modifier.manualParallax(
     pagerState: androidx.compose.foundation.pager.PagerState,
     page: Int, factor: Float, reduced: Boolean,
 ): Modifier = graphicsLayer {
@@ -161,13 +204,13 @@ private fun Modifier.manualParallax(
 }
 
 @Composable
-private fun CoverPage(pagerState: androidx.compose.foundation.pager.PagerState) {
+internal fun CoverPage(pagerState: androidx.compose.foundation.pager.PagerState, figureSize: androidx.compose.ui.unit.Dp = 200.dp) {
     Column(
         Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         FigFrame(
-            "APEXCORE · MK·II", Modifier.size(200.dp)
+            "APEXCORE · MK·II", Modifier.size(figureSize)
             .manualParallax(pagerState, 0, 0.4f, LocalReducedMotion.current)
         ) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { FigArtwork(0) }
@@ -188,19 +231,26 @@ private fun CoverPage(pagerState: androidx.compose.foundation.pager.PagerState) 
 }
 
 @Composable
-private fun FigurePage(
-    page: Int,
+internal fun FigurePageContent(
+    figure: Int,
     pagerState: androidx.compose.foundation.pager.PagerState,
+    pageIndex: Int = figure,
+    figureFactor: Float = 0.4f,
+    textFactor: Float = 0.7f,
 ) {
     val reduced = LocalReducedMotion.current
-    val (kicker, title, body) = pageData[page]
+    val (kicker, title, body) = pageData[figure]
     Box(Modifier.fillMaxSize().padding(20.dp)) {
         Column(
-            Modifier.fillMaxWidth().padding(top = 8.dp),
+            Modifier.fillMaxWidth().padding(top = 8.dp)
+                .manualParallax(pagerState, pageIndex, textFactor * 0.4f, reduced),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            FigFrame("FIG. 0$page", Modifier.size(196.dp).manualParallax(pagerState, page, 0.4f, reduced)) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { FigArtwork(page) }
+            FigFrame(
+                "FIG. 0$figure",
+                Modifier.size(196.dp).manualParallax(pagerState, pageIndex, figureFactor, reduced)
+            ) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { FigArtwork(figure) }
             }
             Spacer(Modifier.height(20.dp))
             Text(kicker, style = IronType.MonoSm, color = accentColor(), letterSpacing = 1.5.sp)
@@ -211,12 +261,12 @@ private fun FigurePage(
         }
         Column(
             Modifier.align(Alignment.BottomEnd).padding(end = 4.dp, bottom = 12.dp)
-                .manualParallax(pagerState, page, 0.7f, reduced),
+                .manualParallax(pagerState, pageIndex, textFactor, reduced),
             horizontalAlignment = Alignment.End
         ) {
             DoodleArrow(accentColor(), Modifier.graphicsLayer { rotationZ = 200f })
             Text(
-                marginNotes[page], style = IronType.Hand, color = ironSkin().textDim,
+                marginNotes[figure], style = IronType.Hand, color = ironSkin().textDim,
                 modifier = Modifier.graphicsLayer { rotationZ = -4f }
             )
         }
@@ -224,7 +274,7 @@ private fun FigurePage(
 }
 
 @Composable
-private fun KeyPage(
+internal fun KeyPage(
     pagerState: androidx.compose.foundation.pager.PagerState,
     shizuku: KeyStatus, root: KeyStatus,
     selected: BackendChoice?,

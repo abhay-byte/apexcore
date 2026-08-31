@@ -41,9 +41,11 @@ import androidx.compose.ui.platform.LocalContext
 import com.ivarna.apexcore.fps.model.FpsMethod
 import com.ivarna.apexcore.fps.model.abbrev
 import com.ivarna.apexcore.ui.iron.*
+import com.ivarna.apexcore.ui.iron.shell.IronSeamColumn
+import com.ivarna.apexcore.ui.iron.window.IronFormFactor
+import com.ivarna.apexcore.ui.iron.window.LocalIronWindow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -98,97 +100,159 @@ fun OpticsBench(
     }
 
     IronScreen("HUD") {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {
-        Spacer(Modifier.height(12.dp))
-        Text("OPTICS", style = IronType.Display.copy(fontSize = 26.sp), color = skin.text)
-        Text("Configure the in-game telemetry rail", style = IronType.Caption, color = skin.textDim)
-        Spacer(Modifier.height(12.dp))
-
-        IronSurface {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("PERMISSION", style = IronType.Label, color = skin.text)
-                    Text(
-                        if (state.permissionGranted)
-                            "ApexCore may draw over other apps."
-                        else "Draw-over-apps permission required for the HUD.",
-                        style = IronType.Caption, color = skin.textDim
-                    )
-                }
-                if (state.permissionGranted) StampLabel("GRANTED", StampInk.Phosphor, slam = false)
-                else StampLabel("ACTION REQUIRED", StampInk.Ember, slam = false)
-            }
-            if (!state.permissionGranted) {
+        if (LocalIronWindow.current.form == IronFormFactor.PHONE) {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+            ) {
                 Spacer(Modifier.height(12.dp))
-                ChamferButton("GRANT PERMISSION", onGrant, Modifier.fillMaxWidth(), tall = false)
+                Text("OPTICS", style = IronType.Display.copy(fontSize = 26.sp), color = skin.text)
+                Text("Configure the in-game telemetry rail", style = IronType.Caption, color = skin.textDim)
+                Spacer(Modifier.height(12.dp))
+                PermissionCard(state.permissionGranted, onGrant)
+                Spacer(Modifier.height(14.dp))
+                PreviewCard(state, fps, ram.toList(), cpu.toList(), fpsMethod, onTogglePreview)
+                Spacer(Modifier.height(14.dp))
+                FitCard(state, onSize, onOpacity, onEdge)
+                SerialFooter(5, "OPTICS", serial)
+            }
+        } else {
+            Row(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
+                Column(
+                    Modifier
+                        .weight(0.52f)
+                        .verticalScroll(rememberScrollState())
+                        .imePadding()
+                ) {
+                    Spacer(Modifier.height(12.dp))
+                    Text("OPTICS", style = IronType.Display.copy(fontSize = 26.sp), color = skin.text)
+                    Text("Configure the in-game telemetry rail", style = IronType.Caption, color = skin.textDim)
+                    Spacer(Modifier.height(12.dp))
+                    PermissionCard(state.permissionGranted, onGrant)
+                    Spacer(Modifier.height(14.dp))
+                    PreviewCard(state, fps, ram.toList(), cpu.toList(), fpsMethod, onTogglePreview)
+                }
+                Spacer(Modifier.width(16.dp))
+                IronSeamColumn(brass = false)
+                Column(
+                    Modifier
+                        .weight(0.48f)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Spacer(Modifier.height(12.dp))
+                    FitCard(state, onSize, onOpacity, onEdge)
+                    SerialFooter(5, "OPTICS", serial)
+                }
             }
         }
-        Spacer(Modifier.height(14.dp))
-
-        IronSurface {
-            Text("PREVIEW", style = IronType.Label, color = skin.text)
-            Text(
-                "Drag the rail. Feel the magnet snap. Double-tap to expand.",
-                style = IronType.Caption, color = skin.textDim
-            )
-            Spacer(Modifier.height(12.dp))
-            PhantomRailPreview(fps, ram.toList(), cpu.toList(), state, fpsMethod)
-            Spacer(Modifier.height(12.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("PREVIEW SERVICE", style = IronType.Label, color = skin.text, modifier = Modifier.weight(1f))
-                MachinedToggle(
-                    checked = state.previewRunning,
-                    onCheckedChange = onTogglePreview,
-                    enabled = state.permissionGranted
-                )
-            }
-            if (!state.permissionGranted) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "Grant draw-over permission to start the preview service",
-                    style = IronType.MonoSm, color = Iron.Signal500
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            Row {
-                ChamferButton(
-                    "START OVERLAY",
-                    { if (state.permissionGranted) onTogglePreview(true) },
-                    Modifier.weight(1f),
-                    tall = false,
-                    enabled = state.permissionGranted && !state.previewRunning,
-                    variant = if (state.previewRunning) ChamferVariant.Outline else ChamferVariant.Primary,
-                )
-                Spacer(Modifier.width(10.dp))
-                ChamferButton(
-                    "STOP OVERLAY",
-                    { onTogglePreview(false) },
-                    Modifier.weight(1f),
-                    tall = false,
-                    enabled = state.previewRunning,
-                    variant = if (state.previewRunning) ChamferVariant.Primary else ChamferVariant.Outline,
-                )
-            }
-        }
-        Spacer(Modifier.height(14.dp))
-
-        IronSurface {
-            Text("FIT", style = IronType.Label, color = skin.text)
-            Spacer(Modifier.height(10.dp))
-            Text("SIZE", style = IronType.MonoSm, color = skin.textDim)
-            Spacer(Modifier.height(6.dp))
-            MachinedSegment(listOf("S", "M", "L"), state.size.ordinal, onSelect = { onSize(RailSize.entries[it]) })
-            Spacer(Modifier.height(14.dp))
-            Text("OPACITY", style = IronType.MonoSm, color = skin.textDim)
-            Spacer(Modifier.height(6.dp))
-            OpacityRuler(state.opacity, onOpacity)
-            Spacer(Modifier.height(14.dp))
-            Text("EDGE", style = IronType.MonoSm, color = skin.textDim)
-            Spacer(Modifier.height(6.dp))
-            MachinedSegment(listOf("LEFT", "RIGHT"), state.edge.ordinal, onSelect = { onEdge(RailEdge.entries[it]) })
-        }
-        SerialFooter(5, "OPTICS", serial)
     }
+}
+
+@Composable
+private fun PermissionCard(granted: Boolean, onGrant: () -> Unit) {
+    val skin = ironSkin()
+    IronSurface {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("PERMISSION", style = IronType.Label, color = skin.text)
+                Text(
+                    if (granted)
+                        "ApexCore may draw over other apps."
+                    else "Draw-over-apps permission required for the HUD.",
+                    style = IronType.Caption, color = skin.textDim
+                )
+            }
+            if (granted) StampLabel("GRANTED", StampInk.Phosphor, slam = false)
+            else StampLabel("HUD NOT ARMED", StampInk.Ember, slam = false)
+        }
+        if (!granted) {
+            Spacer(Modifier.height(12.dp))
+            ChamferButton("GRANT PERMISSION", onGrant, Modifier.fillMaxWidth(), tall = false)
+        }
+    }
+}
+
+@Composable
+private fun PreviewCard(
+    state: OpticsUiState,
+    fps: Int,
+    ram: List<Float>,
+    cpu: List<Float>,
+    fpsMethod: FpsMethod,
+    onTogglePreview: (Boolean) -> Unit,
+) {
+    val skin = ironSkin()
+    IronSurface {
+        Text("PREVIEW", style = IronType.Label, color = skin.text)
+        Text(
+            "Drag the rail. Feel the magnet snap. Double-tap to expand.",
+            style = IronType.Caption, color = skin.textDim
+        )
+        Spacer(Modifier.height(12.dp))
+        PhantomRailPreview(fps, ram, cpu, state, fpsMethod)
+        Spacer(Modifier.height(12.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("PREVIEW SERVICE", style = IronType.Label, color = skin.text, modifier = Modifier.weight(1f))
+            MachinedToggle(
+                checked = state.previewRunning,
+                onCheckedChange = onTogglePreview,
+                enabled = state.permissionGranted
+            )
+        }
+        if (!state.permissionGranted) {
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Grant draw-over permission to start the preview service",
+                style = IronType.MonoSm, color = Iron.Signal500
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Row {
+            ChamferButton(
+                "START OVERLAY",
+                { if (state.permissionGranted) onTogglePreview(true) },
+                Modifier.weight(1f),
+                tall = false,
+                enabled = state.permissionGranted && !state.previewRunning,
+                variant = if (state.previewRunning) ChamferVariant.Outline else ChamferVariant.Primary,
+            )
+            Spacer(Modifier.width(10.dp))
+            ChamferButton(
+                "STOP OVERLAY",
+                { onTogglePreview(false) },
+                Modifier.weight(1f),
+                tall = false,
+                enabled = state.previewRunning,
+                variant = if (state.previewRunning) ChamferVariant.Primary else ChamferVariant.Outline,
+            )
+        }
+    }
+}
+
+@Composable
+private fun FitCard(
+    state: OpticsUiState,
+    onSize: (RailSize) -> Unit,
+    onOpacity: (Float) -> Unit,
+    onEdge: (RailEdge) -> Unit,
+) {
+    val skin = ironSkin()
+    IronSurface {
+        Text("FIT", style = IronType.Label, color = skin.text)
+        Spacer(Modifier.height(10.dp))
+        Text("SIZE", style = IronType.MonoSm, color = skin.textDim)
+        Spacer(Modifier.height(6.dp))
+        MachinedSegment(listOf("S", "M", "L"), state.size.ordinal, onSelect = { onSize(RailSize.entries[it]) })
+        Spacer(Modifier.height(14.dp))
+        Text("OPACITY", style = IronType.MonoSm, color = skin.textDim)
+        Spacer(Modifier.height(6.dp))
+        OpacityRuler(state.opacity, onOpacity)
+        Spacer(Modifier.height(14.dp))
+        Text("EDGE", style = IronType.MonoSm, color = skin.textDim)
+        Spacer(Modifier.height(6.dp))
+        MachinedSegment(listOf("LEFT", "RIGHT"), state.edge.ordinal, onSelect = { onEdge(RailEdge.entries[it]) })
     }
 }
 
@@ -382,6 +446,10 @@ private fun DefrostNode(flash: Boolean, onTap: () -> Unit) {
 @Composable
 fun OpacityRuler(value: Float, onChange: (Float) -> Unit) {
     val clack = rememberClack()
+    val skin = ironSkin()
+    val rail = if (skin.isPaper) skin.hairline else Iron.Anvil600
+    val majorTick = if (skin.isPaper) Iron.Ink600 else Iron.Bone300
+    val minorTick = if (skin.isPaper) Iron.Ink600.copy(alpha = 0.35f) else Iron.Anvil500
     Column {
         Canvas(
             Modifier
@@ -401,13 +469,13 @@ fun OpacityRuler(value: Float, onChange: (Float) -> Unit) {
                 }
         ) {
             val cy = size.height * 0.5f
-            drawLine(Iron.Anvil600, Offset.Zero, Offset(size.width, cy), 1.dp.toPx())
+            drawLine(rail, Offset.Zero, Offset(size.width, cy), 1.dp.toPx())
             var x = 0f
             var i = 0
             while (x <= size.width + 0.5f) {
                 val major = i % 5 == 0
                 drawLine(
-                    if (major) Iron.Bone300 else Iron.Anvil500,
+                    if (major) majorTick else minorTick,
                     Offset(x, cy),
                     Offset(x, cy - (if (major) 10.dp else 5.dp).toPx()),
                     1.dp.toPx()
@@ -421,7 +489,11 @@ fun OpacityRuler(value: Float, onChange: (Float) -> Unit) {
                 Size(2.dp.toPx(), 14.dp.toPx())
             )
         }
-        Text("${(value * 100).toInt()}%", style = IronType.MonoSm, color = Iron.Bone300,
-            modifier = Modifier.align(Alignment.End))
+        Text(
+            "${(value * 100).toInt()}%",
+            style = IronType.MonoSm,
+            color = skin.textDim,
+            modifier = Modifier.align(Alignment.End),
+        )
     }
 }

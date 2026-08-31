@@ -75,7 +75,11 @@ fun TheLedger(
                     Text("Ledger unavailable.", style = IronType.Body, color = Iron.Ink600)
                 }
             } else {
-                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp)) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                LazyColumn(
+                    Modifier.widthIn(max = 640.dp).fillMaxHeight().fillMaxWidth(),
+                    contentPadding = PaddingValues(20.dp),
+                ) {
                     items(blocks.size) { i -> Block(blocks[i], onLink) }
                     item {
                         Text(
@@ -84,6 +88,7 @@ fun TheLedger(
                             textAlign = TextAlign.Center
                         )
                     }
+                }
                 }
             }
         }

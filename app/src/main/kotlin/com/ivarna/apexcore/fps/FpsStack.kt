@@ -4,6 +4,7 @@ import android.content.Context
 import com.ivarna.apexcore.fps.privilege.PrivilegeMode
 import com.ivarna.apexcore.fps.privilege.PrivilegeModeStore
 import com.ivarna.apexcore.fps.privilege.ShellGateway
+import com.ivarna.apexcore.fps.source.ChoreographerFpsDataSource
 import com.ivarna.apexcore.fps.source.CpuDataSource
 import com.ivarna.apexcore.fps.source.DmaFenceFpsDataSource
 import com.ivarna.apexcore.fps.source.FpsDaemonManager
@@ -60,9 +61,10 @@ class FpsStack private constructor(
             val dma = DmaFenceFpsDataSource(context)
             val sf = SurfaceFlingerFpsDataSource(shellGateway, foregroundAppResolver)
             val gfx = GfxinfoFpsDataSource(shellGateway, foregroundAppResolver)
+            val chr = ChoreographerFpsDataSource(context)
             val cpu = CpuDataSource(shellGateway)
             val daemon = FpsDaemonManager(context, shellGateway)
-            val repo = FpsRepositoryImpl(dma, sf, gfx, foregroundAppResolver, daemon, privilegeModeStore, shellGateway)
+            val repo = FpsRepositoryImpl(dma, sf, gfx, foregroundAppResolver, daemon, privilegeModeStore, shellGateway, chr)
             privilegeModeStore.addOnModeChangedListener {
                 // Fail-closed: drop held root/elevated samples when mode changes (matches factualstats)
                 repo.onPrivilegeModeChanged()
