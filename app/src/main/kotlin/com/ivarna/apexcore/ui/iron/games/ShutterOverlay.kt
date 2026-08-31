@@ -108,21 +108,17 @@ fun ShutterOverlay(
             }
             LaunchPhase.FREEZE -> {
                 mounted = true
-                // Direct FREEZE (tests / restore): plates closed, logo readable.
+                // Direct FREEZE (tests / restore): plates closed, logo always readable.
                 if (plateTop.value < 0.9f) plateTop.snapTo(1f)
                 if (plateBottom.value < 0.9f) plateBottom.snapTo(1f)
-                if (iconAppear.value < 0.5f) iconAppear.snapTo(1f)
-                // Stamp then rebound — logo stays readable through OPTIMIZED / FREEZING.
+                // Never leave a half-faded identity sitting on the seam readout.
+                iconAppear.snapTo(1f)
+                iconAlpha.snapTo(1f)
+                // Stamp then rebound — logo stays clear of OPTIMIZED / FREEZING text.
                 if (!reduced) {
-                    launch {
-                        iconAlpha.animateTo(1f, tween(80))
-                    }
                     launch {
                         squash.animateTo(0f, tween(110, easing = FastOutSlowInEasing))
                     }
-                } else {
-                    iconAppear.snapTo(1f)
-                    iconAlpha.snapTo(1f)
                 }
             }
             LaunchPhase.PART -> {
@@ -214,13 +210,15 @@ fun ShutterOverlay(
                     .background(Iron.Anvil900)
                     .ironGrain(0.05f)
             )
-            // Reduced motion still shows selected app identity.
+            // Reduced motion still shows selected app identity — keep status below the logo.
             LaunchAppIcon(
                 state = state,
                 iconAppear = { iconAppear.value },
                 iconAlpha = { iconAlpha.value },
                 squash = { 0f },
-                modifier = Modifier.align(Alignment.Center),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(y = (-48).dp),
             )
             if (
                 state.phase == LaunchPhase.FREEZE ||
@@ -232,7 +230,7 @@ fun ShutterOverlay(
                     state,
                     Modifier
                         .align(Alignment.Center)
-                        .offset(y = 64.dp)
+                        .offset(y = 56.dp)
                         .zIndex(3f)
                         .testTag("launch_readout"),
                 )
@@ -275,48 +273,16 @@ fun ShutterOverlay(
                 }
         )
 
-        Column(
-            Modifier
-                .align(Alignment.Center)
-                .zIndex(1f)
-                .testTag("launch_seam")
-                .graphicsLayer {
-                    val closed = (plateTop.value + plateBottom.value) / 2f
-                    // Seam only reads once plates are nearly met.
-                    alpha = ((closed - 0.85f) / 0.15f).coerceIn(0f, 1f) * (1f - backScrub) *
-                        if (state.phase == LaunchPhase.PART) 0.35f else 1f
-                },
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            SeamCanvas(
-                tickFill = { tickFill.value },
-                scanX = { scanX },
-                scanning = state.phase == LaunchPhase.FREEZE,
-                tickCount = state.totalTargets,
-                optimized = state.phase == LaunchPhase.FREEZE && state.totalTargets == 0,
-            )
-            val readout = when {
-                state.errorTitle != null -> null
-                state.phase == LaunchPhase.PART ->
-                    "LAUNCHING · ${state.app?.name?.uppercase().orEmpty()}"
-                state.totalTargets > 0 ->
-                    "FREEZING · ${state.frozenCount} / ${state.totalTargets}"
-                state.phase == LaunchPhase.FREEZE -> "OPTIMIZED"
-                state.phase == LaunchPhase.PRESS || state.phase == LaunchPhase.WIND -> null
-                else -> null
-            }
-            readout?.let {
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    it,
-                    style = IronType.Mono,
-                    color = Iron.Bone300,
-                    modifier = Modifier.testTag("launch_readout"),
-                )
-            }
+        // Vertical stack with clear bands so logo never sits on the readout:
+        //   [ logo ]  ~72dp above center
+        //   =seam=    at center
+        //   readout   ~28dp below center
+        val seamAlpha = {
+            val closed = (plateTop.value + plateBottom.value) / 2f
+            ((closed - 0.85f) / 0.15f).coerceIn(0f, 1f) * (1f - backScrub) *
+                if (state.phase == LaunchPhase.PART) 0.35f else 1f
         }
 
-        // Logo above seam — visible through FREEZE, fades only on PART.
         LaunchAppIcon(
             state = state,
             iconAppear = { iconAppear.value },
@@ -325,13 +291,54 @@ fun ShutterOverlay(
             modifier = Modifier
                 .align(Alignment.Center)
                 .zIndex(2f)
-                .offset(y = (-28).dp),
+                .offset(y = (-72).dp),
         )
+
+        Box(
+            Modifier
+                .align(Alignment.Center)
+                .zIndex(1f)
+                .testTag("launch_seam")
+                .graphicsLayer { alpha = seamAlpha() },
+        ) {
+            SeamCanvas(
+                tickFill = { tickFill.value },
+                scanX = { scanX },
+                scanning = state.phase == LaunchPhase.FREEZE,
+                tickCount = state.totalTargets,
+                optimized = state.phase == LaunchPhase.FREEZE && state.totalTargets == 0,
+            )
+        }
+
+        val readout = when {
+            state.errorTitle != null -> null
+            state.phase == LaunchPhase.PART ->
+                "LAUNCHING · ${state.app?.name?.uppercase().orEmpty()}"
+            state.totalTargets > 0 ->
+                "FREEZING · ${state.frozenCount} / ${state.totalTargets}"
+            state.phase == LaunchPhase.FREEZE -> "OPTIMIZED"
+            state.phase == LaunchPhase.PRESS || state.phase == LaunchPhase.WIND -> null
+            else -> null
+        }
+        readout?.let {
+            Text(
+                it,
+                style = IronType.Mono,
+                color = Iron.Bone300,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(y = 28.dp)
+                    .zIndex(3f)
+                    .graphicsLayer { alpha = seamAlpha() }
+                    .testTag("launch_readout"),
+            )
+        }
 
         if (state.phase == LaunchPhase.FAILED) {
             Column(
                 Modifier
                     .align(Alignment.Center)
+                    .offset(y = 56.dp)
                     .padding(horizontal = 32.dp)
                     .zIndex(3f),
                 horizontalAlignment = Alignment.CenterHorizontally,
