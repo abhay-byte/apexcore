@@ -445,50 +445,16 @@ private fun DefrostNode(flash: Boolean, onTap: () -> Unit) {
 
 @Composable
 fun OpacityRuler(value: Float, onChange: (Float) -> Unit) {
-    val clack = rememberClack()
     val skin = ironSkin()
-    val rail = if (skin.isPaper) skin.hairline else Iron.Anvil600
-    val majorTick = if (skin.isPaper) Iron.Ink600 else Iron.Bone300
-    val minorTick = if (skin.isPaper) Iron.Ink600.copy(alpha = 0.35f) else Iron.Anvil500
     Column {
-        Canvas(
-            Modifier
-                .fillMaxWidth()
-                .height(34.dp)
-                .pointerInput(Unit) {
-                    detectTapGestures { pos ->
-                        clack.tick()
-                        onChange((0.4f + 0.6f * (pos.x / size.width)).coerceIn(0.4f, 1f))
-                    }
-                }
-                .pointerInput(Unit) {
-                    detectDragGestures { change, _ ->
-                        onChange((0.4f + 0.6f * (change.position.x / size.width)).coerceIn(0.4f, 1f))
-                        change.consume()
-                    }
-                }
-        ) {
-            val cy = size.height * 0.5f
-            drawLine(rail, Offset.Zero, Offset(size.width, cy), 1.dp.toPx())
-            var x = 0f
-            var i = 0
-            while (x <= size.width + 0.5f) {
-                val major = i % 5 == 0
-                drawLine(
-                    if (major) majorTick else minorTick,
-                    Offset(x, cy),
-                    Offset(x, cy - (if (major) 10.dp else 5.dp).toPx()),
-                    1.dp.toPx()
-                )
-                x += size.width / 20f
-                i++
-            }
-            val mx = ((value - 0.4f) / 0.6f) * size.width
-            drawRect(
-                Iron.Brass400, Offset(mx - 1.dp.toPx(), cy - 14.dp.toPx()),
-                Size(2.dp.toPx(), 14.dp.toPx())
-            )
-        }
+        // Shared Iron ruler (§3.6 / Optics OPACITY) — no Material slider.
+        IronSlider(
+            value = value,
+            onValueChange = onChange,
+            onValueChangeFinished = {},
+            valueRange = 0.4f..1f,
+            enabled = true,
+        )
         Text(
             "${(value * 100).toInt()}%",
             style = IronType.MonoSm,

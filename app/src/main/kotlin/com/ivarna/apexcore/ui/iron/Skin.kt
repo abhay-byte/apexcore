@@ -36,6 +36,26 @@ data class IronSkin(
 
 fun IronSkin.phosphor(): Color = if (isPaper) Iron.Phosphor600 else Iron.Phosphor400
 
+/** High-contrast danger/status text (meets ~4.5:1 on plate surfaces). */
+fun IronSkin.dangerText(): Color = if (isPaper) Iron.Signal700 else Iron.Signal300
+
+fun IronSkin.warningText(): Color = if (isPaper) Iron.Ink600 else Iron.Brass400
+
+fun IronSkin.successText(): Color = if (isPaper) Iron.Phosphor800 else Iron.Phosphor400
+
+fun IronSkin.disabledText(): Color = textDim
+
+/** Theme-aware input / select field surfaces (never mix Anvil with Ink text). */
+fun IronSkin.inputSurface(): Color = if (isPaper) Iron.Bone50 else Iron.Anvil950
+
+fun IronSkin.inputBorder(): Color = if (isPaper) Iron.Ink600.copy(alpha = 0.35f) else Iron.Anvil600
+
+fun IronSkin.popupSurface(): Color = if (isPaper) Iron.Bone100 else Iron.Anvil800
+
+fun IronSkin.popupBorder(): Color = if (isPaper) Iron.Ink600.copy(alpha = 0.40f) else Iron.Anvil500
+
+fun IronSkin.selectedRow(): Color = if (isPaper) Iron.Bone300 else Iron.Anvil650
+
 @Composable
 fun ironSkin(): IronSkin =
     if (LocalIronFinish.current == IronFinish.VELLUM) IronSkin.Vellum else IronSkin.Graphite

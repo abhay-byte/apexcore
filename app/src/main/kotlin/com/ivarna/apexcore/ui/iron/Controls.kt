@@ -45,11 +45,24 @@ fun MachinedToggle(
     }
 
     val trackOff = if (skin.isPaper) Iron.Bone300 else Iron.Anvil600
-    val trackDisabled = if (skin.isPaper) Iron.Bone100 else Iron.Anvil800
+    // Disabled tracks must remain visible on plate surfaces (Bone100 used to vanish on paper).
+    val trackDisabled = if (skin.isPaper) Iron.Bone300 else Iron.Anvil800
     val trackBorder = when {
+        !enabled && skin.isPaper -> Iron.Ink600.copy(alpha = 0.35f)
+        !enabled -> Iron.Anvil500
         checked -> phosphor.copy(alpha = 0.4f)
         skin.isPaper -> skin.hairline
         else -> Iron.Anvil600
+    }
+    val knobFill = when {
+        enabled -> Iron.Brass400
+        skin.isPaper -> Iron.Bone500
+        else -> Iron.Anvil500
+    }
+    val knobBorder = when {
+        enabled -> Iron.Ink900
+        skin.isPaper -> Iron.Ink600.copy(alpha = 0.55f)
+        else -> Iron.Anvil500
     }
 
     Box(
@@ -86,8 +99,8 @@ fun MachinedToggle(
                     rotationZ = wob.value
                 }
                 .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(if (enabled) Iron.Brass400 else if (skin.isPaper) Iron.Bone500 else Iron.Bone500)
-                .border(1.dp, Iron.Ink900, androidx.compose.foundation.shape.CircleShape)
+                .background(knobFill)
+                .border(1.dp, knobBorder, androidx.compose.foundation.shape.CircleShape)
         )
     }
 }

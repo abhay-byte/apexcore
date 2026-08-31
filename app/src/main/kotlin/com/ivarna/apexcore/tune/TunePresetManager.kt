@@ -13,7 +13,9 @@ data class TunePresetReport(
     val applied: Int,
     val requested: Int,
     val partial: Boolean,
-    val components: List<TunePresetComponent>
+    val components: List<TunePresetComponent>,
+    /** Package this report was generated for; UI clears stale reports on target change. */
+    val gamePackage: String = "",
 )
 
 /** Composes only verified high-value primitives; it never adds unsafe VM/I/O tweaks. */
@@ -61,7 +63,8 @@ class TunePresetManager(private val manager: TuneManager) {
             applied = applied,
             requested = requested,
             partial = applied < requested,
-            components = verifiedComponents
+            components = verifiedComponents,
+            gamePackage = gamePackage,
         )
     }
 }

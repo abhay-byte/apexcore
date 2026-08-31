@@ -39,6 +39,8 @@ object Iron {
     val Signal700 = Color(0xFFB23A0F)
     val Phosphor400 = Color(0xFF7FE060)
     val Phosphor600 = Color(0xFF3E9B2E)
+    /** Darker phosphor for Vellum success/status text (~4.5:1 on Bone plates). */
+    val Phosphor800 = Color(0xFF24601C)
     val Ember500 = Color(0xFFF5402C)
     val Brass400 = Color(0xFFD9A75A)
     val Scrim = Color(0xFF000000).copy(alpha = 0.64f)

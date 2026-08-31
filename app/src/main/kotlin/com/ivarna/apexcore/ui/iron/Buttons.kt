@@ -113,6 +113,7 @@ fun ChamferButton(
         contentAlignment = Alignment.Center
     ) {
         // Scale the label only — scaling the clipped chamfer layer blew glyphs up on wide tablet panes.
+        // Caller controls width via outer modifier; never force fillMaxWidth here (breaks Row + weight siblings).
         Text(
             text = text,
             style = labelStyle,
@@ -122,7 +123,6 @@ fun ChamferButton(
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
             modifier = Modifier
-                .fillMaxWidth()
                 .padding(horizontal = 14.dp)
                 .graphicsLayer {
                     scaleX = scale

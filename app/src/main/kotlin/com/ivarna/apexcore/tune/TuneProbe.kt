@@ -86,6 +86,15 @@ class TuneProbe(
     }
 
     private suspend fun probeInternal() = withContext(Dispatchers.IO) {
+        _isProbing.value = true
+        try {
+            probeInternalBody()
+        } finally {
+            _isProbing.value = false
+        }
+    }
+
+    private suspend fun probeInternalBody() {
         val backend = backendResolver?.refresh() ?: when (FreezeFramework.activeBackend.value?.name) {
             "Root" -> TuneBackendIdentity.SU_ROOT
             "Shizuku" -> TuneBackendIdentity.SHIZUKU_SHELL
@@ -93,7 +102,6 @@ class TuneProbe(
         }
         val tier = backend.asPrivilegeTier()
 
-        _isProbing.value = true
         val startTime = SystemClock.elapsedRealtime()
         val deadline = startTime + WALL_BUDGET_MS
 
@@ -111,8 +119,7 @@ class TuneProbe(
             _capabilities.value = resultMap
             lastProbeTime = SystemClock.elapsedRealtime()
             lastBackendFingerprint = backendResolver?.fingerprint() ?: FreezeFramework.activeBackend.value?.name
-            _isProbing.value = false
-            return@withContext
+            return
         }
 
         // Phase 1: representative candidate per TuneId
@@ -267,7 +274,6 @@ class TuneProbe(
         _capabilities.value = resultMap
         lastProbeTime = SystemClock.elapsedRealtime()
         lastBackendFingerprint = backendResolver?.fingerprint() ?: FreezeFramework.activeBackend.value?.name
-        _isProbing.value = false
         Log.i(TAG, "Capability probe finished in ${SystemClock.elapsedRealtime() - startTime}ms. Writable count: ${resultMap.count { it.value.available }}")
     }
 
