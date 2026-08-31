@@ -267,6 +267,7 @@ fun MainScreen(
     val tunePresetManager = remember { com.ivarna.apexcore.tune.TunePresetManager(tuneManager) }
     var selectedTuneGamePkg by remember { mutableStateOf<String?>(null) }
     var presetReport by remember { mutableStateOf<com.ivarna.apexcore.tune.TunePresetReport?>(null) }
+    var isApplyingMaxPerf by remember { mutableStateOf(false) }
     var showMaxLockAck by remember { mutableStateOf(false) }
     var pendingAckId by remember { mutableStateOf<com.ivarna.apexcore.tune.TuneId?>(null) }
     var pendingAckChecked by remember { mutableStateOf(false) }
@@ -437,12 +438,17 @@ fun MainScreen(
             } else {
                 // Preset ack — retry preset
                 val pkg = selectedTuneGamePkg
-                if (pkg != null) {
+                if (pkg != null && !isApplyingMaxPerf) {
                     scope.launch {
-                        val report = tunePresetManager.applyMaximumPerformance(pkg)
-                        presetReport = report
-                        refreshTune(pkg)
-                        toast.show("${report.applied}/${report.requested} verified")
+                        isApplyingMaxPerf = true
+                        try {
+                            val report = tunePresetManager.applyMaximumPerformance(pkg)
+                            presetReport = report
+                            refreshTune(pkg)
+                            toast.show("${report.applied}/${report.requested} verified")
+                        } finally {
+                            isApplyingMaxPerf = false
+                        }
                     }
                 }
             }
@@ -719,6 +725,7 @@ fun MainScreen(
                         refreshTune(pkg, force = true)
                     },
                     onMaximumPerformance = {
+                        if (isApplyingMaxPerf) return@TuningRoom
                         val pkg = selectedTuneGamePkg?.takeIf { it.isNotBlank() } ?: run {
                             toast.show("SELECT A GAME FIRST")
                             return@TuningRoom
@@ -732,13 +739,19 @@ fun MainScreen(
                             return@TuningRoom
                         }
                         scope.launch {
-                            val report = tunePresetManager.applyMaximumPerformance(pkg)
-                            presetReport = report
-                            refreshTune(pkg)
-                            toast.show("${report.applied}/${report.requested} verified")
+                            isApplyingMaxPerf = true
+                            try {
+                                val report = tunePresetManager.applyMaximumPerformance(pkg)
+                                presetReport = report
+                                refreshTune(pkg)
+                                toast.show("${report.applied}/${report.requested} verified")
+                            } finally {
+                                isApplyingMaxPerf = false
+                            }
                         }
                     },
                     presetReport = presetReport,
+                    isApplyingMaxPerf = isApplyingMaxPerf,
                     probeError = tuneProbeError,
                 )
                 IronSlot.PRESSURE -> PressureRoom(

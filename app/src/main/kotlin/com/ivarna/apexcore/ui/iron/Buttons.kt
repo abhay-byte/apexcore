@@ -57,8 +57,25 @@ fun ChamferButton(
 
     // Primary stays ink-on-signal in both finishes (high contrast on orange).
     // Outline tracks the active skin so Vellum stays readable.
+    // Disabled must look inert (APPLY with no game, etc.) — not full-strength Signal.
     val outlineColor = if (skin.isPaper) Iron.Ink600 else Iron.Bone300
-    val labelColor = if (variant == ChamferVariant.Primary) Iron.Ink900 else outlineColor
+    val fillColor = when {
+        variant != ChamferVariant.Primary -> Color.Transparent
+        !enabled -> Iron.Signal500.copy(alpha = 0.32f)
+        pressed -> Iron.Signal700
+        else -> Iron.Signal500
+    }
+    val borderColor = when {
+        variant != ChamferVariant.Outline -> Color.Transparent
+        !enabled -> outlineColor.copy(alpha = 0.35f)
+        else -> outlineColor
+    }
+    val labelColor = when {
+        !enabled && variant == ChamferVariant.Primary -> Iron.Ink900.copy(alpha = 0.40f)
+        !enabled -> outlineColor.copy(alpha = 0.40f)
+        variant == ChamferVariant.Primary -> Iron.Ink900
+        else -> outlineColor
+    }
     val labelStyle = IronType.Label.copy(
         fontSize = 12.sp,
         lineHeight = 14.sp,
@@ -69,21 +86,17 @@ fun ChamferButton(
         modifier
             .height(if (tall) 56.dp else 44.dp)
             .clip(shape)
-            .background(
-                if (variant == ChamferVariant.Primary)
-                    (if (pressed) Iron.Signal700 else Iron.Signal500)
-                else Color.Transparent
-            )
+            .background(fillColor)
             .then(
                 if (variant == ChamferVariant.Outline)
-                    Modifier.border(2.dp, outlineColor, shape)
+                    Modifier.border(2.dp, borderColor, shape)
                 else Modifier
             )
             .drawWithCache {
                 val path = chamferPath(size, 4.dp.toPx(), 10.dp.toPx())
                 onDrawWithContent {
                     drawContent()
-                    if (variant == ChamferVariant.Primary) {
+                    if (variant == ChamferVariant.Primary && enabled) {
                         drawLine(
                             Iron.Signal300.copy(alpha = 0.7f),
                             Offset(6.dp.toPx(), 1.5.dp.toPx()),
@@ -91,7 +104,7 @@ fun ChamferButton(
                             1.dp.toPx()
                         )
                     }
-                    if (busy) {
+                    if (busy && enabled) {
                         clipPath(path) {
                             val gap = 24.dp.toPx()
                             val w = 8.dp.toPx()

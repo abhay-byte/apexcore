@@ -68,6 +68,7 @@ fun TuningRoom(
     onGamePkgSelect: ((String) -> Unit)? = null,
     onMaximumPerformance: (() -> Unit)? = null,
     presetReport: TunePresetReport? = null,
+    isApplyingMaxPerf: Boolean = false,
     probeError: String? = null,
 ) {
     val clack = rememberClack()
@@ -148,77 +149,33 @@ fun TuningRoom(
                 }
             }
 
-            Text("Real kernel & session tuning.", style = IronType.Body, color = skin.text)
-            Text(
-                "Capability-gated parameters safely applied during game sessions and restored on exit.",
-                style = IronType.Caption, color = skin.textDim
-            )
-            Text(
-                "High power: CPU/GPU max locks can increase heat and battery use; unsupported controls stay off.",
-                style = IronType.Caption, color = skin.textDim
-            )
-            Spacer(Modifier.height(10.dp))
-
-            if (!probeError.isNullOrBlank()) {
-                IronSurface(
-                    modifier = Modifier.fillMaxWidth(),
-                    padding = PaddingValues(12.dp),
-                ) {
-                    Text("CAPABILITY PROBE FAILED", style = IronType.Label, color = skin.dangerText())
-                    Text(
-                        "Controls shown unavailable. Tap PROBE to retry.",
-                        style = IronType.Caption,
-                        color = skin.textDim,
-                    )
-                    Text(probeError, style = IronType.MonoSm, color = skin.textDim)
-                }
-                Spacer(Modifier.height(10.dp))
-            }
-
-            if (onGamePkgSelect != null) {
-                Text("Target game for Game Mode", style = IronType.Label, color = skin.textDim)
-                Spacer(Modifier.height(6.dp))
-                GamePicker(selectedGamePkg, gameOptions, onGamePkgSelect)
-                Spacer(Modifier.height(10.dp))
-            }
-
-            if (onMaximumPerformance != null) {
-                val hasTarget = !selectedGamePkg.isNullOrBlank() && gameOptions.any { it.first == selectedGamePkg }
-                // Bind report to current target so a prior package's result cannot linger.
-                val boundReport = presetReport?.takeIf {
-                    it.gamePackage.isBlank() || it.gamePackage == selectedGamePkg
-                }
-                MaximumPerformanceCard(
-                    onClick = onMaximumPerformance,
-                    report = boundReport,
-                    enabled = !isProbing && hasTarget,
-                    hasTarget = hasTarget,
-                )
-                Spacer(Modifier.height(10.dp))
-            }
-
-            if (sessionActive) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    StampLabel("SESSION ACTIVE", StampInk.Signal, pulse = true)
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        "LIVE · $sessionApplied APPLIED · %02d:%02d".format(sessionElapsedS / 60, sessionElapsedS % 60),
-                        style = IronType.Mono, color = ironSkin().phosphor()
-                    )
-                }
-                Spacer(Modifier.height(10.dp))
-            }
-
             // Hoist sorting out of LazyColumn to avoid re-sort on every scroll frame (stutter)
             val sortedCategories = remember(categories) {
                 categories.sortedByDescending { it.availableCount }
             }
             val form = LocalIronWindow.current.form
+            // Intro / Game Mode / Max Perf scroll with categories — only title chrome stays fixed.
             if (form == IronFormFactor.PHONE) {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(bottom = 12.dp),
                 ) {
+                    item(key = "scroll-header", contentType = "header") {
+                        TuningRoomScrollHeader(
+                            skin = skin,
+                            probeError = probeError,
+                            selectedGamePkg = selectedGamePkg,
+                            gameOptions = gameOptions,
+                            onGamePkgSelect = onGamePkgSelect,
+                            onMaximumPerformance = onMaximumPerformance,
+                            presetReport = presetReport,
+                            isProbing = isProbing,
+                            isApplyingMaxPerf = isApplyingMaxPerf,
+                            sessionActive = sessionActive,
+                            sessionElapsedS = sessionElapsedS,
+                            sessionApplied = sessionApplied,
+                        )
+                    }
                     items(
                         count = sortedCategories.size,
                         key = { i -> sortedCategories[i].name },
@@ -268,6 +225,22 @@ fun TuningRoom(
                     Spacer(Modifier.width(16.dp))
                     IronSeamColumn(brass = false)
                     LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(bottom = 12.dp)) {
+                        item(key = "scroll-header", contentType = "header") {
+                            TuningRoomScrollHeader(
+                                skin = skin,
+                                probeError = probeError,
+                                selectedGamePkg = selectedGamePkg,
+                                gameOptions = gameOptions,
+                                onGamePkgSelect = onGamePkgSelect,
+                                onMaximumPerformance = onMaximumPerformance,
+                                presetReport = presetReport,
+                                isProbing = isProbing,
+                                isApplyingMaxPerf = isApplyingMaxPerf,
+                                sessionActive = sessionActive,
+                                sessionElapsedS = sessionElapsedS,
+                                sessionApplied = sessionApplied,
+                            )
+                        }
                         if (sortedCategories.isNotEmpty()) {
                             item {
                                 CategoryPlate(sortedCategories[safeCat], skin)
@@ -589,10 +562,89 @@ private fun presetRowUi(c: TunePresetComponent): PresetRowUi {
 }
 
 @Composable
+private fun TuningRoomScrollHeader(
+    skin: IronSkin,
+    probeError: String?,
+    selectedGamePkg: String?,
+    gameOptions: List<Pair<String, String>>,
+    onGamePkgSelect: ((String) -> Unit)?,
+    onMaximumPerformance: (() -> Unit)?,
+    presetReport: TunePresetReport?,
+    isProbing: Boolean,
+    isApplyingMaxPerf: Boolean,
+    sessionActive: Boolean,
+    sessionElapsedS: Int,
+    sessionApplied: Int,
+) {
+    Text("Real kernel & session tuning.", style = IronType.Body, color = skin.text)
+    Text(
+        "Capability-gated parameters safely applied during game sessions and restored on exit.",
+        style = IronType.Caption, color = skin.textDim
+    )
+    Text(
+        "High power: CPU/GPU max locks can increase heat and battery use; unsupported controls stay off.",
+        style = IronType.Caption, color = skin.textDim
+    )
+    Spacer(Modifier.height(10.dp))
+
+    if (!probeError.isNullOrBlank()) {
+        IronSurface(
+            modifier = Modifier.fillMaxWidth(),
+            padding = PaddingValues(12.dp),
+        ) {
+            Text("CAPABILITY PROBE FAILED", style = IronType.Label, color = skin.dangerText())
+            Text(
+                "Controls shown unavailable. Tap PROBE to retry.",
+                style = IronType.Caption,
+                color = skin.textDim,
+            )
+            Text(probeError, style = IronType.MonoSm, color = skin.textDim)
+        }
+        Spacer(Modifier.height(10.dp))
+    }
+
+    if (onGamePkgSelect != null) {
+        Text("Target game for Game Mode", style = IronType.Label, color = skin.textDim)
+        Spacer(Modifier.height(6.dp))
+        GamePicker(selectedGamePkg, gameOptions, onGamePkgSelect)
+        Spacer(Modifier.height(10.dp))
+    }
+
+    if (onMaximumPerformance != null) {
+        val hasTarget = !selectedGamePkg.isNullOrBlank() && gameOptions.any { it.first == selectedGamePkg }
+        // Bind report to current target so a prior package's result cannot linger.
+        val boundReport = presetReport?.takeIf {
+            it.gamePackage.isBlank() || it.gamePackage == selectedGamePkg
+        }
+        MaximumPerformanceCard(
+            onClick = onMaximumPerformance,
+            report = boundReport,
+            enabled = !isProbing && !isApplyingMaxPerf && hasTarget,
+            applying = isApplyingMaxPerf,
+            hasTarget = hasTarget,
+        )
+        Spacer(Modifier.height(10.dp))
+    }
+
+    if (sessionActive) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            StampLabel("SESSION ACTIVE", StampInk.Signal, pulse = true)
+            Spacer(Modifier.width(10.dp))
+            Text(
+                "LIVE · $sessionApplied APPLIED · %02d:%02d".format(sessionElapsedS / 60, sessionElapsedS % 60),
+                style = IronType.Mono, color = ironSkin().phosphor()
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+    }
+}
+
+@Composable
 private fun MaximumPerformanceCard(
     onClick: () -> Unit,
     report: TunePresetReport?,
     enabled: Boolean,
+    applying: Boolean,
     hasTarget: Boolean,
 ) {
     val skin = ironSkin()
@@ -608,7 +660,14 @@ private fun MaximumPerformanceCard(
                     "OEM Game Mode + CPU/GPU performance governor + max locks",
                     style = IronType.Caption, color = skin.textDim
                 )
-                if (!hasTarget) {
+                if (applying) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "APPLYING PRESET…",
+                        style = IronType.MonoSm,
+                        color = skin.phosphor(),
+                    )
+                } else if (!hasTarget) {
                     Spacer(Modifier.height(4.dp))
                     Text(
                         "Add or select a game to use Maximum Performance.",
@@ -616,7 +675,7 @@ private fun MaximumPerformanceCard(
                         color = skin.textDim,
                     )
                 }
-                if (report != null) {
+                if (report != null && !applying) {
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "${report.applied} / ${report.requested} SUPPORTED ACTIONS VERIFIED",
@@ -647,7 +706,19 @@ private fun MaximumPerformanceCard(
                     }
                 }
             }
-            ChamferButton("APPLY", onClick = onClick, enabled = enabled, tall = false)
+            if (applying) {
+                Box(
+                    Modifier
+                        .height(44.dp)
+                        .widthIn(min = 72.dp)
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    LoadingNeedle(tint = skin.phosphor())
+                }
+            } else {
+                ChamferButton("APPLY", onClick = onClick, enabled = enabled, tall = false)
+            }
         }
     }
 }
