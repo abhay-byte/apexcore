@@ -702,7 +702,7 @@ fun MainScreen(
                         action = { probeKeys() }
                     )
                 ),
-                versionName = try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.4" } catch (_: Throwable) { "1.4" },
+                versionName = try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.5" } catch (_: Throwable) { "1.5" },
                 onPrivacy = { ironSlot = IronSlot.LEDGER },
                 onTour = { showReplayManual = true }
             )

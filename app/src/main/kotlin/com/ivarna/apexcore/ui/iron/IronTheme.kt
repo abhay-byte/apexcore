@@ -1,7 +1,6 @@
 package com.ivarna.apexcore.ui.iron
 
 import android.provider.Settings
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -15,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import com.ivarna.apexcore.ui.theme.ThemeBrand
 import kotlin.random.Random
 
 val LocalPaperSurfaces = staticCompositionLocalOf { false }
@@ -37,7 +37,9 @@ fun IronTheme(
     content: @Composable () -> Unit,
 ) {
     val ctx = LocalContext.current
-    val finish = themeMode.resolve(isSystemInDarkTheme())
+    // Do not use isSystemInDarkTheme() — Activity may be configuration-wrapped for a
+    // locked Graphite/Vellum splash, which lies about the real system night mode.
+    val finish = themeMode.resolve(ThemeBrand.isSystemDark(ctx))
 
     val d = LocalDensity.current
     val capped = remember(d, d.fontScale) {

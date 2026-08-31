@@ -50,6 +50,8 @@ enum class AppStage {
 class MainActivity : ComponentActivity() {
     private val gameManager by lazy { GameManager(this) }
     private val foldState = mutableStateOf<IronFold>(IronFold.None)
+    /** Launcher-alias sync deferred to onStop so disabling the launch component cannot tear down this task. */
+    private var pendingLauncherSync = false
 
     override fun attachBaseContext(newBase: android.content.Context) {
         // Align night resources (splash FG/BG) with locked Graphite/Vellum before inflate.
@@ -208,7 +210,9 @@ class MainActivity : ComponentActivity() {
                                     onThemeModeChange = { mode ->
                                         themeModeOrdinal = mode.ordinal
                                         ThemePreferences.set(this@MainActivity, mode)
-                                        ThemeBrand.syncLauncherIcon(this@MainActivity, mode)
+                                        // Defer alias swap — disabling the alias that launched us
+                                        // finishes this activity on many OEMs (looks like a crash).
+                                        pendingLauncherSync = true
                                     },
                                     lightTankBg = paperInserts,
                                     onLightTankBgChange = { enabled ->
@@ -254,5 +258,13 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             FreezeFramework.detect()
         }
+    }
+
+    override fun onStop() {
+        if (pendingLauncherSync) {
+            pendingLauncherSync = false
+            ThemeBrand.syncLauncherIcon(this)
+        }
+        super.onStop()
     }
 }
