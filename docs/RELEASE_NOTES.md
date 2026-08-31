@@ -2,6 +2,36 @@
 
 ---
 
+## Version 1.5 (Build 6) — Iron UI, Brand & Theme Reliability
+
+**Release Date:** August 31, 2026  
+**Target SDK:** 36 (Android 16 Ready)  
+**Min SDK:** 24 (Android 7.0+)
+
+### Highlights
+
+Version 1.5 ships T13 Iron Tuning Room controls (custom ruler slider, themed select/dialogs), official Graphite/Vellum brand marks, a refreshed dark Graphite icon, crash-safe theme switching, and SYSTEM finish that follows real device dark mode.
+
+### Key Improvements
+
+#### 1. T13 Iron Tuning Room
+* Canvas `IronSlider` (no Material3 sliders), themed select/dialogs, contrast fixes.
+* Max Perf scrolls with the list; APPLY loading + muted disabled state when no game is selected.
+
+#### 2. Brand & Icons
+* Theme-aware launcher/splash/chrome Graphite↔Vellum marks; refreshed Graphite plate art across mipmaps, storelisting, and fastlane.
+
+#### 3. Theme Reliability
+* Deferred launcher-alias sync avoids activity teardown on theme change.
+* SYSTEM reads night mode from `applicationContext` (not a Vellum-wrapped activity config).
+
+#### 4. Version Bump
+* `versionCode 5→6`, `versionName 1.4→1.5` in `app/build.gradle.kts` and About fallback; toolbox displays 1.5.
+
+See `docs/release-notes-v1.5.md` and `fastlane/metadata/android/en-US/changelogs/6.txt`.
+
+---
+
 ## Version 1.4 (Build 5) — FPS Accuracy & Performance
 
 **Release Date:** August 26, 2026  
