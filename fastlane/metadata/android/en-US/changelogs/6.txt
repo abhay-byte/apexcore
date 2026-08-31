@@ -1,7 +1,7 @@
 Iron UI & Brand Update (v1.5):
-• Tuning Room Iron controls: custom ruler slider, themed select/dialogs, readable contrast (no Material3 sliders).
+• Tuning Room Iron controls: custom ruler slider, themed select/dialogs, readable contrast.
 • Max Perf scrolls with the list; APPLY shows loading and mutes when no game is selected.
-• Official Graphite/Vellum brand marks — theme-aware launcher, splash, and in-app chrome.
-• SYSTEM theme follows real device dark mode; theme switching no longer closes the app.
+• Official Graphite/Vellum marks — theme-aware launcher, splash, and in-app chrome.
+• SYSTEM follows real device dark mode; theme switching no longer closes the app.
 • Refreshed dark Graphite icon across launcher, store, and chrome.
 • Version 1.5 (Build 6) — Target SDK 36, Min SDK 24.
