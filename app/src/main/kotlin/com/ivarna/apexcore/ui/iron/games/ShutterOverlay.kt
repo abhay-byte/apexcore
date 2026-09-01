@@ -34,6 +34,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
@@ -41,14 +42,51 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.ivarna.apexcore.ui.iron.Iron
 import com.ivarna.apexcore.ui.iron.IronMotion
+import com.ivarna.apexcore.ui.iron.IronSkin
 import com.ivarna.apexcore.ui.iron.IronType
 import com.ivarna.apexcore.ui.iron.LocalReducedMotion
 import com.ivarna.apexcore.ui.iron.StampInk
 import com.ivarna.apexcore.ui.iron.StampLabel
 import com.ivarna.apexcore.ui.iron.ironGrain
+import com.ivarna.apexcore.ui.iron.ironSkin
 import com.ivarna.apexcore.ui.iron.rememberClack
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/** Hydraulic-press palette — Graphite anvil plates, Vellum paper plates. */
+private data class ShutterPalette(
+    val plate: Color,
+    val grid: Color,
+    val contour: Color,
+    val dim: Color,
+    val iconWell: Color,
+    val text: Color,
+    val textDim: Color,
+    val tickOff: Color,
+) {
+    companion object {
+        fun from(skin: IronSkin): ShutterPalette =
+            if (skin.isPaper) ShutterPalette(
+                plate = Iron.Bone100,
+                grid = Iron.Ink600.copy(alpha = 0.22f),
+                contour = Iron.Ink600.copy(alpha = 0.35f),
+                dim = Iron.Ink900.copy(alpha = 0.28f),
+                iconWell = Iron.Bone50,
+                text = Iron.Ink900,
+                textDim = Iron.Ink600,
+                tickOff = Iron.Ink600.copy(alpha = 0.40f),
+            ) else ShutterPalette(
+                plate = Iron.Anvil900,
+                grid = Iron.Anvil700,
+                contour = Iron.Anvil600,
+                dim = Iron.Anvil950,
+                iconWell = Iron.Anvil900,
+                text = Iron.Bone300,
+                textDim = Iron.Bone500,
+                tickOff = Iron.Anvil600,
+            )
+    }
+}
 
 /* ═══ The hydraulic press — renders LaunchState, fires the haptics ════ */
 
@@ -60,6 +98,7 @@ fun ShutterOverlay(
 ) {
     val clack = rememberClack()
     val reduced = LocalReducedMotion.current
+    val pal = ShutterPalette.from(ironSkin())
 
     // 0 = fully open (off-screen) · 1 = closed (seam meet)
     val plateTop = remember { Animatable(0f) }
@@ -207,12 +246,13 @@ fun ShutterOverlay(
                 Modifier
                     .fillMaxSize()
                     .graphicsLayer { alpha = scrim.value }
-                    .background(Iron.Anvil900)
+                    .background(pal.plate)
                     .ironGrain(0.05f)
             )
             // Reduced motion still shows selected app identity — keep status below the logo.
             LaunchAppIcon(
                 state = state,
+                pal = pal,
                 iconAppear = { iconAppear.value },
                 iconAlpha = { iconAlpha.value },
                 squash = { 0f },
@@ -228,6 +268,7 @@ fun ShutterOverlay(
             ) {
                 CenterStatus(
                     state,
+                    pal,
                     Modifier
                         .align(Alignment.Center)
                         .offset(y = 56.dp)
@@ -246,11 +287,12 @@ fun ShutterOverlay(
                     val closed = (plateTop.value + plateBottom.value) / 2f
                     alpha = closed * 0.55f
                 }
-                .background(Iron.Anvil950)
+                .background(pal.dim)
         )
 
         PressPlate(
-            Modifier
+            pal = pal,
+            modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
                 .fillMaxHeight(0.5f)
@@ -259,10 +301,11 @@ fun ShutterOverlay(
                 .graphicsLayer {
                     // closed=0 translation; open=fully off-screen; scrub nudges open
                     translationY = -size.height * ((1f - plateTop.value) + backScrub * 0.22f)
-                }
+                },
         )
         PressPlate(
-            Modifier
+            pal = pal,
+            modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .fillMaxHeight(0.5f)
@@ -270,7 +313,7 @@ fun ShutterOverlay(
                 .testTag("launch_press_bottom")
                 .graphicsLayer {
                     translationY = size.height * ((1f - plateBottom.value) + backScrub * 0.22f)
-                }
+                },
         )
 
         // Vertical stack with clear bands so logo never sits on the readout:
@@ -285,6 +328,7 @@ fun ShutterOverlay(
 
         LaunchAppIcon(
             state = state,
+            pal = pal,
             iconAppear = { iconAppear.value },
             iconAlpha = { iconAlpha.value },
             squash = { squash.value },
@@ -302,6 +346,7 @@ fun ShutterOverlay(
                 .graphicsLayer { alpha = seamAlpha() },
         ) {
             SeamCanvas(
+                pal = pal,
                 tickFill = { tickFill.value },
                 scanX = { scanX },
                 scanning = state.phase == LaunchPhase.FREEZE,
@@ -324,7 +369,7 @@ fun ShutterOverlay(
             Text(
                 it,
                 style = IronType.Mono,
-                color = Iron.Bone300,
+                color = pal.text,
                 modifier = Modifier
                     .align(Alignment.Center)
                     .offset(y = 28.dp)
@@ -346,7 +391,7 @@ fun ShutterOverlay(
                 state.errorTitle?.let { StampLabel(it, StampInk.Ember) }
                 Spacer(Modifier.height(10.dp))
                 state.errorDetail?.let {
-                    Text(it, style = IronType.MonoSm, color = Iron.Bone500)
+                    Text(it, style = IronType.MonoSm, color = pal.textDim)
                 }
             }
         }
@@ -356,6 +401,7 @@ fun ShutterOverlay(
 @Composable
 private fun LaunchAppIcon(
     state: LaunchState,
+    pal: ShutterPalette,
     iconAppear: () -> Float,
     iconAlpha: () -> Float,
     squash: () -> Float,
@@ -375,7 +421,7 @@ private fun LaunchAppIcon(
             }
             .size(88.dp)
             .clip(CircleShape)
-            .background(Iron.Anvil900)
+            .background(pal.iconWell)
             .border(2.dp, Iron.Brass400, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
@@ -387,12 +433,12 @@ private fun LaunchAppIcon(
 }
 
 @Composable
-private fun CenterStatus(state: LaunchState, modifier: Modifier = Modifier) {
+private fun CenterStatus(state: LaunchState, pal: ShutterPalette, modifier: Modifier = Modifier) {
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         if (state.errorTitle != null) {
             StampLabel(state.errorTitle!!, StampInk.Ember)
             Spacer(Modifier.height(8.dp))
-            Text(state.errorDetail.orEmpty(), style = IronType.MonoSm, color = Iron.Bone500)
+            Text(state.errorDetail.orEmpty(), style = IronType.MonoSm, color = pal.textDim)
         } else {
             Text(
                 if (state.totalTargets > 0) {
@@ -403,17 +449,19 @@ private fun CenterStatus(state: LaunchState, modifier: Modifier = Modifier) {
                     "PREPARING…"
                 },
                 style = IronType.Mono,
-                color = Iron.Bone300,
+                color = pal.text,
             )
         }
     }
 }
 
 @Composable
-private fun PressPlate(modifier: Modifier) {
+private fun PressPlate(pal: ShutterPalette, modifier: Modifier) {
+    val grid = pal.grid
+    val contour = pal.contour
     Box(
         modifier
-            .background(Iron.Anvil900)
+            .background(pal.plate)
             .ironGrain(0.05f)
             .drawWithCache {
                 val step = 24.dp.toPx()
@@ -421,22 +469,21 @@ private fun PressPlate(modifier: Modifier) {
                 val hCount = (size.height / step).toInt() + 1
                 val arc1 = Size(size.width * 0.9f, size.height * 1.4f)
                 onDrawBehind {
-                    val g = Iron.Anvil700
                     val w = 0.75.dp.toPx()
                     repeat(vCount) { i ->
-                        drawLine(g, Offset(i * step, 0f), Offset(i * step, size.height), w)
+                        drawLine(grid, Offset(i * step, 0f), Offset(i * step, size.height), w)
                     }
                     repeat(hCount) { i ->
-                        drawLine(g, Offset(0f, i * step), Offset(size.width, i * step), w)
+                        drawLine(grid, Offset(0f, i * step), Offset(size.width, i * step), w)
                     }
-                    // Topographic contour arcs — survey nod on each anvil.
+                    // Topographic contour arcs — survey nod on each press plate.
                     drawArc(
-                        Iron.Anvil600, 200f, 120f, false,
+                        contour, 200f, 120f, false,
                         topLeft = Offset(-size.width * 0.2f, size.height * 0.1f),
                         size = arc1, style = Stroke(1.dp.toPx()),
                     )
                     drawArc(
-                        Iron.Anvil600, 20f, 140f, false,
+                        contour, 20f, 140f, false,
                         topLeft = Offset(size.width * 0.55f, -size.height * 0.3f),
                         size = arc1, style = Stroke(1.dp.toPx()),
                     )
@@ -447,12 +494,14 @@ private fun PressPlate(modifier: Modifier) {
 
 @Composable
 private fun SeamCanvas(
+    pal: ShutterPalette,
     tickFill: () -> Float,
     scanX: () -> Float,
     scanning: Boolean,
     tickCount: Int,
     optimized: Boolean,
 ) {
+    val tickOff = pal.tickOff
     Canvas(
         Modifier
             .fillMaxWidth(0.86f)
@@ -473,7 +522,7 @@ private fun SeamCanvas(
                 val x = size.width * (i + 0.5f) / n
                 val on = i < lit
                 drawLine(
-                    if (on) Iron.Brass400 else Iron.Anvil600,
+                    if (on) Iron.Brass400 else tickOff,
                     Offset(x, cy + 3.dp.toPx()),
                     Offset(x, cy + 3.dp.toPx() + tickH),
                     w,

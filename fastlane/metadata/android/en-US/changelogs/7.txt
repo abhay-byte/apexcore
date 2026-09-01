@@ -1,0 +1,5 @@
+Field Manual & Launch Polish (v1.6):
+• Field Manual page turns no longer leave previous spread elements lingering.
+• FIG.01 dial needle sits on the hub with a proper exploded callout trail.
+• ALLOCATE & LAUNCH hydraulic press follows Vellum (paper plates) or Graphite.
+• Version 1.6 (Build 7) — Target SDK 36, Min SDK 24.

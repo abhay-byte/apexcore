@@ -164,6 +164,7 @@ fun FigArtwork(figure: Int, modifier: Modifier = Modifier) {
                 )
             }
             1 -> {
+                // Exploded dial: needle belongs on the hub (not a stub outside the ring).
                 val c = Offset(d(95), d(72))
                 drawCircle(ic, d(44), c, style = Stroke(w))
                 repeat(16) { i ->
@@ -173,16 +174,22 @@ fun FigArtwork(figure: Int, modifier: Modifier = Modifier) {
                         Offset(c.x + cos(a) * d(50), c.y + sin(a) * d(50)), w
                     )
                 }
+                // Signal needle from center (upper-right) + short counterweight tail.
+                val tip = Offset(c.x + d(28), c.y - d(30))
+                val tail = Offset(c.x - d(10), c.y + d(11))
+                drawLine(ac, c, tip, 2.5f * s)
+                drawLine(ic, c, tail, w)
+                drawCircle(Iron.Brass400, d(4), c)
+                // Dashed alignment trail continuing past the tip (exploded callout).
                 drawPath(
                     Path().apply {
-                        moveTo(c.x, c.y)
+                        moveTo(tip.x, tip.y)
                         lineTo(d(148), d(40))
+                        lineTo(d(172), d(16))
                     },
                     ic,
                     style = Stroke(w, pathEffect = PathEffect.dashPathEffect(floatArrayOf(4f * s, 4f * s)))
                 )
-                drawLine(ac, Offset(d(148), d(40)), Offset(d(172), d(16)), 2.5f * s)
-                drawCircle(Iron.Brass400, d(4), Offset(d(148), d(40)))
                 repeat(6) { i ->
                     val x = d(128 + i * 12)
                     val y = d(148 + (i % 3) * 14)

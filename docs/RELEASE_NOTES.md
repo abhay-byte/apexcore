@@ -2,6 +2,34 @@
 
 ---
 
+## Version 1.6 (Build 7) — Field Manual & Launch Polish
+
+**Release Date:** September 1, 2026  
+**Target SDK:** 36 (Android 16 Ready)  
+**Min SDK:** 24 (Android 7.0+)
+
+### Highlights
+
+Version 1.6 cleans Field Manual page-turn bleed, fixes the FIG.01 dial needle so it sits on the hub, and themes the ALLOCATE & LAUNCH hydraulic press for Vellum (paper) as well as Graphite (anvil).
+
+### Key Improvements
+
+#### 1. Field Manual Transitions
+* Per-page clip and page-width parallax; no lingering previous-spread elements during pager turns.
+
+#### 2. FIG.01 Dial
+* Hub-centered needle with counterweight and dashed exploded callout trail.
+
+#### 3. Theme-Aware Launch Shutter
+* `ShutterOverlay` `ShutterPalette` from `ironSkin()` — Bone/ink on Vellum, Anvil on Graphite.
+
+#### 4. Version Bump
+* `versionCode 6→7`, `versionName 1.5→1.6` in `app/build.gradle.kts` and About fallback; toolbox displays 1.6.
+
+See `docs/release-notes-v1.6.md` and `fastlane/metadata/android/en-US/changelogs/7.txt`.
+
+---
+
 ## Version 1.5 (Build 6) — Iron UI, Brand & Theme Reliability
 
 **Release Date:** August 31, 2026  

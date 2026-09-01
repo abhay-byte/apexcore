@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalView
@@ -143,11 +144,14 @@ private fun ManualSingle(
                     }
 
                     HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { p ->
-                        when (p) {
-                            0 -> CoverPage(pagerState)
-                            in 1..3 -> FigurePageContent(p, pagerState, pageIndex = p)
-                            else -> KeyPage(pagerState, shizuku, root, selectedBackend,
-                                onSelect, onConfigureShizuku, onGrantRoot)
+                        // Clip per page so parallax cannot bleed previous content onto the next page.
+                        Box(Modifier.fillMaxSize().clipToBounds()) {
+                            when (p) {
+                                0 -> CoverPage(pagerState)
+                                in 1..3 -> FigurePageContent(p, pagerState, pageIndex = p)
+                                else -> KeyPage(pagerState, shizuku, root, selectedBackend,
+                                    onSelect, onConfigureShizuku, onGrantRoot)
+                            }
                         }
                     }
 
@@ -194,13 +198,15 @@ internal fun RulerPager(count: Int, active: Int) {
     }
 }
 
+/** §7.2 parallax — factor 0 = moves with page, 1 = pinned to screen. Uses pager page width. */
 internal fun Modifier.manualParallax(
     pagerState: androidx.compose.foundation.pager.PagerState,
     page: Int, factor: Float, reduced: Boolean,
 ): Modifier = graphicsLayer {
     if (reduced) return@graphicsLayer
+    val pageWidth = pagerState.layoutInfo.pageSize.toFloat().takeIf { it > 0f } ?: size.width
     val distance = pagerState.currentPage + pagerState.currentPageOffsetFraction - page
-    translationX = distance * size.width * factor
+    translationX = distance * pageWidth * factor
 }
 
 @Composable
@@ -244,8 +250,7 @@ internal fun FigurePageContent(
     val (kicker, title, body) = pageData[figure]
     Box(Modifier.fillMaxSize().padding(20.dp)) {
         Column(
-            Modifier.fillMaxWidth().padding(top = 8.dp)
-                .manualParallax(pagerState, pageIndex, textFactor * 0.4f, reduced),
+            Modifier.fillMaxWidth().padding(top = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             FigFrame(
@@ -261,6 +266,7 @@ internal fun FigurePageContent(
             Spacer(Modifier.height(10.dp))
             Text(body, style = IronType.Body, color = ironSkin().textDim, modifier = Modifier.padding(horizontal = 8.dp))
         }
+        // Margin doodle — deepest layer; page clip keeps it from bleeding into neighbors.
         Column(
             Modifier.align(Alignment.BottomEnd).padding(end = 4.dp, bottom = 12.dp)
                 .manualParallax(pagerState, pageIndex, textFactor, reduced),

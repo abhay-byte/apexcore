@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ivarna.apexcore.ui.iron.*
@@ -78,85 +79,88 @@ internal fun ManualSpread(
                 }
 
                 HorizontalPager(state = pagerState, modifier = Modifier.weight(1f)) { spread ->
-                    when (spread) {
-                        0 -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CoverPage(pagerState, figureSize = 260.dp)
-                        }
-                        1 -> OpenSpread(
-                            left = {
-                                FigurePageContent(
-                                    figure = 1,
-                                    pagerState = pagerState,
-                                    pageIndex = spread,
-                                    figureFactor = 0.35f,
-                                    textFactor = 0.15f,
-                                )
-                            },
-                            right = {
-                                FigurePageContent(
-                                    figure = 2,
-                                    pagerState = pagerState,
-                                    pageIndex = spread,
-                                    figureFactor = 0.35f,
-                                    textFactor = 0.15f,
-                                )
-                            },
-                        )
-                        else -> OpenSpread(
-                            left = {
-                                FigurePageContent(
-                                    figure = 3,
-                                    pagerState = pagerState,
-                                    pageIndex = spread,
-                                    figureFactor = 0.35f,
-                                    textFactor = 0.15f,
-                                )
-                            },
-                            right = {
-                                Column(
-                                    Modifier
-                                        .fillMaxSize()
-                                        .verticalScroll(rememberScrollState())
-                                        .padding(24.dp)
-                                ) {
-                                    Text(
-                                        "04 · SYSTEM ACCESS",
-                                        style = IronType.MonoSm,
-                                        color = accentColor(),
-                                        letterSpacing = 1.5.sp,
+                    // Clip per spread so parallax cannot bleed previous content onto the next page.
+                    Box(Modifier.fillMaxSize().clipToBounds()) {
+                        when (spread) {
+                            0 -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                CoverPage(pagerState, figureSize = 260.dp)
+                            }
+                            1 -> OpenSpread(
+                                left = {
+                                    FigurePageContent(
+                                        figure = 1,
+                                        pagerState = pagerState,
+                                        pageIndex = spread,
+                                        figureFactor = 0.35f,
+                                        textFactor = 0.15f,
                                     )
-                                    Text(
-                                        "Elevate Your Control",
-                                        style = IronType.Title.copy(fontSize = 22.sp),
-                                        color = skin.text,
+                                },
+                                right = {
+                                    FigurePageContent(
+                                        figure = 2,
+                                        pagerState = pagerState,
+                                        pageIndex = spread,
+                                        figureFactor = 0.35f,
+                                        textFactor = 0.15f,
                                     )
-                                    Spacer(Modifier.height(12.dp))
-                                    KeyCard(
-                                        BackendChoice.SHIZUKU, shizuku,
-                                        selectedBackend == BackendChoice.SHIZUKU,
-                                        onPaper = skin.isPaper,
-                                        badge = "RECOMMENDED",
-                                        onUse = { onSelect(BackendChoice.SHIZUKU) },
-                                        onConfigure = onConfigureShizuku,
+                                },
+                            )
+                            else -> OpenSpread(
+                                left = {
+                                    FigurePageContent(
+                                        figure = 3,
+                                        pagerState = pagerState,
+                                        pageIndex = spread,
+                                        figureFactor = 0.35f,
+                                        textFactor = 0.15f,
                                     )
-                                    Spacer(Modifier.height(12.dp))
-                                    KeyCard(
-                                        BackendChoice.ROOT, root,
-                                        selectedBackend == BackendChoice.ROOT,
-                                        onPaper = skin.isPaper,
-                                        badge = null,
-                                        onUse = { onSelect(BackendChoice.ROOT) },
-                                        onConfigure = onGrantRoot,
-                                    )
-                                    Spacer(Modifier.height(8.dp))
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        DoodleStar()
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("~ pick your key", style = IronType.Hand, color = skin.textDim)
+                                },
+                                right = {
+                                    Column(
+                                        Modifier
+                                            .fillMaxSize()
+                                            .verticalScroll(rememberScrollState())
+                                            .padding(24.dp)
+                                    ) {
+                                        Text(
+                                            "04 · SYSTEM ACCESS",
+                                            style = IronType.MonoSm,
+                                            color = accentColor(),
+                                            letterSpacing = 1.5.sp,
+                                        )
+                                        Text(
+                                            "Elevate Your Control",
+                                            style = IronType.Title.copy(fontSize = 22.sp),
+                                            color = skin.text,
+                                        )
+                                        Spacer(Modifier.height(12.dp))
+                                        KeyCard(
+                                            BackendChoice.SHIZUKU, shizuku,
+                                            selectedBackend == BackendChoice.SHIZUKU,
+                                            onPaper = skin.isPaper,
+                                            badge = "RECOMMENDED",
+                                            onUse = { onSelect(BackendChoice.SHIZUKU) },
+                                            onConfigure = onConfigureShizuku,
+                                        )
+                                        Spacer(Modifier.height(12.dp))
+                                        KeyCard(
+                                            BackendChoice.ROOT, root,
+                                            selectedBackend == BackendChoice.ROOT,
+                                            onPaper = skin.isPaper,
+                                            badge = null,
+                                            onUse = { onSelect(BackendChoice.ROOT) },
+                                            onConfigure = onGrantRoot,
+                                        )
+                                        Spacer(Modifier.height(8.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            DoodleStar()
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("~ pick your key", style = IronType.Hand, color = skin.textDim)
+                                        }
                                     }
-                                }
-                            },
-                        )
+                                },
+                            )
+                        }
                     }
                 }
 
