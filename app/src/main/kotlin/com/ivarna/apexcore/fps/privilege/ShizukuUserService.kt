@@ -46,10 +46,27 @@ class ShizukuUserService : IPrivilegedExecutor.Stub() {
             outThread.start()
             errThread.start()
 
-            val finished = process.waitFor(safeTimeout, TimeUnit.MILLISECONDS)
+            val finished = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                process.waitFor(safeTimeout, TimeUnit.MILLISECONDS)
+            } else {
+                val start = System.currentTimeMillis()
+                var done = false
+                while (System.currentTimeMillis() - start < safeTimeout) {
+                    try {
+                        process.exitValue()
+                        done = true
+                        break
+                    } catch (_: IllegalThreadStateException) {
+                        Thread.sleep(20L)
+                    }
+                }
+                done
+            }
             if (!finished) {
                 process.destroy()
-                process.destroyForcibly()
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    process.destroyForcibly()
+                }
                 outThread.interrupt()
                 errThread.interrupt()
                 return Bundle().apply {

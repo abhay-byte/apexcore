@@ -27,13 +27,11 @@ class WatchdogUnknownFailsTowardRestoreTest {
 
         val resolver = FreezeBackendResolver(listOf(TestFreezeBackend("Root", 0, ready = true)))
         FreezeFramework.setResolverForTest(resolver)
-        FreezeFramework.setActiveBackendForTest(TestFreezeBackend("Root", 0, ready = true))
     }
 
     @After
     fun tearDown() {
         FreezeFramework.setResolverForTest(null)
-        FreezeFramework.setActiveBackendForTest(null)
     }
 
     @Test

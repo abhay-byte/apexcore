@@ -702,7 +702,12 @@ fun MainScreen(
                         action = { probeKeys() }
                     )
                 ),
-                versionName = try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.6" } catch (_: Throwable) { "1.6" },
+                versionName = try {
+                    val info = context.packageManager.getPackageInfo(context.packageName, 0)
+                    val ver = info.versionName ?: "1.7"
+                    val code = if (android.os.Build.VERSION.SDK_INT >= 28) info.longVersionCode else @Suppress("DEPRECATION") info.versionCode.toLong()
+                    "$ver · BUILD $code"
+                } catch (_: Throwable) { "1.7 · BUILD 8" },
                 onPrivacy = { ironSlot = IronSlot.LEDGER },
                 onTour = { showReplayManual = true }
             )

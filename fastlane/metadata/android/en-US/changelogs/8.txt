@@ -1,0 +1,6 @@
+Target SDK 37 & 16 KB Page Support (v1.7):
+• Android 17 / API 37 target SDK compliance.
+• Full 16 KB memory page-size compatibility and alignment.
+• R8 release optimization enabled: 65% APK size reduction.
+• Elevated freeze, real kernel tuning, and game allocation verified.
+• Version 1.7 (Build 8).

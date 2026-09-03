@@ -330,18 +330,31 @@ class GameOverlayService : Service() {
     }
 
     private fun createNotificationChannel() {
-        val ch = NotificationChannel(CHANNEL_ID, "Game Overlay", NotificationManager.IMPORTANCE_LOW).apply {
-            setShowBadge(false)
-            lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val ch = NotificationChannel(CHANNEL_ID, "Game Overlay", NotificationManager.IMPORTANCE_LOW).apply {
+                setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+            }
+            (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(ch)
         }
-        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).createNotificationChannel(ch)
     }
 
-    private fun buildNotification(): Notification =
-        Notification.Builder(this, CHANNEL_ID)
-            .setContentTitle("ApexCore Overlay")
-            .setContentText(gamePkg?.let { "Monitoring $it" } ?: "Game performance overlay active")
-            .setSmallIcon(R.drawable.ic_stat_apex)
-            .setOngoing(true)
-            .build()
+    private fun buildNotification(): Notification {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Notification.Builder(this, CHANNEL_ID)
+                .setContentTitle("ApexCore Overlay")
+                .setContentText(gamePkg?.let { "Monitoring $it" } ?: "Game performance overlay active")
+                .setSmallIcon(R.drawable.ic_stat_apex)
+                .setOngoing(true)
+                .build()
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+                .setContentTitle("ApexCore Overlay")
+                .setContentText(gamePkg?.let { "Monitoring $it" } ?: "Game performance overlay active")
+                .setSmallIcon(R.drawable.ic_stat_apex)
+                .setOngoing(true)
+                .build()
+        }
+    }
 }

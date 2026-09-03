@@ -80,6 +80,7 @@ object TuneSessionWatchdog {
         watchdogJob = null
     }
 
+    @android.annotation.SuppressLint("MissingPermission")
     fun queryUsageStatsTop(context: Context): String? {
         return try {
             val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager

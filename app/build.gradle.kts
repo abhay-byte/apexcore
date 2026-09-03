@@ -32,8 +32,8 @@ android {
         applicationId = applicationIdOverride ?: "com.ivarna.apexcore"
         minSdk = 24
         targetSdk = 37
-        versionCode = 7
-        versionName = "1.6"
+        versionCode = 8
+        versionName = "1.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
@@ -59,10 +59,6 @@ android {
     buildFeatures {
         compose = true
         aidl = true
-    }
-    lint {
-        abortOnError = false
-        checkReleaseBuilds = false
     }
 }
 

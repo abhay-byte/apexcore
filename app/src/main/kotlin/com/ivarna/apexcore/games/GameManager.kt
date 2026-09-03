@@ -56,9 +56,14 @@ class GameManager(context: Context) {
             @Suppress("DEPRECATION") pm.getInstalledApplications(PackageManager.GET_META_DATA)
         }
         infoList.filter { app ->
+            val isGameCategory = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                app.category == ApplicationInfo.CATEGORY_GAME
+            } else {
+                false
+            }
             app.packageName !in existing &&
                 app.packageName != context.packageName &&
-                (app.category == ApplicationInfo.CATEGORY_GAME || hasGameMeta(app))
+                (isGameCategory || hasGameMeta(app))
         }.map { app ->
             val label = pm.getApplicationLabel(app)?.toString() ?: app.packageName
             GameInfo(app.packageName, label, isAutoDetected = true)

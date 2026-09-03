@@ -69,6 +69,7 @@ class Clack(private val view: View) {
         }
     }
 
+    @android.annotation.SuppressLint("MissingPermission")
     fun thud() {
         if (gate.allow()) {
             if (Build.VERSION.SDK_INT >= 29) {
