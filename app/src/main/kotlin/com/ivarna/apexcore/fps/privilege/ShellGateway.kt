@@ -23,7 +23,7 @@ data class WriteResult(
 
 /** Tier-aware command/mutation gateway. UserService is the primary Shizuku path. */
 class ShellGateway(
-    private val shellExecutor: ShellExecutor,
+    internal val shellExecutor: ShellExecutor,
     private val store: PrivilegeModeStore,
     context: Context? = null
 ) {

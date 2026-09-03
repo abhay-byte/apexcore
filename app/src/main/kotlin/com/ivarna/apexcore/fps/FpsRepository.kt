@@ -283,13 +283,8 @@ class FpsRepositoryImpl(
     private fun resolveGpuVendor(): GpuVendor {
         cachedGpuVendor?.let { return it }
         val vendor = try {
-            // shellGateway may be null in tests
             if (shellGateway != null) {
-                // Use executor from gateway if available, else null
-                val execField = shellGateway.javaClass.getDeclaredField("shellExecutor")
-                execField.isAccessible = true
-                val exec = execField.get(shellGateway) as? com.ivarna.apexcore.fps.util.ShellExecutor
-                GpuVendorDetector.detect(exec)
+                GpuVendorDetector.detect(shellGateway.shellExecutor)
             } else {
                 GpuVendorDetector.detect(null as com.ivarna.apexcore.fps.util.ShellExecutor?)
             }

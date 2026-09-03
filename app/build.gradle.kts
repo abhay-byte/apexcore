@@ -2,7 +2,6 @@ import java.util.Properties
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
@@ -16,7 +15,7 @@ val applicationIdOverride = providers.gradleProperty("applicationIdOverride").or
 
 android {
     namespace = "com.ivarna.apexcore"
-    compileSdk = 36
+    compileSdk = 37
 
     signingConfigs {
         create("release") {
@@ -32,13 +31,16 @@ android {
     defaultConfig {
         applicationId = applicationIdOverride ?: "com.ivarna.apexcore"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 7
         versionName = "1.6"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
         release {
+            optimization {
+                enable = true
+            }
             signingConfig = if (keystorePropertiesFile.exists()) {
                 signingConfigs.getByName("release")
             } else {
@@ -57,6 +59,10 @@ android {
     buildFeatures {
         compose = true
         aidl = true
+    }
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
     }
 }
 

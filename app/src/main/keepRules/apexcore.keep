@@ -1,0 +1,8 @@
+# Keep rules for ApexCore release builds
+
+# rikka.shizuku.Shizuku is dynamically reflected in LegacyShizukuProcessExecutor
+# using Class.forName("rikka.shizuku.Shizuku").declaredMethods
+# Keep class and the deprecated newProcess method so reflection doesn't fail.
+-keep class rikka.shizuku.Shizuku {
+    public static java.lang.Process newProcess(java.lang.String[], java.lang.String[], java.lang.String);
+}
